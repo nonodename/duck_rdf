@@ -17,6 +17,7 @@ set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
 set(EXTENSION_SOURCES
     src/rdf_extension.cpp
+    src/r2rml_copy.cpp
     src/serd_buffer.cpp
     src/rdf_xml_parser.cpp
     src/xml_buffer.cpp
