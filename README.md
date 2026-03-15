@@ -226,6 +226,7 @@ Test for this extension are SQL tests in `./test/sql`. They rely on a samples in
 ```sh
 make test
 ```
+Note that the SPARQL tests require an internet connection to be able to reach out to Wikidata query service.  
 
 ### Installing the deployed binaries
 To install from GitHub actions:

@@ -29,3 +29,14 @@ SELECT COUNT(*), COUNT(DISTINCT a) FROM read_sparql(
 );
 ----
 2	2
+
+# Quoted field containing a newline — the CSV value will be quoted and span two
+# physical lines; verify it arrives as a single 7-character string rather than
+# being split into two rows.
+query I
+SELECT length(x) FROM read_sparql(
+    'https://query.wikidata.org/sparql',
+    'SELECT ?x WHERE { VALUES ?x { "foo\nbar" } }'
+);
+----
+7

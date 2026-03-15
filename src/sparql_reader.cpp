@@ -240,7 +240,7 @@ static void SPARQLFunc(ClientContext &context, TableFunctionInput &input, DataCh
 	if (start >= num_rows) {
 		return; // signals end of scan to DuckDB
 	}
-	idx_t end = std::min(start + (idx_t)STANDARD_VECTOR_SIZE, num_rows);
+	idx_t end = (std::min)(start + (idx_t)STANDARD_VECTOR_SIZE, num_rows);
 	idx_t count = end - start;
 
 	// Populate output vectors
