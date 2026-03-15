@@ -112,6 +112,42 @@ SELECT * FROM read_rdf('data/shards/*.dat', file_type = 'ttl', strict_parsing = 
 
 If the pattern matches no files an `IO Error` is raised.
 
+## Querying SPARQL Endpoints
+
+The experimental `read_sparql(endpoint, query)` sends a SPARQL SELECT query to a remote endpoint and returns the result set as a DuckDB table. Column names are derived from the SPARQL variable names; all columns are VARCHAR. Unbound variables are returned as empty strings.
+
+Only non authenticated SPARQL end points are supported at this time, but a future version could use  `ATTACH` and secrets to bind more complex end points.
+
+```sql
+-- Simple value lookup — returns one row with column "x"
+SELECT x FROM read_sparql(
+    'https://query.wikidata.org/sparql',
+    'SELECT ?x WHERE { VALUES ?x { "hello" } }'
+);
+```
+
+```
+┌─────────┐
+│    x    │
+│ varchar │
+├─────────┤
+│ hello   │
+└─────────┘
+```
+
+```sql
+-- Count results
+SELECT COUNT(*) FROM read_sparql(
+    'https://query.wikidata.org/sparql',
+    'SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 100'
+);
+```
+
+**Notes:**
+- Only anonymous (unauthenticated) endpoints are supported.
+- The entire result set is fetched at query-planning time; very large result sets will consume significant memory.
+- Both HTTP and HTTPS endpoints are supported.
+
 ## _Experimental_ RDF write support
 
 The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) mapping file, DuckDB's `COPY TO` syntax and the [SQL2RDF++](https://github.com/nonodename/sql2rdf) library. Two modes are supported, and the correct one is chosen automatically based on the mapping.
@@ -190,6 +226,7 @@ Test for this extension are SQL tests in `./test/sql`. They rely on a samples in
 ```sh
 make test
 ```
+Note that the SPARQL tests require an internet connection to be able to reach out to Wikidata query service.  
 
 ### Installing the deployed binaries
 To install from GitHub actions:
@@ -252,8 +289,8 @@ When reading multiple files via glob, there's no way to know which triple came f
 3. read_rdf_prefixes() table function
 A companion function that returns the prefix declarations (@prefix / @base) from a Turtle/TriG file. Useful for documentation and for building CURIE-aware tooling.
 
-4. SPARQL endpoint reader
-A read_sparql(endpoint, query) table function that sends a SPARQL SELECT against an HTTP endpoint and returns the result set as a table. This would make the extension a first-class Linked Data integration tool.
+4. SPARQL endpoint reader - DONE
+`read_sparql(endpoint, query)` is now implemented. It sends a SPARQL SELECT against an HTTP/HTTPS endpoint and returns the result set as a table.
 
 ### Performance Enhancements
 5. Projection pushdown -DONE

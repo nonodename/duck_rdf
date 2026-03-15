@@ -52,6 +52,53 @@ SELECT * FROM read_rdf('data.ttl', prefix_expansion = true);
 
 ---
 
+## `read_sparql(endpoint, query)`
+
+Table function. Sends a SPARQL SELECT query to an HTTP/HTTPS endpoint and returns the result set as a table. Column names match the SPARQL variable names; all columns are VARCHAR.
+
+**Parameters**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `endpoint` | VARCHAR | Yes | URL of the SPARQL endpoint (HTTP or HTTPS) |
+| `query` | VARCHAR | Yes | SPARQL SELECT query string |
+
+**Returns**
+
+One VARCHAR column per variable named in the SELECT clause. Unbound variables are returned as empty strings.
+
+**Limitations**
+
+- Anonymous (unauthenticated) endpoints only.
+- The entire result set is fetched at query-planning time; very large result sets will consume significant memory.
+
+**Examples**
+
+```sql
+-- Constant-value query — always returns one row
+SELECT x FROM read_sparql(
+  'https://query.wikidata.org/sparql',
+  'SELECT ?x WHERE { VALUES ?x { "hello" } }'
+);
+
+-- Multi-column result from Wikidata
+SELECT item, itemLabel FROM read_sparql(
+  'https://query.wikidata.org/sparql',
+  'SELECT ?item ?itemLabel WHERE {
+     ?item wdt:P31 wd:Q146 .
+     SERVICE wikibase:label { bd:serviceParam wikibase:language "en" }
+   } LIMIT 5'
+);
+
+-- Aggregate over SPARQL results in DuckDB
+SELECT COUNT(*) FROM read_sparql(
+  'https://query.wikidata.org/sparql',
+  'SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 100'
+);
+```
+
+---
+
 ## `is_valid_r2rml(path)`
 
 Scalar function. Validates an R2RML mapping file.

@@ -1,0 +1,23 @@
+# name: test/sql/read_sparql.test
+# description: test read_sparql table function (error paths, no network required)
+# group: [sql]
+
+require rdf
+
+# Error path: connection refused should produce an IO Error
+statement error
+SELECT * FROM read_sparql('http://localhost:1/sparql', 'SELECT ?x WHERE { VALUES ?x { "hi" } }');
+----
+IO Error:
+
+# Error path: empty endpoint
+statement error
+SELECT * FROM read_sparql('', 'SELECT ?x WHERE { VALUES ?x { "hi" } }');
+----
+Invalid Input Error:
+
+# Error path: empty query
+statement error
+SELECT * FROM read_sparql('http://localhost:1/sparql', '');
+----
+Invalid Input Error:
