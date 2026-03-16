@@ -136,12 +136,21 @@ SELECT x FROM read_sparql(
 ```
 
 ```sql
--- Count results
-SELECT COUNT(*) FROM read_sparql(
-    'https://query.wikidata.org/sparql',
-    'SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 100'
-);
+-- Count number of humans in wikidata
+SELECT * FROM read_sparql(
+             'https://query.wikidata.org/sparql',
+             'SELECT (COUNT(*) AS ?count) WHERE {   ?item wdt:P31 wd:Q5 .}'
+         );
 ```
+
+```
+┌──────────┐
+│  count   │
+│ varchar  │
+├──────────┤
+│ 13074374 │
+└──────────┘
+``` 
 
 **Notes:**
 - Only anonymous (unauthenticated) endpoints are supported.
