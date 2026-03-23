@@ -290,7 +290,8 @@ SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 	if (self->_strict_parsing) {
 		self->_has_error = true;
 		self->_error_message =
-		    "SERD parsing error '" + SerdStatusToString(error->status) + "', at line " + std::to_string(error->line);
+		    "SERD parsing error '" + SerdStatusToString(error->status) + "' in '" + self->_file_path +
+		    "', at line " + std::to_string(error->line) + ", column " + std::to_string(error->col);
 		return SERD_FAILURE;
 	} else
 		return SERD_SUCCESS;

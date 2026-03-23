@@ -7,9 +7,9 @@ require rdf
 statement error
 SELECT COUNT(*) FROM read_rdf('test/rdf/tests_fake.foo', file_type = 'nt');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 4
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests_fake.foo', at line 4
 
 statement error
 SELECT COUNT(*) FROM read_rdf('test/rdf/tests_fake.foo', file_type = 'rdf');
 ----
-Syntax Error: Error: XML parsing error
+Syntax Error: Error in 'test/rdf/tests_fake.foo': XML parsing error at line

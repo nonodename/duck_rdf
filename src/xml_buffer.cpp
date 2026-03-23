@@ -102,5 +102,5 @@ void XMLBuffer::namespaceCallback(const std::string &prefix, const std::string &
 	_parser.addNameSpace(prefix, uri);
 }
 void XMLBuffer::errorCallback(const std::string &msg) {
-	throw duckdb::SyntaxException("Error: " + msg);
+	throw duckdb::SyntaxException("Error in '" + _file_path + "': " + msg);
 }
