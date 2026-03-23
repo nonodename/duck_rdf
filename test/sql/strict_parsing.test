@@ -10,13 +10,13 @@ require rdf
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.nt');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 6
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad-uri.nt', at line 6
 
 # Bad ntriples with explicit strict parsing
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.nt', strict_parsing = true);
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 6
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad-uri.nt', at line 6
 
 # Bad ntriples ignored by lax parsing
 query T
@@ -28,13 +28,13 @@ select count(*) from read_rdf('test/rdf/tests-bad-uri.nt',strict_parsing = false
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.nq');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 7
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad-uri.nq', at line 7
 
 # Bad ntriples with explicit strict parsing
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.nq', strict_parsing = true);
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 7
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad-uri.nq', at line 7
 
 # Bad ntriples ignored by lax parsing
 query T
@@ -46,13 +46,13 @@ select count(*) from read_rdf('test/rdf/tests-bad-uri.nq',strict_parsing = false
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.trig');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 7
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad-uri.trig', at line 7
 
 # Bad ntriples with explicit strict parsing
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.trig', strict_parsing = true);
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 7
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad-uri.trig', at line 7
 
 # Bad ntriples ignored by lax parsing
 query T
@@ -64,13 +64,13 @@ select count(*) from read_rdf('test/rdf/tests-bad-uri.trig',strict_parsing = fal
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.ttl');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 12
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad-uri.ttl', at line 12
 
 # Bad ntriples with explicit strict parsing
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.ttl', strict_parsing = true);
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 12
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad-uri.ttl', at line 12
 
 # Bad ntriples ignored by lax parsing
 query T
