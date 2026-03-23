@@ -312,7 +312,7 @@ The README itself notes this: ClientContextSQLConnection::execute() materializes
 R2RMLCopyExecutionMode returns REGULAR_COPY_TO_FILE (single-threaded). For inside-out mode, writing to multiple output shards in parallel (like DuckDB's Parquet writer does) could significantly improve throughput on large datasets.
 
 ### Correctness / UX
-8. Better error location reporting
+8. Better error location reporting - DONE
 ErrorCallBack captures the line number but not the column or file path. For glob reads with multiple files, errors are unattributed. Including the file path in the SyntaxException message would save a lot of debugging time.
 
 9. Skip-count in non-strict mode

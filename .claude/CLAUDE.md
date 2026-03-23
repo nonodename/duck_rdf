@@ -27,7 +27,7 @@ make test
 # Run tests against debug build
 make test_debug
 
-# Format check
+# Format check (run before a commit)
 make format
 
 # Static analysis
