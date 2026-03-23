@@ -42,7 +42,9 @@ void RdfXmlParser::parseChunk(const char *chunk, int size, bool is_final) {
 	if (!_ctxt)
 		throw std::runtime_error("Failed to create XML parser context");
 	if (xmlParseChunk(_ctxt.get(), chunk, size, is_final) != 0) {
-		on_error("XML parsing error");
+		int line = (_ctxt && _ctxt->input) ? _ctxt->input->line : 0;
+		int col = (_ctxt && _ctxt->input) ? _ctxt->input->col : 0;
+		on_error("XML parsing error at line " + std::to_string(line) + ", column " + std::to_string(col));
 	}
 }
 

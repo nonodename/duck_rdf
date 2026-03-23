@@ -78,22 +78,22 @@ Jane Smith
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad.nt');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 6
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad.nt', at line 6
 
 # Bad nquads
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad.nq');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 7
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad.nq', at line 7
 
 # Bad trig
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad.trig');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 12
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad.trig', at line 12
 
 # Bad turtle
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad.ttl');
 ----
-Syntax Error: SERD parsing error 'Invalid syntax', at line 8
+Syntax Error: SERD parsing error 'Invalid syntax' in 'test/rdf/tests-bad.ttl', at line 8
