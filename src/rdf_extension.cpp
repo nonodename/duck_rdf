@@ -172,16 +172,16 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			if (output.size() > 0) {
 				return;
 			}
-			if(!bind_data.strict_parsing && state.ib->GetSkipCount() > 0) {
+			if (!bind_data.strict_parsing && state.ib->GetSkipCount() > 0) {
 				// If we're skipping bad rows, log how many we skipped for this file
 				auto &logger = Logger::Get(context);
 				auto count = state.ib->GetSkipCount();
-				if(count > 1) {
-					logger.WriteLog("rdf_extension", LogLevel::LOG_WARNING,
-					                "Skipped %d malformed rows in file: %s", count, state.current_file.c_str());
+				if (count > 1) {
+					logger.WriteLog("rdf_extension", LogLevel::LOG_WARNING, "Skipped %d malformed rows in file: %s",
+					                count, state.current_file.c_str());
 				} else {
-					logger.WriteLog("rdf_extension", LogLevel::LOG_WARNING,
-					                "Skipped 1 malformed row in file: %s", state.current_file.c_str());
+					logger.WriteLog("rdf_extension", LogLevel::LOG_WARNING, "Skipped 1 malformed row in file: %s",
+					                state.current_file.c_str());
 				}
 			}
 			// Buffer exhausted — drop it and claim the next file

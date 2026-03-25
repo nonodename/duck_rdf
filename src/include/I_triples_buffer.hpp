@@ -45,6 +45,7 @@ public:
 	uint64_t GetSkipCount() const {
 		return _skip_count;
 	}
+
 protected:
 	// Use DuckDB FileSystem and FileHandle for reading files (allows remote filesystems)
 	duckdb::FileSystem *_fs = nullptr;
