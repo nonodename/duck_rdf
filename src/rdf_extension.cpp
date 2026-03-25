@@ -78,6 +78,7 @@ struct RDFReaderGlobalState : public GlobalTableFunctionState {
 struct RDFReaderLocalState : public LocalTableFunctionState {
 	std::unique_ptr<ITriplesBuffer> ib;
 	vector<column_t> column_ids;
+	string current_file;
 };
 
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
@@ -171,6 +172,18 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			if (output.size() > 0) {
 				return;
 			}
+			if(!bind_data.strict_parsing && state.ib->GetSkipCount() > 0) {
+				// If we're skipping bad rows, log how many we skipped for this file
+				auto &logger = Logger::Get(context);
+				auto count = state.ib->GetSkipCount();
+				if(count > 1) {
+					logger.WriteLog("rdf_extension", LogLevel::LOG_WARNING,
+					                "Skipped %d malformed rows in file: %s", count, state.current_file.c_str());
+				} else {
+					logger.WriteLog("rdf_extension", LogLevel::LOG_WARNING,
+					                "Skipped 1 malformed row in file: %s", state.current_file.c_str());
+				}
+			}
 			// Buffer exhausted — drop it and claim the next file
 			state.ib.reset();
 		}
@@ -187,6 +200,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 
 		// Open and start parsing the claimed file
 		const string &file_path = bind_data.file_paths[file_idx];
+		state.current_file = file_path;
 		try {
 			auto new_ib =
 			    OpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing, bind_data.expand_prefixes);

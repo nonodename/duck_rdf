@@ -42,13 +42,16 @@ public:
 				_output_slot[col_ids[i]] = (int8_t)i;
 		}
 	}
-
+	uint64_t GetSkipCount() const {
+		return _skip_count;
+	}
 protected:
 	// Use DuckDB FileSystem and FileHandle for reading files (allows remote filesystems)
 	duckdb::FileSystem *_fs = nullptr;
 	std::unique_ptr<duckdb::FileHandle> _file_handle;
 	std::string _base_uri;
 	std::string _file_path;
+	uint64_t _skip_count = 0;
 
 	duckdb::DataChunk *_current_chunk = nullptr;
 	duckdb::idx_t _current_count = 0;
