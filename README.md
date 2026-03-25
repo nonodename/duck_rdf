@@ -1,10 +1,16 @@
 # A DuckDB extension to read and write RDF
 
-This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
-
----
-
 This extension, Rdf, allow you to read & write RDF files directly in to/out of DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse/write [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded to read RDF/XML serialization. This is used when the file extension is `.rdf` or `.xml`. No XML write is supported. No one needs that.
+
+## Installation
+
+rdf is a DuckDB Community Extension.
+
+To install and use the extension, run these SQL commands in your DuckDB session:
+
+INSTALL rdf FROM community;
+LOAD rdf;
+That's it! The extension is now ready to use.
 
 ## Building
 ### Managing dependencies
@@ -320,3 +326,7 @@ In non-strict mode, malformed lines are silently discarded. Exposing a warning o
 
 10. Turtle prefix output in write mode
 When writing in turtle format, the Serd writer is initialized with an empty environment (serd_env_new(nullptr)), so output URIs are never compressed with @prefix declarations. Parsing the mapping file's prefixes and registering them with the writer would produce much more readable Turtle output.
+
+This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.
+
+---
