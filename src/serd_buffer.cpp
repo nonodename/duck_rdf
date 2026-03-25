@@ -293,8 +293,10 @@ SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 		                       self->_file_path + "', at line " + std::to_string(error->line) + ", column " +
 		                       std::to_string(error->col);
 		return SERD_FAILURE;
-	} else
+	} else {
+		self->_skip_count++;
 		return SERD_SUCCESS;
+	}
 }
 
 SerdStatus SerdBuffer::BaseCallback(void *user_data, const SerdNode *uri) {

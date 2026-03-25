@@ -24,6 +24,36 @@ select count(*) from read_rdf('test/rdf/tests-bad-uri.nt',strict_parsing = false
 ----
 9
 
+### Skip-count warning in non-strict mode
+# When strict_parsing=false the parser continues past malformed lines and emits a
+# warning using the DuckDB logging framework for syntax errors.  The warning is not
+# captured by SQLLogicTest so these cases verify only that:
+#   (a) the query succeeds (no exception), and
+#   (b) the correct number of well-formed triples is returned.
+# ntriples: 1 malformed line, 9 rows returned (malformed triple included by SERD)
+query I
+select count(*) from read_rdf('test/rdf/tests-bad-uri.nt', strict_parsing = false);
+----
+9
+
+# nquads: 1 malformed line
+query I
+select count(*) from read_rdf('test/rdf/tests-bad-uri.nq', strict_parsing = false);
+----
+9
+
+# trig: 1 malformed line
+query I
+select count(*) from read_rdf('test/rdf/tests-bad-uri.trig', strict_parsing = false);
+----
+9
+
+# turtle: 1 malformed line
+query I
+select count(*) from read_rdf('test/rdf/tests-bad-uri.ttl', strict_parsing = false);
+----
+9 
+
 # Bad nquads
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.nq');

@@ -315,7 +315,7 @@ R2RMLCopyExecutionMode returns REGULAR_COPY_TO_FILE (single-threaded). For insid
 8. Better error location reporting - DONE
 ErrorCallBack captures the line number but not the column or file path. For glob reads with multiple files, errors are unattributed. Including the file path in the SyntaxException message would save a lot of debugging time.
 
-9. Skip-count in non-strict mode
+9. Skip-count in non-strict mode - DONE
 In non-strict mode, malformed lines are silently discarded. Exposing a warning or a skip_count in the result (e.g., as a DuckDB warning or a separate read_rdf_errors() function) would help users detect corrupt data without halting the query.
 
 10. Turtle prefix output in write mode
