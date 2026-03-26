@@ -152,3 +152,50 @@ COPY (SELECT 1) TO '__TEST_DIR__/nfe_strict.nt'
  ignore_non_fatal_errors false);
 ----
 R2RML mapping parse error
+
+# ── ignore_case option ────────────────────────────────────────────────────────
+# DuckDB folds unquoted identifiers to lowercase. When an R2RML mapping uses
+# lowercase column/table names, ignore_case true makes the extension lowercase
+# all column names before matching so they align with the mapping references.
+
+# inside-out mode: mapping uses lowercase column references ({empno}, "ename")
+statement ok
+COPY (SELECT empno, ename, deptno FROM emp)
+TO '__TEST_DIR__/io_lower.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out_lower.ttl', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_lower.nt');
+----
+3
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_lower.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#name';
+----
+SMITH
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_lower.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#department';
+----
+http://data.example.com/department/10
+
+# full R2RML mode: mapping uses lowercase rr:tableName and column references
+statement ok
+COPY (SELECT 1) TO '__TEST_DIR__/full_lower.nt'
+(FORMAT r2rml, mapping 'test/r2rml/full_r2rml_lower.ttl', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_lower.nt');
+----
+3
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/full_lower.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#name';
+----
+SMITH

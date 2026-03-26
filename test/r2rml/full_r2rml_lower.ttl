@@ -1,0 +1,21 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Full R2RML mapping with lowercase table and column references.
+# Used with ignore_case true to test that rr:tableName and column references
+# match DuckDB's lowercase-folded identifiers.
+
+<#EmployeeMap>
+    rr:logicalTable [ rr:tableName "emp" ] ;
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{empno}" ;
+        rr:class ex:Employee ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ename" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:department ;
+        rr:objectMap [ rr:template "http://data.example.com/department/{deptno}" ] ;
+    ] .
