@@ -14,6 +14,7 @@
 #include <r2rml/SQLValue.h>
 #include <r2rml/StringSQLValue.h>
 #include <r2rml/TriplesMap.h>
+#include "include/string_util.hpp"
 #include <map>
 #include <unordered_map>
 
@@ -53,9 +54,7 @@ inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result
 }
 
 static SerdSyntax ParseRdfFormat(const std::string &fmt) {
-	std::string x = fmt;
-	for (auto &c : x)
-		c = (char)tolower(c);
+	std::string x = stringtoLower(fmt);
 	if (x == "ttl" || x == "turtle")
 		return SERD_TURTLE;
 	if (x == "nq" || x == "nquads")
@@ -187,11 +186,7 @@ private:
 		if (!ignore_case_) {
 			return name;
 		}
-		std::string lower = name;
-		for (auto &c : lower) {
-			c = (char)tolower(c);
-		}
-		return lower;
+		return stringtoLower(name);
 	}
 };
 
@@ -225,9 +220,7 @@ public:
 		// rr:tableName (e.g. "EMP") match DuckDB's lowercase-folded identifiers.
 		std::string exec_sql = sql;
 		if (ignore_case_) {
-			for (auto &ch : exec_sql) {
-				ch = (char)tolower(ch);
-			}
+			exec_sql = stringtoLower(exec_sql);
 		}
 		auto result = conn.Query(exec_sql);
 		if (result->HasError()) {
@@ -244,13 +237,9 @@ public:
 				for (idx_t c = 0; c < chunk->ColumnCount(); c++) {
 					std::string name = result->ColumnName(c);
 					if (ignore_case_) {
-						for (auto &ch : name) {
-							ch = (char)tolower(ch);
-						}
+						name = stringtoLower(name);
 					} else {
-						for (auto &ch : name) {
-							ch = (char)toupper(ch);
-						}
+						name = stringtoUpper(name);
 					}
 					cols[name] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk->GetValue(c, r)));
 				}
@@ -395,13 +384,9 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	for (const auto &name : names) {
 		std::string normalised = name;
 		if (ignore_case) {
-			for (auto &c : normalised) {
-				c = (char)tolower(c);
-			}
+			normalised = stringtoLower(normalised);
 		} else {
-			for (auto &c : normalised) {
-				c = (char)toupper(c);
-			}
+			normalised = stringtoUpper(normalised);
 		}
 		result->column_names.push_back(std::move(normalised));
 	}
