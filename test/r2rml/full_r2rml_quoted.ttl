@@ -1,0 +1,21 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Full R2RML mapping for a table with quoted (case-preserved) uppercase column names.
+# Used with ignore_case false to test exact-case column name matching when DuckDB
+# returns uppercase column names via quoted identifiers.
+
+<#EmployeeMap>
+    rr:logicalTable [ rr:tableName "emp_quoted" ] ;
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{EMPNO}" ;
+        rr:class ex:Employee ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ENAME" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:department ;
+        rr:objectMap [ rr:template "http://data.example.com/department/{DEPTNO}" ] ;
+    ] .

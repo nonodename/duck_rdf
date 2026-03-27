@@ -2,8 +2,9 @@
 @prefix ex: <http://example.com/ns#> .
 
 # Full R2RML mapping with lowercase table and column references.
-# Used with ignore_case true to test that rr:tableName and column references
-# match DuckDB's lowercase-folded identifiers.
+# Used to test matching against DuckDB's lowercase-folded identifiers.
+# Works with both ignore_case true (lowercases both sides) and ignore_case false
+# (exact match — DuckDB's lowercase output matches the lowercase refs directly).
 
 <#EmployeeMap>
     rr:logicalTable [ rr:tableName "emp" ] ;

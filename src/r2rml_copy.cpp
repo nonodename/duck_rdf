@@ -238,8 +238,6 @@ public:
 					std::string name = result->ColumnName(c);
 					if (ignore_case_) {
 						name = stringtoLower(name);
-					} else {
-						name = stringtoUpper(name);
 					}
 					cols[name] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk->GetValue(c, r)));
 				}
@@ -382,13 +380,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	result->ignore_case = ignore_case;
 
 	for (const auto &name : names) {
-		std::string normalised = name;
-		if (ignore_case) {
-			normalised = stringtoLower(normalised);
-		} else {
-			normalised = stringtoUpper(normalised);
-		}
-		result->column_names.push_back(std::move(normalised));
+		result->column_names.push_back(ignore_case ? stringtoLower(name) : name);
 	}
 
 	return std::move(result);

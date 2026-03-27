@@ -5,18 +5,24 @@
 require rdf
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
-# Create a small EMP table used by both inside-out and full R2RML tests.
+# emp: unquoted identifiers — DuckDB folds to lowercase (empno, ename, deptno).
+# emp_quoted: quoted identifiers — DuckDB preserves case (EMPNO, ENAME, DEPTNO).
 statement ok
 CREATE TABLE emp AS SELECT 7369 AS EMPNO, 'SMITH' AS ENAME, 10 AS DEPTNO;
+
+statement ok
+CREATE TABLE emp_quoted AS SELECT 7369 AS "EMPNO", 'SMITH' AS "ENAME", 10 AS "DEPTNO";
 
 # ── Inside-out mode ───────────────────────────────────────────────────────────
 # The mapping (test/r2rml/inside_out.ttl) has no rr:logicalTable.
 # DuckDB drives the SELECT and passes rows to the extension via copy_to_sink.
+# ignore_case true: DuckDB folds identifiers to lowercase; the extension
+# lowercases the mapping's uppercase column refs to match.
 
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
 TO '__TEST_DIR__/io_out.nt'
-(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl');
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
 
 # Read back the generated file and count triples (3 expected: rdf:type + name + department)
 query I
@@ -55,12 +61,15 @@ SELECT DISTINCT subject FROM read_rdf('__TEST_DIR__/io_out.nt');
 http://data.example.com/employee/7369
 
 # ── Full R2RML mode ───────────────────────────────────────────────────────────
-# The mapping (test/r2rml/full_r2rml.ttl) has rr:logicalTable [ rr:tableName "emp" ].
+# The mapping (test/r2rml/full_r2rml_lower.ttl) has rr:logicalTable [ rr:tableName "emp" ].
 # The extension ignores the COPY SELECT and queries the EMP table itself.
+# In full R2RML mode column name matching goes through MapSQLRow (sql2rdf library)
+# which does exact-case lookup, so the mapping must use lowercase refs to match
+# DuckDB's lowercase-folded column names regardless of ignore_case.
 
 statement ok
 COPY (SELECT 1) TO '__TEST_DIR__/full_out.nt'
-(FORMAT r2rml, mapping 'test/r2rml/full_r2rml.ttl');
+(FORMAT r2rml, mapping 'test/r2rml/full_r2rml_lower.ttl', ignore_case true);
 
 # Same three triples expected, same subject
 query I
@@ -81,7 +90,7 @@ SMITH
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
 TO '__TEST_DIR__/io_out.ttl'
-(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'turtle');
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'turtle', ignore_case true);
 
 query I
 SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.ttl', file_type = 'ttl');
@@ -92,7 +101,7 @@ SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.ttl', file_type = 'ttl');
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
 TO '__TEST_DIR__/io_out.nq'
-(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'nquads');
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'nquads', ignore_case true);
 
 query I
 SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.nq');
@@ -133,7 +142,7 @@ not valid
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
 TO '__TEST_DIR__/io_nfe_explicit.nt'
-(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_non_fatal_errors true);
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_non_fatal_errors true, ignore_case true);
 
 query I
 SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_nfe_explicit.nt');
@@ -153,16 +162,20 @@ COPY (SELECT 1) TO '__TEST_DIR__/nfe_strict.nt'
 ----
 R2RML mapping parse error
 
-# ── ignore_case option ────────────────────────────────────────────────────────
-# DuckDB folds unquoted identifiers to lowercase. When an R2RML mapping uses
-# lowercase column/table names, ignore_case true makes the extension lowercase
-# all column names before matching so they align with the mapping references.
+# ── ignore_case true ──────────────────────────────────────────────────────────
+# DuckDB folds unquoted identifiers to lowercase. ignore_case true lowercases
+# both the column names from DuckDB and the lookup key from the mapping before
+# matching. This allows a mapping with uppercase column refs (ENAME, {EMPNO})
+# to match DuckDB's lowercase output in inside-out mode.
+# Note: in full R2RML mode column lookup goes through MapSQLRow (sql2rdf library)
+# which does exact-case comparison, so the mapping must always use lowercase refs
+# matching DuckDB's output regardless of ignore_case.
 
-# inside-out mode: mapping uses lowercase column references ({empno}, "ename")
+# inside-out mode: uppercase mapping refs matched via case-folding
 statement ok
 COPY (SELECT empno, ename, deptno FROM emp)
 TO '__TEST_DIR__/io_lower.nt'
-(FORMAT r2rml, mapping 'test/r2rml/inside_out_lower.ttl', ignore_case true);
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
 
 query I
 SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_lower.nt');
@@ -195,6 +208,55 @@ SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_lower.nt');
 
 query T
 SELECT object FROM read_rdf('__TEST_DIR__/full_lower.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#name';
+----
+SMITH
+
+# ── ignore_case false ─────────────────────────────────────────────────────────
+# With ignore_case false (the default), column names are matched exactly as
+# DuckDB returns them. The sql2rdf library uppercases column refs from the
+# mapping before lookup, so this mode requires DuckDB to return uppercase column
+# names — achieved by using quoted identifiers in the table definition.
+# emp_quoted was created with "EMPNO", "ENAME", "DEPTNO" (quoted, case-preserved).
+
+# inside-out mode: quoted uppercase columns match the mapping's uppercase refs exactly
+statement ok
+COPY (SELECT "EMPNO", "ENAME", "DEPTNO" FROM emp_quoted)
+TO '__TEST_DIR__/io_exact.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case false);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_exact.nt');
+----
+3
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_exact.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#name';
+----
+SMITH
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_exact.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#department';
+----
+http://data.example.com/department/10
+
+# full R2RML mode: mapping references emp_quoted whose columns are uppercase
+statement ok
+COPY (SELECT 1) TO '__TEST_DIR__/full_exact.nt'
+(FORMAT r2rml, mapping 'test/r2rml/full_r2rml_quoted.ttl', ignore_case false);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_exact.nt');
+----
+3
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/full_exact.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----

@@ -2,8 +2,9 @@
 @prefix ex: <http://example.com/ns#> .
 
 # Inside-out mapping with lowercase column references.
-# Used with ignore_case true to test that DuckDB's lowercase-folded column names
-# are matched correctly against lowercase rr:column and template references.
+# Used to test matching against DuckDB's lowercase-folded column names.
+# Works with both ignore_case true (lowercases both sides) and ignore_case false
+# (exact match — DuckDB's lowercase output matches the lowercase refs directly).
 
 <#EmployeeMap>
     rr:subjectMap [
