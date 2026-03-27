@@ -14,6 +14,7 @@
 #include <r2rml/SQLValue.h>
 #include <r2rml/StringSQLValue.h>
 #include <r2rml/TriplesMap.h>
+#include "include/string_util.hpp"
 #include <map>
 #include <unordered_map>
 
@@ -22,6 +23,7 @@ using namespace std;
 #define MAPPING_OPTION          "mapping"
 #define RDF_FORMAT_OPTION       "rdf_format"
 #define IGNORE_NON_FATAL_ERRORS "ignore_non_fatal_errors"
+#define IGNORE_CASE_OPTION      "ignore_case"
 
 namespace duckdb {
 
@@ -52,9 +54,7 @@ inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result
 }
 
 static SerdSyntax ParseRdfFormat(const std::string &fmt) {
-	std::string x = fmt;
-	for (auto &c : x)
-		c = (char)tolower(c);
+	std::string x = stringtoLower(fmt);
 	if (x == "ttl" || x == "turtle")
 		return SERD_TURTLE;
 	if (x == "nq" || x == "nquads")
@@ -146,12 +146,13 @@ private:
 // never materialised.  The DataChunk and col_index must outlive this object.
 class DataChunkSQLRow : public r2rml::SQLRow {
 public:
-	DataChunkSQLRow(const DataChunk &chunk, idx_t row, const std::unordered_map<std::string, idx_t> &col_index)
-	    : chunk_(chunk), row_(row), col_index_(col_index) {
+	DataChunkSQLRow(const DataChunk &chunk, idx_t row, const std::unordered_map<std::string, idx_t> &col_index,
+	                bool ignore_case)
+	    : chunk_(chunk), row_(row), col_index_(col_index), ignore_case_(ignore_case) {
 	}
 
 	std::unique_ptr<r2rml::SQLValue> getValue(const std::string &name) const override {
-		auto it = col_index_.find(name);
+		auto it = col_index_.find(normalise(name));
 		if (it == col_index_.end()) {
 			return std::unique_ptr<r2rml::SQLValue>(new r2rml::StringSQLValue());
 		}
@@ -159,7 +160,7 @@ public:
 	}
 
 	bool isNull(const std::string &name) const override {
-		auto it = col_index_.find(name);
+		auto it = col_index_.find(normalise(name));
 		if (it == col_index_.end()) {
 			return true;
 		}
@@ -179,6 +180,14 @@ private:
 	const DataChunk &chunk_;
 	idx_t row_;
 	const std::unordered_map<std::string, idx_t> &col_index_;
+	bool ignore_case_;
+
+	std::string normalise(const std::string &name) const {
+		if (!ignore_case_) {
+			return name;
+		}
+		return stringtoLower(name);
+	}
 };
 
 // Materialised result set: holds all rows fetched from a DuckDB query.
@@ -202,12 +211,18 @@ private:
 // Used for full R2RML mode where processDatabase() runs the mapping's SQL queries.
 class ClientContextSQLConnection : public r2rml::SQLConnection {
 public:
-	explicit ClientContextSQLConnection(ClientContext &ctx) : context_(ctx) {
+	ClientContextSQLConnection(ClientContext &ctx, bool ignore_case) : context_(ctx), ignore_case_(ignore_case) {
 	}
 
 	std::unique_ptr<r2rml::SQLResultSet> execute(const std::string &sql) override {
 		Connection conn(*context_.db);
-		auto result = conn.Query(sql);
+		// When ignore_case is set, lowercase the SQL so that table names from
+		// rr:tableName (e.g. "EMP") match DuckDB's lowercase-folded identifiers.
+		std::string exec_sql = sql;
+		if (ignore_case_) {
+			exec_sql = stringtoLower(exec_sql);
+		}
+		auto result = conn.Query(exec_sql);
 		if (result->HasError()) {
 			throw InternalException("R2RML query error: " + result->GetError());
 		}
@@ -221,8 +236,8 @@ public:
 				std::map<std::string, std::unique_ptr<r2rml::SQLValue>> cols;
 				for (idx_t c = 0; c < chunk->ColumnCount(); c++) {
 					std::string name = result->ColumnName(c);
-					for (auto &ch : name) {
-						ch = (char)toupper(ch);
+					if (ignore_case_) {
+						name = stringtoLower(name);
 					}
 					cols[name] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk->GetValue(c, r)));
 				}
@@ -238,6 +253,7 @@ public:
 
 private:
 	ClientContext &context_;
+	bool ignore_case_;
 };
 
 // Stub connection for inside-out mode.  isValidInsideOut() guarantees that no
@@ -258,10 +274,11 @@ struct R2RMLWriteBindData : public FunctionData {
 	std::string mapping_file_path;
 	std::shared_ptr<r2rml::R2RMLMapping> mapping;
 	bool inside_out_mode = false;
-	std::vector<std::string> column_names; // uppercased; consumed by copy_to_sink
+	std::vector<std::string> column_names; // case-normalised; consumed by copy_to_sink
 	std::vector<LogicalType> sql_types;
 	SerdSyntax output_syntax = SERD_NTRIPLES;
 	bool ignore_non_fatal_errors = true;
+	bool ignore_case = false;
 
 	unique_ptr<FunctionData> Copy() const override {
 		auto c = make_uniq<R2RMLWriteBindData>();
@@ -272,6 +289,7 @@ struct R2RMLWriteBindData : public FunctionData {
 		c->sql_types = sql_types;
 		c->output_syntax = output_syntax;
 		c->ignore_non_fatal_errors = ignore_non_fatal_errors;
+		c->ignore_case = ignore_case;
 		return c;
 	}
 	bool Equals(const FunctionData &other) const override {
@@ -302,6 +320,7 @@ static void R2RMLCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options[MAPPING_OPTION] = CopyOption(LogicalType::VARCHAR);
 	input.options[RDF_FORMAT_OPTION] = CopyOption(LogicalType::VARCHAR);
 	input.options[IGNORE_NON_FATAL_ERRORS] = CopyOption(LogicalType::BOOLEAN);
+	input.options[IGNORE_CASE_OPTION] = CopyOption(LogicalType::BOOLEAN);
 }
 
 static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunctionBindInput &input,
@@ -324,6 +343,12 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	auto nfe_it = options.find(IGNORE_NON_FATAL_ERRORS);
 	if (nfe_it != options.end() && !nfe_it->second.empty()) {
 		ignore_nfe = nfe_it->second[0].GetValue<bool>();
+	}
+
+	bool ignore_case = false;
+	auto ic_it = options.find(IGNORE_CASE_OPTION);
+	if (ic_it != options.end() && !ic_it->second.empty()) {
+		ignore_case = ic_it->second[0].GetValue<bool>();
 	}
 
 	r2rml::R2RMLParser parser;
@@ -352,13 +377,10 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	result->sql_types = sql_types;
 	result->output_syntax = syntax;
 	result->ignore_non_fatal_errors = ignore_nfe;
+	result->ignore_case = ignore_case;
 
 	for (const auto &name : names) {
-		std::string upper = name;
-		for (auto &c : upper) {
-			c = (char)toupper(c);
-		}
-		result->column_names.push_back(std::move(upper));
+		result->column_names.push_back(ignore_case ? stringtoLower(name) : name);
 	}
 
 	return std::move(result);
@@ -408,7 +430,7 @@ static void R2RMLCopyToSink(ExecutionContext &, FunctionData &bind_data, GlobalF
 	}
 
 	for (idx_t row = 0; row < input.size(); row++) {
-		DataChunkSQLRow sql_row(input, row, col_index);
+		DataChunkSQLRow sql_row(input, row, col_index, bind.ignore_case);
 		for (const auto &tm : bind.mapping->triplesMaps) {
 			if (tm) {
 				tm->generateTriples(sql_row, *global.serd_writer, *bind.mapping, null_conn);
@@ -427,7 +449,7 @@ static void R2RMLCopyToFinalize(ClientContext &context, FunctionData &bind_data,
 	if (!bind.inside_out_mode) {
 		// full R2RML mode: run the mapping's SQL queries against the live database
 		try {
-			ClientContextSQLConnection conn(context);
+			ClientContextSQLConnection conn(context, bind.ignore_case);
 			bind.mapping->processDatabase(conn, *global.serd_writer);
 		} catch (const std::runtime_error &e) {
 			throw IOException(std::string("R2RML processing error: ") + e.what());

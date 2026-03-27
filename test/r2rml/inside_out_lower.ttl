@@ -1,0 +1,21 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Inside-out mapping with lowercase column references.
+# Used to test matching against DuckDB's lowercase-folded column names.
+# Works with both ignore_case true (lowercases both sides) and ignore_case false
+# (exact match — DuckDB's lowercase output matches the lowercase refs directly).
+
+<#EmployeeMap>
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{empno}" ;
+        rr:class ex:Employee ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ename" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:department ;
+        rr:objectMap [ rr:template "http://data.example.com/department/{deptno}" ] ;
+    ] .

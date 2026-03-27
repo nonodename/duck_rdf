@@ -13,47 +13,6 @@ LOAD rdf;
 ```
 That's it! The extension is now ready to use.
 
-## Building
-### Managing dependencies
-DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the installation instructions or just run the following:
-
-```sh
-cd <your-working-dir-not-the-plugin-repo>
-git clone https://github.com/Microsoft/vcpkg.git
-cd vcpkg && git checkout ce613c41372b23b1f51333815feb3edd87ef8a8b
-sh ./scripts/bootstrap.sh -disableMetrics
-export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
-```
-
-### Build steps
-To build the extension, first clone this repo. Then in the repo base locally run:
-
-```sh
-git submodule update --init --recursive
-```
-(That command also works for updating to the latest version of the submodules) 
-To get the source for DuckDB, Serd and CI-tools. Next run: 
-
-```sh
-make
-```
-If you have ninja avilable you can use that for faster builds:
-```sh
-GEN=ninja make
-```
-The main binaries that will be built are:
-```sh
-./build/release/duckdb
-./build/release/test/unittest
-./build/release/extension/rdf/rdf.duckdb_extension
-```
-- `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
-- `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
-- `rdf.duckdb_extension` is the loadable binary as it would be distributed.
-
-## Running the extension
-To run the extension code, simply start the shell with `./build/release/duckdb`.
-
 ## Reading RDF
 
 Six columns are returned for RDF. Three are always not null:
@@ -199,6 +158,7 @@ To be clear, this is a bit of a hack. But it works, under the covers it's a bit 
 | `mapping` | Yes | — | Path to the R2RML mapping file (`.ttl`) |
 | `rdf_format` | No | `ntriples` | Output RDF serialization: `ntriples`, `turtle`, or `nquads` |
 | `ignore_non_fatal_errors` | No | `true` | When `true`, logical parse errors (e.g. unresolved `rr:parentTriplesMap`, unrecognised logical-table type) are collected silently. When `false`, the first such error raises an exception. |
+| `ignore_case` | No | `false` | When `true`, all column and table names are lowercased before matching. Use when your R2RML mapping uses lowercase names — DuckDB folds unquoted identifiers to lowercase, so this is the recommended setting for new mappings. |
 
 ### Example
 
@@ -236,6 +196,47 @@ SELECT is_valid_r2rml('mapping.ttl');
 -- Returns true if the mapping is valid for inside-out mode (no rr:logicalTable etc.)
 SELECT can_call_inside_out('mapping.ttl');
 ```
+
+## Building
+### Managing dependencies
+DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the installation instructions or just run the following:
+
+```sh
+cd <your-working-dir-not-the-plugin-repo>
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg && git checkout ce613c41372b23b1f51333815feb3edd87ef8a8b
+sh ./scripts/bootstrap.sh -disableMetrics
+export VCPKG_TOOLCHAIN_PATH=`pwd`/vcpkg/scripts/buildsystems/vcpkg.cmake
+```
+
+### Build steps
+To build the extension, first clone this repo. Then in the repo base locally run:
+
+```sh
+git submodule update --init --recursive
+```
+(That command also works for updating to the latest version of the submodules) 
+To get the source for DuckDB, Serd and CI-tools. Next run: 
+
+```sh
+make
+```
+If you have ninja avilable you can use that for faster builds:
+```sh
+GEN=ninja make
+```
+The main binaries that will be built are:
+```sh
+./build/release/duckdb
+./build/release/test/unittest
+./build/release/extension/rdf/rdf.duckdb_extension
+```
+- `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
+- `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
+- `rdf.duckdb_extension` is the loadable binary as it would be distributed.
+
+## Running the extension
+To run the extension code, simply start the shell with `./build/release/duckdb`.
 
 ## Running the tests
 Test for this extension are SQL tests in `./test/sql`. They rely on a samples in the test/rdf directory. These SQL tests can be run using:

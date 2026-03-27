@@ -13,6 +13,7 @@
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
 #include <mutex>
+#include "include/string_util.hpp"
 
 using namespace std;
 
@@ -23,9 +24,7 @@ using namespace std;
 namespace duckdb {
 
 static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
-	std::string x = s;
-	for (auto &c : x)
-		c = (char)tolower(c);
+	std::string x = stringtoLower(s);
 	if (x == "ttl" || x == "turtle")
 		return ITriplesBuffer::TURTLE;
 	if (x == "nq" || x == "nquads")
