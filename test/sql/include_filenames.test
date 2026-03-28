@@ -1,0 +1,59 @@
+# name: test/sql/include_filenames.test
+# description: test include_filenames parameter in read_rdf extension
+# group: [sql]
+
+require rdf
+
+# Default: 6 columns, no filename column
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/shard_a.nt');
+----
+3
+
+# include_filenames=false is a no-op — still 6 columns
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = false);
+----
+3
+
+# include_filenames=true adds a 7th column with the source file path
+# note use of replace to make tests work across windows and unix derived
+query IT
+SELECT COUNT(*), replace(filename,'\','/')
+FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true)
+GROUP BY filename;
+----
+3	test/rdf/shards/shard_a.nt
+
+# Glob: rows from both shards carry distinct filenames
+query IT
+SELECT COUNT(*), replace(filename,'\','/')
+FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true)
+GROUP BY filename
+ORDER BY filename;
+----
+3	test/rdf/shards/shard_a.nt
+2	test/rdf/shards/shard_b.nt
+
+# Projection pushdown: select only filename column
+query T
+SELECT DISTINCT replace(filename,'\','/')
+FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true);
+----
+test/rdf/shards/shard_a.nt
+
+# Projection pushdown: subject + filename, skipping all intermediate columns
+query TT
+SELECT subject, replace(filename,'\','/')
+FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true)
+ORDER BY subject;
+----
+http://example.org/s1	test/rdf/shards/shard_a.nt
+http://example.org/s2	test/rdf/shards/shard_a.nt
+http://example.org/s3	test/rdf/shards/shard_a.nt
+
+# COUNT(*) with include_filenames=true: filename slot not projected, must not crash
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true);
+----
+5

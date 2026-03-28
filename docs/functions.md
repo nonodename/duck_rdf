@@ -12,6 +12,7 @@ Table function. Reads one or more RDF files and returns their triples as rows.
 | `strict_parsing` | BOOLEAN | No | `true` | When `false`, permits malformed URIs instead of raising an error |
 | `prefix_expansion` | BOOLEAN | No | `false` | Expand CURIE-form URIs to full URIs. Ignored for NTriples and NQuads |
 | `file_type` | VARCHAR | No | auto-detect | Override format detection. Values: `ttl`, `turtle`, `nq`, `nquads`, `nt`, `ntriples`, `trig`, `rdf`, `xml` |
+| `include_filenames` | BOOLEAN | No | `false` | When `true`, adds a 7th column `filename` containing the source file path for each triple |
 
 **Returns**
 
@@ -23,6 +24,7 @@ Table function. Reads one or more RDF files and returns their triples as rows.
 | `object` | VARCHAR | No | Object value (URI, blank node, or literal) |
 | `object_datatype` | VARCHAR | Yes | XSD datatype URI for typed literals; otherwise `NULL` |
 | `object_lang` | VARCHAR | Yes | BCP 47 language tag for language-tagged literals; otherwise `NULL` |
+| `filename` | VARCHAR | Yes | Source file path; only present when `include_filenames = true` |
 
 **Supported formats**
 
@@ -48,6 +50,15 @@ SELECT * FROM read_rdf('data/*.dat', file_type = 'ttl', strict_parsing = false);
 
 -- Expand CURIE-form URIs in a Turtle file
 SELECT * FROM read_rdf('data.ttl', prefix_expansion = true);
+
+-- Show which file each triple came from (useful with glob patterns)
+SELECT subject, filename FROM read_rdf('shards/*.nt', include_filenames = true);
+
+-- Count triples per source file
+SELECT filename, COUNT(*) AS triple_count
+FROM read_rdf('data/*.nt', include_filenames = true)
+GROUP BY filename
+ORDER BY filename;
 ```
 
 ---

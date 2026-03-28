@@ -215,7 +215,10 @@ To build the extension, first clone this repo. Then in the repo base locally run
 ```sh
 git submodule update --init --recursive
 ```
-(That command also works for updating to the latest version of the submodules) 
+To bring submodules up to same as upstream, run 
+```sh
+git submodule update --recursive
+```
 To get the source for DuckDB, Serd and CI-tools. Next run: 
 
 ```sh

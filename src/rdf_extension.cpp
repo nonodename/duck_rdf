@@ -17,9 +17,10 @@
 
 using namespace std;
 
-#define STRICT_PARSING   "strict_parsing"
-#define PREFIX_EXPANSION "prefix_expansion"
-#define FILE_TYPE        "file_type"
+#define STRICT_PARSING    "strict_parsing"
+#define PREFIX_EXPANSION  "prefix_expansion"
+#define FILE_TYPE         "file_type"
+#define INCLUDE_FILENAMES "include_filenames"
 
 namespace duckdb {
 
@@ -60,6 +61,7 @@ struct RDFReaderBindData : public TableFunctionData {
 	ITriplesBuffer::FileType file_type = ITriplesBuffer::UNKNOWN;
 	bool strict_parsing = true;
 	bool expand_prefixes = false;
+	bool include_filenames = false;
 };
 
 // Global state: shared across all threads, tracks which file to process next
@@ -117,9 +119,18 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 		result->expand_prefixes = false;
 	}
 
+	auto include_filenames_param = input.named_parameters.find(INCLUDE_FILENAMES);
+	if (include_filenames_param != input.named_parameters.end()) {
+		result->include_filenames = include_filenames_param->second.GetValue<bool>();
+	}
+
 	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
 	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
 	                LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
+	if (result->include_filenames) {
+		names.push_back("filename");
+		return_types.push_back(LogicalType::VARCHAR);
+	}
 	return std::move(result);
 }
 
@@ -169,6 +180,20 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 		if (state.ib) {
 			state.ib->PopulateChunk(output);
 			if (output.size() > 0) {
+				if (bind_data.include_filenames) {
+					// SetColumnIds() ignores col_ids >= 6, so we handle the filename column here.
+					// Find which output slot corresponds to column index 6 (filename).
+					for (idx_t i = 0; i < state.column_ids.size(); i++) {
+						if (state.column_ids[i] == 6) {
+							auto &vec = output.data[i];
+							auto sv = StringVector::AddString(vec, state.current_file);
+							for (idx_t row = 0; row < output.size(); row++) {
+								FlatVector::GetData<string_t>(vec)[row] = sv;
+							}
+							break;
+						}
+					}
+				}
 				return;
 			}
 			if (!bind_data.strict_parsing && state.ib->GetSkipCount() > 0) {
@@ -219,6 +244,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
 	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
+	tf.named_parameters[INCLUDE_FILENAMES] = LogicalType::BOOLEAN;
 	tf.projection_pushdown = true;
 	loader.RegisterFunction(tf);
 
