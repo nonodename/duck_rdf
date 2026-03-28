@@ -17,8 +17,9 @@ SELECT COUNT(*) FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = 
 3
 
 # include_filenames=true adds a 7th column with the source file path
+# note use of replace to make tests work across windows and unix derived
 query IT
-SELECT COUNT(*), filename
+SELECT COUNT(*), replace(filename,'\','/')
 FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true)
 GROUP BY filename;
 ----
@@ -26,7 +27,7 @@ GROUP BY filename;
 
 # Glob: rows from both shards carry distinct filenames
 query IT
-SELECT COUNT(*), filename
+SELECT COUNT(*), replace(filename,'\','/')
 FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true)
 GROUP BY filename
 ORDER BY filename;
@@ -36,14 +37,14 @@ ORDER BY filename;
 
 # Projection pushdown: select only filename column
 query T
-SELECT DISTINCT filename
+SELECT DISTINCT replace(filename,'\','/')
 FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true);
 ----
 test/rdf/shards/shard_a.nt
 
 # Projection pushdown: subject + filename, skipping all intermediate columns
 query TT
-SELECT subject, filename
+SELECT subject, replace(filename,'\','/')
 FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true)
 ORDER BY subject;
 ----
