@@ -6,7 +6,7 @@ Potential future enhancements, courtesy Claude, below. If any of these seem inte
 1. **Typed object values**
 Currently all 6 columns are VARCHAR. The object_datatype column contains XSD type URIs, which means callers must manually cast. You could add a typed_objects = true option that returns object as UNION(str VARCHAR, int BIGINT, dbl DOUBLE, bool BOOLEAN, ...) or at minimum apply automatic DuckDB type coercion based on the datatype column.
 
-2. **Source filename column**
+2. **Source filename column** ✅
 When reading multiple files via glob, there's no way to know which triple came from which file. Adding a filename column (like DuckDB's read_parquet does) would be very useful for tracing provenance.
 
 3. **read_rdf_prefixes() table function**

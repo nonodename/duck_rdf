@@ -25,6 +25,9 @@ The other three columns will be null if no value is provided in the underlying R
 * language_tag
 * datatype
 
+An optional seventh columnn is available to return the filename that the triple was found in.
+
+
  `read_rdf()` takes a file path or glob pattern and returns a table. When a glob pattern matches multiple files, all matching files are read and their triples are combined:
 ```
 D select subject, predicate from read_rdf('test/rdf/tests.nt');
@@ -63,6 +66,10 @@ The optional parameter `file_type` can be used to override the detected file typ
  * RDF/XML `rdf`, `xml`
 
 When using a glob pattern the `file_type` override is applied uniformly to every matched file.
+
+### Filename column
+
+The parameter `include_filenames` a boolean defaults to `false`.When `true`, adds a 7th column `filename` containing the source file path for each triple
 
 ### Glob / multiple files
 
@@ -248,9 +255,9 @@ make test
 ```
 Note that the SPARQL tests require an internet connection to be able to reach out to Wikidata query service.  
 
-### Installing the deployed binaries
+### Installing the deployed binaries directly (e.g. not via community)
 To install from GitHub actions:
-* navigate to the [actions](https://github.com/nonodename/read_rdf/actions) for this repo
+* navigate to the [actions](https://github.com/nonodename/duck_rdf/actions) for this repo
 * click on the latest successful build (or build for a release)
 * select the architecture you want from the left hand navigation
 * open the `Run actions/upload artifact` step
