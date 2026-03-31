@@ -1,0 +1,156 @@
+# name: test/sql/profile_rdf.test
+# description: test profile_rdf extension function
+# group: [sql]
+
+require rdf
+
+# Error when no matching files
+statement error
+SELECT * FROM profile_rdf('not_exist.nt');
+----
+IO Error: No files found matching: not_exist.nt
+
+# tests.nt has 9 triples across 7 distinct predicates
+query I
+SELECT COUNT(*) FROM profile_rdf('test/rdf/tests.nt');
+----
+7
+
+# Each predicate URI is unique
+query I
+SELECT COUNT(DISTINCT predicate) FROM profile_rdf('test/rdf/tests.nt');
+----
+7
+
+# foaf:age has one typed HUGEINT literal ("30"^^xsd:integer)
+query T
+SELECT types[1] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://xmlns.com/foaf/0.1/age';
+----
+HUGEINT
+
+# count map for foaf:age
+query I
+SELECT count['HUGEINT'] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://xmlns.com/foaf/0.1/age';
+----
+1
+
+# min and max for foaf:age (single value "30")
+query TT
+SELECT min['HUGEINT'], max['HUGEINT'] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://xmlns.com/foaf/0.1/age';
+----
+30	30
+
+# rdf:type has two IRI objects (foaf:Person twice)
+query T
+SELECT types[1] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+IRI
+
+query I
+SELECT count['IRI'] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+2
+
+# rdf:type has 2 distinct subjects (JohnDoe and _:jane)
+query I
+SELECT subject_count FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+2
+
+# All triples in tests.nt are in the default graph (graph_count = 1)
+query I
+SELECT graph_count FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+1
+
+# foaf:name has VARCHAR objects (plain literal "John Doe" and lang-tagged "Jane Smith"@en)
+query T
+SELECT types[1] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+VARCHAR
+
+query I
+SELECT count['VARCHAR'] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+2
+
+# foaf:knows has one BLANK object (_:jane)
+query T
+SELECT types[1] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://xmlns.com/foaf/0.1/knows';
+----
+BLANK
+
+query I
+SELECT count['BLANK'] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://xmlns.com/foaf/0.1/knows';
+----
+1
+
+# dc:creator has one IRI object
+query T
+SELECT types[1] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://purl.org/dc/elements/1.1/creator';
+----
+IRI
+
+# Emoji literal is VARCHAR
+query T
+SELECT types[1] FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://example.org/hasEmoji';
+----
+VARCHAR
+
+# subject_count and graph_count are UBIGINT (non-negative)
+query II
+SELECT subject_count, graph_count FROM profile_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://example.org/hasEmoji';
+----
+1	1
+
+# Turtle format returns same predicate count as N-Triples
+query I
+SELECT COUNT(*) FROM profile_rdf('test/rdf/tests.ttl');
+----
+7
+
+# NQuads — tests.nq uses named graph 'read_rdf'
+# foaf:name predicate should appear in exactly 1 named graph
+query I
+SELECT graph_count FROM profile_rdf('test/rdf/tests.nq')
+WHERE predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+1
+
+# file_type override works
+query I
+SELECT COUNT(*) FROM profile_rdf('test/rdf/tests.nt', file_type='ntriples');
+----
+7
+
+# strict_parsing=false doesn't crash on valid files
+query I
+SELECT COUNT(*) FROM profile_rdf('test/rdf/tests.nt', strict_parsing=false);
+----
+7
+
+# RDF/XML format — example07.rdf has 4 triples across 4 distinct predicates
+query I
+SELECT COUNT(*) FROM profile_rdf('test/xmlrdf/example07.rdf');
+----
+4
+
+# Glob pattern — shards directory contains only well-formed NT files
+query I
+SELECT COUNT(*) > 0 FROM profile_rdf('test/rdf/shards/*.nt');
+----
+true
