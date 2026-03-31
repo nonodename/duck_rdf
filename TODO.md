@@ -34,3 +34,6 @@ In non-strict mode, malformed lines are silently discarded. Exposing a warning o
 
 10. **Turtle prefix output in write mode**
 When writing in turtle format, the Serd writer is initialized with an empty environment (serd_env_new(nullptr)), so output URIs are never compressed with @prefix declarations. Parsing the mapping file's prefixes and registering them with the writer would produce much more readable Turtle output.
+
+11. **Set datatypes (e.g. xsd) on object for R2RML output**
+Currently all literals are output as strings. An improvement would be to convert to xsd types.
