@@ -64,8 +64,8 @@ struct PredicateProfile {
 	}
 
 	void Merge(const PredicateProfile &other) {
-		for (auto &[type_name, stats] : other.type_stats) {
-			type_stats[type_name].Merge(stats);
+		for (const auto &kv : other.type_stats) {
+			type_stats[kv.first].Merge(kv.second);
 		}
 		subjects.insert(other.subjects.begin(), other.subjects.end());
 		graphs.insert(other.graphs.begin(), other.graphs.end());

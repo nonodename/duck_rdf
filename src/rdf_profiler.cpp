@@ -81,8 +81,8 @@ void RDFProfileAccumulator::AddTriple(const std::string &graph, const std::strin
 }
 
 void RDFProfileAccumulator::Merge(const RDFProfileAccumulator &other) {
-	for (auto &[predicate, profile] : other._profiles) {
-		_profiles[predicate].Merge(profile);
+	for (const auto &kv : other._profiles) {
+		_profiles[kv.first].Merge(kv.second);
 	}
 }
 

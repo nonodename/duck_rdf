@@ -104,7 +104,9 @@ static std::vector<ProfileRow> BuildRows(const RDFProfileAccumulator &acc) {
 	std::vector<ProfileRow> rows;
 	rows.reserve(acc.GetProfiles().size());
 
-	for (auto &[predicate, profile] : acc.GetProfiles()) {
+	for (const auto &pred_kv : acc.GetProfiles()) {
+		const std::string &predicate = pred_kv.first;
+		const PredicateProfile &profile = pred_kv.second;
 		ProfileRow row;
 		row.predicate = predicate;
 		row.graph_count = profile.graphs.size();
@@ -113,8 +115,8 @@ static std::vector<ProfileRow> BuildRows(const RDFProfileAccumulator &acc) {
 		// Collect and sort type names for deterministic output
 		std::vector<std::string> types;
 		types.reserve(profile.type_stats.size());
-		for (auto &[type_name, _] : profile.type_stats)
-			types.push_back(type_name);
+		for (const auto &ts_kv : profile.type_stats)
+			types.push_back(ts_kv.first);
 		std::sort(types.begin(), types.end());
 		row.sorted_types = types;
 
