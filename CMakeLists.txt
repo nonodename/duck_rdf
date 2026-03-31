@@ -22,6 +22,8 @@ set(EXTENSION_SOURCES
     src/rdf_xml_parser.cpp
     src/xml_buffer.cpp
     src/sparql_reader.cpp
+    src/rdf_profiler.cpp
+    src/profile_rdf.cpp
 )
 
 # ------------------------------------------------------------

@@ -85,6 +85,55 @@ SELECT * FROM read_rdf('data/shards/*.dat', file_type = 'ttl', strict_parsing = 
 
 If the pattern matches no files an `IO Error` is raised.
 
+## Profiling RDF
+
+`profile_rdf()` takes the same path/glob argument as `read_rdf()` and returns a statistical profile — one row per unique predicate — without materialising all triples. It is useful for quickly understanding an unfamiliar dataset.
+
+```sql
+SELECT predicate, types, count, subject_count
+FROM profile_rdf('test/rdf/tests.nt')
+ORDER BY predicate;
+```
+
+```
+┌─────────────────────────────────────────────────┬───────────┬───────────────────────┬───────────────┐
+│                    predicate                    │   types   │         count         │ subject_count │
+│                     varchar                     │ varchar[] │ map(varchar, ubigint) │    uint64     │
+├─────────────────────────────────────────────────┼───────────┼───────────────────────┼───────────────┤
+│ http://example.org/hasEmoji                     │ [VARCHAR] │ {VARCHAR=1}           │             1 │
+│ http://purl.org/dc/elements/1.1/creator         │ [IRI]     │ {IRI=1}               │             1 │
+│ http://purl.org/dc/elements/1.1/title           │ [VARCHAR] │ {VARCHAR=1}           │             1 │
+│ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │ [IRI]     │ {IRI=2}               │             2 │
+│ http://xmlns.com/foaf/0.1/age                   │ [HUGEINT] │ {HUGEINT=1}           │             1 │
+│ http://xmlns.com/foaf/0.1/knows                 │ [BLANK]   │ {BLANK=1}             │             1 │
+│ http://xmlns.com/foaf/0.1/name                  │ [VARCHAR] │ {VARCHAR=2}           │             2 │
+└─────────────────────────────────────────────────┴───────────┴───────────────────────┴───────────────┘
+```
+
+Each row contains:
+- **`types`** — sorted list of distinct DuckDB type names for the objects of that predicate (`IRI`, `BLANK`, `VARCHAR`, `HUGEINT`, `TIMESTAMP`, etc.)
+- **`count`** — map of type → object count
+- **`min`** / **`max`** — map of type → lexicographic min/max value
+- **`subject_count`** — number of distinct subjects this predicate appears with
+- **`graph_count`** — number of distinct graphs (default graph counts as one)
+
+Use map subscript to access per-type values:
+
+```sql
+-- Predicates carrying typed integers, ordered by count
+SELECT predicate, count['HUGEINT'] AS n
+FROM profile_rdf('data.nt')
+WHERE list_contains(types, 'HUGEINT')
+ORDER BY n DESC;
+
+-- Value range for a date predicate
+SELECT min['DATE'], max['DATE']
+FROM profile_rdf('events.nt')
+WHERE predicate = 'http://schema.org/startDate';
+```
+
+`profile_rdf` accepts the same `strict_parsing` and `file_type` parameters as `read_rdf`, and supports glob patterns across all supported formats.
+
 ## Querying SPARQL Endpoints
 
 The experimental `read_sparql(endpoint, query)` sends a SPARQL SELECT query to a remote endpoint and returns the result set as a DuckDB table. Column names are derived from the SPARQL variable names; all columns are VARCHAR. Unbound variables are returned as empty strings.
