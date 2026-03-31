@@ -3,9 +3,10 @@
 #define I_TRIPLES_BUFFER_H
 #include "duckdb.hpp"
 #include "duckdb/common/file_system.hpp"
+#include "duckdb/common/exception.hpp"
 #include <algorithm>
 #include <queue>
-
+#include "string_util.hpp"
 /*
     Holder for a single row of RDF
 */
@@ -44,6 +45,37 @@ public:
 	}
 	uint64_t GetSkipCount() const {
 		return _skip_count;
+	}
+
+	static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
+		std::string x = stringtoLower(s);
+		if (x == "ttl" || x == "turtle")
+			return ITriplesBuffer::TURTLE;
+		if (x == "nq" || x == "nquads")
+			return ITriplesBuffer::NQUADS;
+
+		if (x == "nt" || x == "ntriples")
+			return ITriplesBuffer::NTRIPLES;
+		if (x == "trig")
+			return ITriplesBuffer::TRIG;
+		if (x == "rdf" || x == "xml")
+			return ITriplesBuffer::XML;
+		return ITriplesBuffer::UNKNOWN;
+	}
+
+	static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
+		auto pos = path.rfind('.');
+		if (pos == std::string::npos)
+			return ITriplesBuffer::UNKNOWN;
+		std::string ext = path.substr(pos + 1);
+		return ConvertLabelToFileType(ext);
+	}
+
+	static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
+		ITriplesBuffer::FileType ft = ConvertLabelToFileType(s);
+		if (ft == ITriplesBuffer::UNKNOWN)
+			throw duckdb::InvalidInputException("Unknown file_type override: '%s'", s.c_str());
+		return ft;
 	}
 
 protected:

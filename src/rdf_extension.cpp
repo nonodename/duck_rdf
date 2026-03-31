@@ -25,36 +25,6 @@ using namespace std;
 
 namespace duckdb {
 
-static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
-	std::string x = stringtoLower(s);
-	if (x == "ttl" || x == "turtle")
-		return ITriplesBuffer::TURTLE;
-	if (x == "nq" || x == "nquads")
-		return ITriplesBuffer::NQUADS;
-	if (x == "nt" || x == "ntriples")
-		return ITriplesBuffer::NTRIPLES;
-	if (x == "trig")
-		return ITriplesBuffer::TRIG;
-	if (x == "rdf" || x == "xml")
-		return ITriplesBuffer::XML;
-	return ITriplesBuffer::UNKNOWN;
-}
-
-static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
-	auto pos = path.rfind('.');
-	if (pos == std::string::npos)
-		return ITriplesBuffer::UNKNOWN;
-	std::string ext = path.substr(pos + 1);
-	return ConvertLabelToFileType(ext);
-}
-
-static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {
-	ITriplesBuffer::FileType ft = ConvertLabelToFileType(s);
-	if (ft == ITriplesBuffer::UNKNOWN)
-		throw InvalidInputException("Unknown file_type override: '%s'", s.c_str());
-	return ft;
-}
-
 // Bind data: holds the expanded list of files (supports glob patterns)
 struct RDFReaderBindData : public TableFunctionData {
 	vector<string> file_paths;
@@ -101,7 +71,7 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	// Optional explicit file type override — applied to all matched files
 	auto file_type_param = input.named_parameters.find(FILE_TYPE);
 	if (file_type_param != input.named_parameters.end()) {
-		result->file_type = ParseFileTypeString(file_type_param->second.GetValue<string>());
+		result->file_type = ITriplesBuffer::ParseFileTypeString(file_type_param->second.GetValue<string>());
 	} else {
 		result->file_type = ITriplesBuffer::UNKNOWN; // detect per-file from extension
 	}
@@ -155,7 +125,7 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 static unique_ptr<ITriplesBuffer> OpenFile(const string &file_path, ITriplesBuffer::FileType ft, FileSystem &fs,
                                            bool strict_parsing, bool expand_prefixes) {
 	if (ft == ITriplesBuffer::UNKNOWN) {
-		ft = DetectFileTypeFromPath(file_path);
+		ft = ITriplesBuffer::DetectFileTypeFromPath(file_path);
 	}
 	switch (ft) {
 	case ITriplesBuffer::TURTLE:

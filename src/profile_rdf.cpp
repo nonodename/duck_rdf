@@ -21,44 +21,6 @@ using namespace std;
 
 namespace duckdb {
 
-// ============================================================
-// Helpers
-// ============================================================
-
-static ITriplesBuffer::FileType ProfileDetectFileType(const std::string &path) {
-	auto pos = path.rfind('.');
-	if (pos == std::string::npos)
-		return ITriplesBuffer::UNKNOWN;
-	std::string ext = path.substr(pos + 1);
-	std::string x = stringtoLower(ext);
-	if (x == "ttl" || x == "turtle")
-		return ITriplesBuffer::TURTLE;
-	if (x == "nq" || x == "nquads")
-		return ITriplesBuffer::NQUADS;
-	if (x == "nt" || x == "ntriples")
-		return ITriplesBuffer::NTRIPLES;
-	if (x == "trig")
-		return ITriplesBuffer::TRIG;
-	if (x == "rdf" || x == "xml")
-		return ITriplesBuffer::XML;
-	return ITriplesBuffer::UNKNOWN;
-}
-
-static ITriplesBuffer::FileType ProfileParseFileTypeParam(const std::string &s) {
-	std::string x = stringtoLower(s);
-	if (x == "ttl" || x == "turtle")
-		return ITriplesBuffer::TURTLE;
-	if (x == "nq" || x == "nquads")
-		return ITriplesBuffer::NQUADS;
-	if (x == "nt" || x == "ntriples")
-		return ITriplesBuffer::NTRIPLES;
-	if (x == "trig")
-		return ITriplesBuffer::TRIG;
-	if (x == "rdf" || x == "xml")
-		return ITriplesBuffer::XML;
-	throw InvalidInputException("Unknown file_type override: '%s'", s.c_str());
-}
-
 // Build a MAP(VARCHAR, UBIGINT) value from parallel key/value arrays.
 static Value BuildVarcharBigintMap(const std::vector<std::string> &keys, const std::vector<uint64_t> &values) {
 	D_ASSERT(keys.size() == values.size());
@@ -176,9 +138,9 @@ static unique_ptr<FunctionData> ProfileRDFBind(ClientContext &context, TableFunc
 		result->file_paths.push_back(std::move(info.path));
 
 	auto ft_it = input.named_parameters.find(PROFILE_FILE_TYPE);
-	if (ft_it != input.named_parameters.end())
-		result->file_type = ProfileParseFileTypeParam(ft_it->second.GetValue<string>());
-
+	if (ft_it != input.named_parameters.end()) 
+		result->file_type = ITriplesBuffer::ParseFileTypeString(ft_it->second.GetValue<string>());
+	
 	auto sp_it = input.named_parameters.find(PROFILE_STRICT_PARSING);
 	if (sp_it != input.named_parameters.end())
 		result->strict_parsing = sp_it->second.GetValue<bool>();
@@ -210,7 +172,7 @@ static unique_ptr<GlobalTableFunctionState> ProfileRDFGlobalInit(ClientContext &
 	for (auto &file_path : bind_data.file_paths) {
 		ITriplesBuffer::FileType ft = bind_data.file_type;
 		if (ft == ITriplesBuffer::UNKNOWN)
-			ft = ProfileDetectFileType(file_path);
+			ft = ITriplesBuffer::DetectFileTypeFromPath(file_path);
 
 		try {
 			switch (ft) {
