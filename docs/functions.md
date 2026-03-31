@@ -63,6 +63,67 @@ ORDER BY filename;
 
 ---
 
+## `profile_rdf(path, [options])`
+
+Table function. Reads one or more RDF files and returns a statistical profile with one row per unique predicate. Useful for exploring an unfamiliar dataset, understanding its type distribution, and validating data quality before building a full pipeline.
+
+**Parameters**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `path` | VARCHAR | Yes | — | File path or glob pattern |
+| `strict_parsing` | BOOLEAN | No | `true` | When `false`, skips malformed triples instead of raising an error |
+| `file_type` | VARCHAR | No | auto-detect | Override format detection. Same values as `read_rdf` |
+
+**Returns**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `predicate` | VARCHAR | Predicate URI |
+| `types` | VARCHAR[] | Sorted list of distinct DuckDB type names observed for the objects of this predicate |
+| `count` | MAP(VARCHAR, UBIGINT) | Number of objects seen per type |
+| `min` | MAP(VARCHAR, VARCHAR) | Lexicographic minimum object value per type |
+| `max` | MAP(VARCHAR, VARCHAR) | Lexicographic maximum object value per type |
+| `graph_count` | UBIGINT | Number of distinct graphs (named or default) this predicate appears in |
+| `subject_count` | UBIGINT | Number of distinct subjects this predicate appears with |
+
+**Type names**
+
+Object type names follow DuckDB conventions and are derived from XSD datatypes (see `docs/typemapping.md`). Two additional labels are used for non-literal objects:
+
+| Label | Meaning |
+|-------|---------|
+| `IRI` | Object is an IRI (resource reference) |
+| `BLANK` | Object is a blank node |
+| `VARCHAR` | Plain or language-tagged string literal, or `xsd:string` |
+
+Unknown XSD datatypes are reported as their full URI.
+
+**Examples**
+
+```sql
+-- Quick overview of all predicates in a file
+SELECT predicate, types, count FROM profile_rdf('data.ttl');
+
+-- Find predicates that carry integer values
+SELECT predicate, count['HUGEINT'] AS n
+FROM profile_rdf('data.nt')
+WHERE list_contains(types, 'HUGEINT')
+ORDER BY n DESC;
+
+-- Inspect value ranges for a specific predicate
+SELECT min['TIMESTAMP'], max['TIMESTAMP']
+FROM profile_rdf('events.nt')
+WHERE predicate = 'http://schema.org/startDate';
+
+-- Profile all files in a directory
+SELECT predicate, subject_count, graph_count
+FROM profile_rdf('shards/*.nt')
+ORDER BY subject_count DESC;
+```
+
+---
+
 ## `read_sparql(endpoint, query)`
 
 Table function. Sends a SPARQL SELECT query to an HTTP/HTTPS endpoint and returns the result set as a table. Column names match the SPARQL variable names; all columns are VARCHAR.
