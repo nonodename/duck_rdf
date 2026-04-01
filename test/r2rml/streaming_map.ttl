@@ -1,0 +1,23 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/streaming#> .
+
+# Full R2RML mapping used to validate StreamingSQLResultSet across chunk boundaries.
+# Maps large_table(id INTEGER, val VARCHAR) to three triples per row:
+#   rdf:type ex:Row
+#   ex:id    <integer literal>
+#   ex:val   <string literal>
+
+<#RowMap>
+    rr:logicalTable [ rr:tableName "large_table" ] ;
+    rr:subjectMap [
+        rr:template "http://example.com/row/{id}" ;
+        rr:class ex:Row ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:id ;
+        rr:objectMap [ rr:column "id" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:val ;
+        rr:objectMap [ rr:column "val" ] ;
+    ] .

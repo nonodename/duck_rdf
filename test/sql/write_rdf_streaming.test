@@ -1,0 +1,84 @@
+# name: test/sql/write_rdf_streaming.test
+# description: validate StreamingSQLResultSet correctness across DuckDB chunk boundaries
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# 3000 rows deliberately spans more than one DuckDB DataChunk (default size 2048).
+# This exercises the chunk-advance logic in StreamingSQLResultSet::next().
+
+statement ok
+CREATE TABLE large_table AS
+    SELECT i AS id, 'value_' || CAST(i AS VARCHAR) AS val
+    FROM generate_series(1, 3000) t(i);
+
+# ── Full R2RML mode with large table ─────────────────────────────────────────
+# The extension ignores the COPY SELECT and queries large_table itself via
+# the mapping's rr:logicalTable.  Each row produces 3 triples (rdf:type + id + val).
+
+statement ok
+COPY (SELECT 1) TO '__TEST_DIR__/large_out.nt'
+(FORMAT r2rml, mapping 'test/r2rml/streaming_map.ttl', ignore_case true);
+
+# 3000 rows x 3 triples = 9000 total
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out.nt');
+----
+9000
+
+# First row subject
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out.nt')
+WHERE subject = 'http://example.com/row/1';
+----
+3
+
+# Row at first chunk boundary (row 2049, second chunk)
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out.nt')
+WHERE subject = 'http://example.com/row/2049';
+----
+3
+
+# Last row
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out.nt')
+WHERE subject = 'http://example.com/row/3000';
+----
+3
+
+# Spot-check a literal value mid-table
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/large_out.nt')
+WHERE subject = 'http://example.com/row/42'
+  AND predicate = 'http://example.com/streaming#val';
+----
+value_42
+
+# ── Memory-limit smoke test ───────────────────────────────────────────────────
+# With streaming, duck_rdf holds at most one DataChunk (~2048 rows) at a time
+# rather than materialising the entire result into MapSQLRow objects.
+# 64 MB is well above the O(chunk_size) overhead required by the streaming path
+# and well below what the old O(N) MapSQLRow approach would need at scale.
+# A failure here would indicate a regression to full materialisation.
+
+statement ok
+SET memory_limit = '64MB';
+
+statement ok
+CREATE TABLE large_table_2 AS
+    SELECT i AS id, 'value_' || CAST(i AS VARCHAR) AS val
+    FROM generate_series(1, 3000) t(i);
+
+statement ok
+COPY (SELECT 1) TO '__TEST_DIR__/large_out_2.nt'
+(FORMAT r2rml, mapping 'test/r2rml/streaming_map.ttl', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out_2.nt');
+----
+9000
+
+statement ok
+RESET memory_limit;

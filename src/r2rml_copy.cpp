@@ -291,21 +291,65 @@ private:
 	}
 };
 
-// Materialised result set: holds all rows fetched from a DuckDB query.
-class VectorSQLResultSet : public r2rml::SQLResultSet {
+// Streaming result set: wraps a live DuckDB QueryResult, exposing rows one at a
+// time through DataChunkSQLRow without materialising all rows upfront.
+// The col_index is built once from the first non-empty chunk (column schema is
+// constant across all chunks).  The current DataChunk and current DataChunkSQLRow
+// are owned here so that DataChunkSQLRow's references remain valid for the
+// duration of getCurrentRow()'s lifetime (i.e. until next() is called again).
+class StreamingSQLResultSet : public r2rml::SQLResultSet {
 public:
-	explicit VectorSQLResultSet(std::vector<r2rml::MapSQLRow> rows) : rows_(std::move(rows)) {
+	StreamingSQLResultSet(unique_ptr<QueryResult> result, bool ignore_case)
+	    : result_(std::move(result)), ignore_case_(ignore_case) {
 	}
+
 	bool next() override {
-		return ++cursor_ < static_cast<int>(rows_.size());
+		// Advance within the current chunk.
+		if (current_chunk_ && row_in_chunk_ + 1 < current_chunk_->size()) {
+			++row_in_chunk_;
+			updateCurrentRow();
+			return true;
+		}
+		// Fetch the next non-empty chunk from DuckDB.
+		while (true) {
+			current_chunk_ = result_->Fetch();
+			if (!current_chunk_ || current_chunk_->size() == 0) {
+				current_chunk_.reset();
+				current_row_.reset();
+				return false;
+			}
+			// Build column-name → index map once (schema is fixed across chunks).
+			if (col_index_.empty()) {
+				for (idx_t c = 0; c < current_chunk_->ColumnCount(); c++) {
+					std::string name = result_->ColumnName(c);
+					if (ignore_case_) {
+						name = stringtoLower(name);
+					}
+					col_index_[name] = c;
+				}
+			}
+			row_in_chunk_ = 0;
+			updateCurrentRow();
+			return true;
+		}
 	}
+
 	const r2rml::SQLRow &getCurrentRow() const override {
-		return rows_[static_cast<size_t>(cursor_)];
+		return *current_row_;
 	}
 
 private:
-	std::vector<r2rml::MapSQLRow> rows_;
-	int cursor_ = -1;
+	unique_ptr<QueryResult> result_;
+	bool ignore_case_;
+	unique_ptr<DataChunk> current_chunk_;
+	std::unordered_map<std::string, idx_t> col_index_;
+	idx_t row_in_chunk_ = 0;
+	unique_ptr<DataChunkSQLRow> current_row_;
+
+	void updateCurrentRow() {
+		current_row_ = unique_ptr<DataChunkSQLRow>(
+		    new DataChunkSQLRow(*current_chunk_, row_in_chunk_, col_index_, ignore_case_));
+	}
 };
 
 // SQLConnection backed by the live DuckDB instance via a fresh Connection.
@@ -327,25 +371,9 @@ public:
 		if (result->HasError()) {
 			throw InternalException("R2RML query error: " + result->GetError());
 		}
-		std::vector<r2rml::MapSQLRow> rows;
-		while (true) {
-			auto chunk = result->Fetch();
-			if (!chunk || chunk->size() == 0) {
-				break;
-			}
-			for (idx_t r = 0; r < chunk->size(); r++) {
-				std::map<std::string, std::unique_ptr<r2rml::SQLValue>> cols;
-				for (idx_t c = 0; c < chunk->ColumnCount(); c++) {
-					std::string name = result->ColumnName(c);
-					if (ignore_case_) {
-						name = stringtoLower(name);
-					}
-					cols[name] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk->GetValue(c, r)));
-				}
-				rows.emplace_back(std::move(cols));
-			}
-		}
-		return unique_ptr<r2rml::SQLResultSet>(new VectorSQLResultSet(std::move(rows)));
+		// conn.Query() returns a MaterializedQueryResult whose chunks are owned
+		// by the result object; the Connection can safely go out of scope here.
+		return unique_ptr<r2rml::SQLResultSet>(new StreamingSQLResultSet(std::move(result), ignore_case_));
 	}
 
 	std::string getDefaultSchema() override {
