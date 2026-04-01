@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A DuckDB extension that enables reading and writing RDF data directly in DuckDB. It provides:
 - `read_rdf(path, options)` — read RDF files into DuckDB tables (glob patterns supported)
 - `read_sparql(endpoint, query)` — query remote SPARQL endpoints
+- `profile_rdf(path, options)` - profile RDF files generating an DuckDB table overview
 - `COPY TO ... (FORMAT r2rml)` — write DuckDB query results to RDF using R2RML mappings
 
 ## Build & Test Commands
@@ -51,6 +52,8 @@ Or load the extension and run queries interactively:
 ```
 
 ## Architecture
+
+Note that you must stick with C++ 11 and earlier as that's the standard that DuckDB uses.
 
 ### Parser Interface
 
