@@ -347,8 +347,8 @@ private:
 	unique_ptr<DataChunkSQLRow> current_row_;
 
 	void updateCurrentRow() {
-		current_row_ = unique_ptr<DataChunkSQLRow>(
-		    new DataChunkSQLRow(*current_chunk_, row_in_chunk_, col_index_, ignore_case_));
+		current_row_ =
+		    unique_ptr<DataChunkSQLRow>(new DataChunkSQLRow(*current_chunk_, row_in_chunk_, col_index_, ignore_case_));
 	}
 };
 

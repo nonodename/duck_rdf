@@ -205,7 +205,7 @@ Use this when your mapping has `rr:logicalTable` declarations that specify which
 COPY (SELECT 1) TO 'output.nt' (FORMAT r2rml, mapping 'mapping.ttl');
 ```
 
-To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. In particular the result set is cached. If a lot of folks end up using this we'll look at a more streaming output here.
+To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. Output does stream so, in principle there should be no limit on output file size.
 
 ### Options
 
