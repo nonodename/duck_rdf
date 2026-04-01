@@ -1,0 +1,158 @@
+From 6b7ac7cf29e25966a399fd072406f7b305b79901 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Wed, 1 Apr 2026 05:10:35 +0000
+Subject: [PATCH] Add XSD datatype propagation for typed literals
+
+- SQLValue: add virtual datatypeIRI() returning the XSD type URI for
+  the value, or empty string for plain string literals (default).
+- TermMap: add virtual computeDatatypeIRI(row) that returns the static
+  rr:datatype from the mapping if present, falling back to empty string.
+- ColumnTermMap: override computeDatatypeIRI to delegate to the column
+  value's datatypeIRI() when no static rr:datatype is set in the mapping.
+- PredicateObjectMap::processRow: call computeDatatypeIRI for literal
+  object maps (no language tag) and pass the resulting datatype SerdNode
+  to serd_writer_write_statement.  The dtIRI std::string is declared in
+  the enclosing scope so its buf pointer remains valid across the write.
+
+https://claude.ai/code/session_01ST2afWuuG4YrfZ6rs9EsEE
+---
+ include/r2rml/ColumnTermMap.h    |  2 ++
+ include/r2rml/SQLValue.h         | 11 +++++++++++
+ include/r2rml/TermMap.h          |  9 +++++++++
+ src/r2rml/ColumnTermMap.cpp      | 12 ++++++++++++
+ src/r2rml/PredicateObjectMap.cpp | 14 ++++++++++++--
+ src/r2rml/TermMap.cpp            |  8 ++++++++
+ 6 files changed, 54 insertions(+), 2 deletions(-)
+
+diff --git a/include/r2rml/ColumnTermMap.h b/include/r2rml/ColumnTermMap.h
+index 8265e3a..b4a1488 100644
+--- a/include/r2rml/ColumnTermMap.h
++++ b/include/r2rml/ColumnTermMap.h
+@@ -16,6 +16,8 @@ public:
+ 
+ 	SerdNode generateRDFTerm(const SQLRow &row, const SerdEnv &env) const override;
+ 
++	std::string computeDatatypeIRI(const SQLRow &row) const override;
++
+ 	bool isValid() const override {
+ 		// columnName must not be empty
+ 		return !columnName.empty();
+diff --git a/include/r2rml/SQLValue.h b/include/r2rml/SQLValue.h
+index 03cc758..e458cbd 100644
+--- a/include/r2rml/SQLValue.h
++++ b/include/r2rml/SQLValue.h
+@@ -22,6 +22,17 @@ public:
+ 
+ 	/** Deep-copy this value. */
+ 	virtual std::unique_ptr<SQLValue> clone() const = 0;
++
++	/**
++	 * Returns the XSD datatype URI for this value (e.g.
++	 * "http://www.w3.org/2001/XMLSchema#integer"), or an empty string when the
++	 * value should be serialised as a plain string literal with no datatype
++	 * annotation.  The default implementation returns empty string; backends
++	 * with richer type information (e.g. DuckDB) should override this.
++	 */
++	virtual std::string datatypeIRI() const {
++		return std::string();
++	}
+ };
+ 
+ } // namespace r2rml
+diff --git a/include/r2rml/TermMap.h b/include/r2rml/TermMap.h
+index 47ff2a8..27efc29 100644
+--- a/include/r2rml/TermMap.h
++++ b/include/r2rml/TermMap.h
+@@ -37,6 +37,15 @@ public:
+ 		return true;
+ 	}
+ 
++	/**
++	 * Returns the effective XSD datatype IRI for a literal value derived from
++	 * the given row.  If a static rr:datatype is set on this term map it takes
++	 * priority; otherwise the base implementation returns empty string.
++	 * ColumnTermMap overrides this to fall back to the column value's own
++	 * datatype when no static mapping is present.
++	 */
++	virtual std::string computeDatatypeIRI(const SQLRow &row) const;
++
+ 	/**
+ 	 * Write a human-readable representation to the given stream.
+ 	 * Subclasses should override this and call TermMap::print for base fields.
+diff --git a/src/r2rml/ColumnTermMap.cpp b/src/r2rml/ColumnTermMap.cpp
+index 2d16e4f..3caf9e2 100644
+--- a/src/r2rml/ColumnTermMap.cpp
++++ b/src/r2rml/ColumnTermMap.cpp
+@@ -23,6 +23,18 @@ SerdNode ColumnTermMap::generateRDFTerm(const SQLRow &row, const SerdEnv & /*env
+ 	return serd_node_from_string(nodeType, reinterpret_cast<const uint8_t *>(cachedValue_.c_str()));
+ }
+ 
++std::string ColumnTermMap::computeDatatypeIRI(const SQLRow &row) const {
++	// Static rr:datatype in the mapping takes priority over inferred types.
++	if (datatypeIRI) {
++		return *datatypeIRI;
++	}
++	auto val = row.getValue(columnName);
++	if (!val || val->isNull()) {
++		return std::string();
++	}
++	return val->datatypeIRI();
++}
++
+ std::ostream &ColumnTermMap::print(std::ostream &os) const {
+ 	os << "ColumnTermMap { column=\"" << columnName << "\" ";
+ 	TermMap::print(os);
+diff --git a/src/r2rml/PredicateObjectMap.cpp b/src/r2rml/PredicateObjectMap.cpp
+index d8cd2e3..45367aa 100644
+--- a/src/r2rml/PredicateObjectMap.cpp
++++ b/src/r2rml/PredicateObjectMap.cpp
+@@ -66,10 +66,20 @@ void PredicateObjectMap::processRow(const SQLRow &row, const SerdNode &subject,
+ 					continue; // null object – skip
+ 				}
+ 
+-				// Determine whether to pass datatype/lang for literals.
++				SerdNode datatypeNode = SERD_NODE_NULL;
+ 				const SerdNode *datatype = nullptr;
+ 				const SerdNode *lang = nullptr;
+-				// (Language tags and datatypes not exercised by current tests.)
++				// dtIRI must outlive datatypeNode (whose buf points into it).
++				std::string dtIRI;
++
++				if (object.type == SERD_LITERAL && !objMap->languageTag) {
++					dtIRI = objMap->computeDatatypeIRI(row);
++					if (!dtIRI.empty()) {
++						datatypeNode =
++						    serd_node_from_string(SERD_URI, reinterpret_cast<const uint8_t *>(dtIRI.c_str()));
++						datatype = &datatypeNode;
++					}
++				}
+ 
+ 				serd_writer_write_statement(&rdfWriter, 0, nullptr, &subject, &predicate, &object, datatype, lang);
+ 			}
+diff --git a/src/r2rml/TermMap.cpp b/src/r2rml/TermMap.cpp
+index e62d4b8..223c922 100644
+--- a/src/r2rml/TermMap.cpp
++++ b/src/r2rml/TermMap.cpp
+@@ -1,4 +1,5 @@
+ #include "r2rml/TermMap.h"
++#include "r2rml/SQLRow.h"
+ 
+ #include <ostream>
+ 
+@@ -6,6 +7,13 @@ namespace r2rml {
+ 
+ TermMap::~TermMap() = default;
+ 
++std::string TermMap::computeDatatypeIRI(const SQLRow & /*row*/) const {
++	if (datatypeIRI) {
++		return *datatypeIRI;
++	}
++	return std::string();
++}
++
+ static const char *termTypeName(TermType t) {
+ 	switch (t) {
+ 	case TermType::IRI:
+-- 
+2.43.0
+
