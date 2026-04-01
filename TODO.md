@@ -19,7 +19,7 @@ A companion function that returns the prefix declarations (@prefix / @base) from
 5. **Projection pushdown**  ✅
 The scan always writes all 6 columns regardless of what the query selects. DuckDB table functions support ProjectionPushdown — implementing RDFReaderFunc to check input.column_ids and skip populating unused columns would reduce allocations for common queries like SELECT subject, predicate FROM read_rdf(...).
 
-6. **Streaming output for full R2RML mode**
+6. **Streaming output for full R2RML mode** ✅
 The README itself notes this: ClientContextSQLConnection::execute() materializes the entire result set into a vector<MapSQLRow> before any RDF is written. For large tables this is a significant memory spike. A streaming cursor approach — fetching one chunk at a time and flushing to the Serd writer — would fix this.
 
 7. **Parallel write / sharded output**
