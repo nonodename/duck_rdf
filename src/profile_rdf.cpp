@@ -138,9 +138,9 @@ static unique_ptr<FunctionData> ProfileRDFBind(ClientContext &context, TableFunc
 		result->file_paths.push_back(std::move(info.path));
 
 	auto ft_it = input.named_parameters.find(PROFILE_FILE_TYPE);
-	if (ft_it != input.named_parameters.end()) 
+	if (ft_it != input.named_parameters.end())
 		result->file_type = ITriplesBuffer::ParseFileTypeString(ft_it->second.GetValue<string>());
-	
+
 	auto sp_it = input.named_parameters.find(PROFILE_STRICT_PARSING);
 	if (sp_it != input.named_parameters.end())
 		result->strict_parsing = sp_it->second.GetValue<bool>();

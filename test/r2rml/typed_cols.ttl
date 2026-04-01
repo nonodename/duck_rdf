@@ -1,0 +1,18 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/types#> .
+
+# Mapping used by write_rdf.test to verify XSD datatype annotations on typed
+# DuckDB columns.  The subject is keyed on the 'id' column; each predicate
+# exposes one typed column so tests can check object / object_datatype pairs.
+
+<#TypedMap>
+    rr:subjectMap [ rr:template "http://example.com/row/{id}" ] ;
+    rr:predicateObjectMap [ rr:predicate ex:intVal ;     rr:objectMap [ rr:column "int_col" ] ] ;
+    rr:predicateObjectMap [ rr:predicate ex:boolVal ;    rr:objectMap [ rr:column "bool_col" ] ] ;
+    rr:predicateObjectMap [ rr:predicate ex:dblVal ;     rr:objectMap [ rr:column "dbl_col" ] ] ;
+    rr:predicateObjectMap [ rr:predicate ex:decVal ;     rr:objectMap [ rr:column "dec_col" ] ] ;
+    rr:predicateObjectMap [ rr:predicate ex:dateVal ;    rr:objectMap [ rr:column "date_col" ] ] ;
+    rr:predicateObjectMap [ rr:predicate ex:timeVal ;    rr:objectMap [ rr:column "time_col" ] ] ;
+    rr:predicateObjectMap [ rr:predicate ex:tsVal ;      rr:objectMap [ rr:column "ts_col" ] ] ;
+    rr:predicateObjectMap [ rr:predicate ex:bigintVal ;  rr:objectMap [ rr:column "bigint_col" ] ] ;
+    rr:predicateObjectMap [ rr:predicate ex:strVal ;     rr:objectMap [ rr:column "str_col" ] ] .
