@@ -1,3 +1,8 @@
+This table documents the DuckDB-to-XSD type mappings applied when writing
+typed literals via `COPY TO ... (FORMAT r2rml)`.  VARCHAR produces a plain
+string literal (no datatype annotation); all other types listed below carry
+the corresponding `^^xsd:*` annotation in the output.
+
 | DuckDB Type | XSD Type | Notes |
 |---|---|---|
 | `BOOLEAN` | `xsd:boolean` | Exact |

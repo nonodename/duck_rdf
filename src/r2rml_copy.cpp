@@ -4,6 +4,7 @@
 #include "duckdb/parser/parsed_data/copy_info.hpp"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/common/file_system.hpp"
+#include <cmath>
 #include <serd/serd.h>
 #include <r2rml/R2RMLMapping.h>
 #include <r2rml/R2RMLParser.h>
@@ -19,6 +20,8 @@
 #include <unordered_map>
 
 using namespace std;
+
+static const char *const XSD_NS = "http://www.w3.org/2001/XMLSchema#";
 
 #define MAPPING_OPTION          "mapping"
 #define RDF_FORMAT_OPTION       "rdf_format"
@@ -64,8 +67,9 @@ static SerdSyntax ParseRdfFormat(const std::string &fmt) {
 	throw InvalidInputException("Unknown rdf_format '%s'. Valid values: ntriples, turtle, nquads.", fmt.c_str());
 }
 
-// Lazily wraps a DuckDB Value; type and string representation are computed on
-// first access so columns unreferenced by any TriplesMap are never converted.
+// Lazily wraps a DuckDB Value; type, string representation and XSD datatype
+// URI are computed on first access so columns unreferenced by any TriplesMap
+// are never converted.
 class DataChunkSQLValue : public r2rml::SQLValue {
 public:
 	explicit DataChunkSQLValue(Value val) : val_(std::move(val)) {
@@ -82,6 +86,10 @@ public:
 		ensureConverted();
 		return string_;
 	}
+	std::string datatypeIRI() const override {
+		ensureConverted();
+		return datatypeIRI_;
+	}
 	std::unique_ptr<SQLValue> clone() const override {
 		return std::unique_ptr<SQLValue>(new DataChunkSQLValue(val_));
 	}
@@ -90,7 +98,20 @@ private:
 	Value val_;
 	mutable Type type_ {Type::Null};
 	mutable std::string string_;
+	mutable std::string datatypeIRI_;
 	mutable bool converted_ {false};
+
+	// Format a finite float/double for XSD: handle the NaN/INF special cases
+	// that XSD spells differently from C runtime defaults ("NaN"/"INF"/"-INF").
+	static std::string formatDouble(double d) {
+		if (std::isnan(d)) {
+			return "NaN";
+		}
+		if (std::isinf(d)) {
+			return d > 0 ? "INF" : "-INF";
+		}
+		return std::to_string(d);
+	}
 
 	void ensureConverted() const {
 		if (converted_) {
@@ -104,34 +125,114 @@ private:
 		case LogicalTypeId::BOOLEAN:
 			type_ = Type::Boolean;
 			string_ = val_.GetValue<bool>() ? "true" : "false";
+			datatypeIRI_ = std::string(XSD_NS) + "boolean";
 			break;
 		case LogicalTypeId::TINYINT:
+			type_ = Type::Integer;
+			string_ = std::to_string(val_.GetValue<int8_t>());
+			datatypeIRI_ = std::string(XSD_NS) + "byte";
+			break;
 		case LogicalTypeId::SMALLINT:
+			type_ = Type::Integer;
+			string_ = std::to_string(val_.GetValue<int16_t>());
+			datatypeIRI_ = std::string(XSD_NS) + "short";
+			break;
 		case LogicalTypeId::INTEGER:
-		case LogicalTypeId::UTINYINT:
-		case LogicalTypeId::USMALLINT:
-		case LogicalTypeId::UINTEGER:
 			type_ = Type::Integer;
 			string_ = std::to_string(val_.GetValue<int32_t>());
+			datatypeIRI_ = std::string(XSD_NS) + "int";
+			break;
+		case LogicalTypeId::UTINYINT:
+			type_ = Type::Integer;
+			string_ = std::to_string(static_cast<uint32_t>(val_.GetValue<uint8_t>()));
+			datatypeIRI_ = std::string(XSD_NS) + "unsignedByte";
+			break;
+		case LogicalTypeId::USMALLINT:
+			type_ = Type::Integer;
+			string_ = std::to_string(static_cast<uint32_t>(val_.GetValue<uint16_t>()));
+			datatypeIRI_ = std::string(XSD_NS) + "unsignedShort";
+			break;
+		case LogicalTypeId::UINTEGER:
+			type_ = Type::Integer;
+			string_ = std::to_string(val_.GetValue<uint32_t>());
+			datatypeIRI_ = std::string(XSD_NS) + "unsignedInt";
 			break;
 		case LogicalTypeId::BIGINT:
+			type_ = Type::String;
+			string_ = std::to_string(val_.GetValue<int64_t>());
+			datatypeIRI_ = std::string(XSD_NS) + "long";
+			break;
 		case LogicalTypeId::UBIGINT:
+			type_ = Type::String;
+			string_ = std::to_string(val_.GetValue<uint64_t>());
+			datatypeIRI_ = std::string(XSD_NS) + "unsignedLong";
+			break;
 		case LogicalTypeId::HUGEINT:
 			type_ = Type::String;
 			string_ = val_.ToString();
+			datatypeIRI_ = std::string(XSD_NS) + "integer";
+			break;
+		case LogicalTypeId::UHUGEINT:
+			type_ = Type::String;
+			string_ = val_.ToString();
+			datatypeIRI_ = std::string(XSD_NS) + "nonNegativeInteger";
 			break;
 		case LogicalTypeId::FLOAT:
 			type_ = Type::Double;
-			string_ = std::to_string(static_cast<double>(val_.GetValue<float>()));
+			string_ = formatDouble(static_cast<double>(val_.GetValue<float>()));
+			datatypeIRI_ = std::string(XSD_NS) + "float";
 			break;
 		case LogicalTypeId::DOUBLE:
 			type_ = Type::Double;
-			string_ = std::to_string(val_.GetValue<double>());
+			string_ = formatDouble(val_.GetValue<double>());
+			datatypeIRI_ = std::string(XSD_NS) + "double";
 			break;
+		case LogicalTypeId::DECIMAL:
+			type_ = Type::String;
+			string_ = val_.ToString();
+			datatypeIRI_ = std::string(XSD_NS) + "decimal";
+			break;
+		case LogicalTypeId::DATE:
+			type_ = Type::String;
+			string_ = val_.ToString();
+			datatypeIRI_ = std::string(XSD_NS) + "date";
+			break;
+		case LogicalTypeId::TIME:
+			type_ = Type::String;
+			string_ = val_.ToString();
+			datatypeIRI_ = std::string(XSD_NS) + "time";
+			break;
+		case LogicalTypeId::TIMESTAMP:
+		case LogicalTypeId::TIMESTAMP_SEC:
+		case LogicalTypeId::TIMESTAMP_MS:
+		case LogicalTypeId::TIMESTAMP_NS: {
+			type_ = Type::String;
+			string_ = val_.ToString();
+			// DuckDB uses a space between date and time; xsd:dateTime requires 'T'.
+			if (string_.size() > 10 && string_[10] == ' ') {
+				string_[10] = 'T';
+			}
+			datatypeIRI_ = std::string(XSD_NS) + "dateTime";
+			break;
+		}
+		case LogicalTypeId::TIMESTAMP_TZ: {
+			type_ = Type::String;
+			string_ = val_.ToString();
+			if (string_.size() > 10 && string_[10] == ' ') {
+				string_[10] = 'T';
+			}
+			datatypeIRI_ = std::string(XSD_NS) + "dateTimeStamp";
+			break;
+		}
 		case LogicalTypeId::VARCHAR:
+			type_ = Type::String;
+			string_ = val_.GetValue<std::string>();
+			// Plain string literal — no XSD type annotation (RDF 1.1 plain literal).
+			break;
 		case LogicalTypeId::BLOB:
 			type_ = Type::String;
 			string_ = val_.GetValue<std::string>();
+			// hexBinary conversion deferred; emit as plain literal for now.
 			break;
 		default:
 			type_ = Type::String;

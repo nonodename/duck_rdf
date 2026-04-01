@@ -261,3 +261,94 @@ WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----
 SMITH
+
+# ── XSD datatype output ───────────────────────────────────────────────────────
+# Typed DuckDB columns should produce typed RDF literals carrying the correct
+# XSD datatype URI in the object_datatype column when read back with read_rdf.
+
+statement ok
+CREATE TABLE typed_data AS SELECT
+    1                                        AS id,
+    42                                       AS int_col,
+    true                                     AS bool_col,
+    3.14::DOUBLE                             AS dbl_col,
+    CAST(42.5 AS DECIMAL(5,1))               AS dec_col,
+    CAST('2023-01-15' AS DATE)               AS date_col,
+    CAST('09:30:00' AS TIME)                 AS time_col,
+    CAST('2023-01-15 09:30:00' AS TIMESTAMP) AS ts_col,
+    9999999999999::BIGINT                    AS bigint_col,
+    'hello'                                  AS str_col;
+
+statement ok
+COPY (SELECT id, int_col, bool_col, dbl_col, dec_col, date_col, time_col, ts_col, bigint_col, str_col FROM typed_data)
+TO '__TEST_DIR__/typed.nt'
+(FORMAT r2rml, mapping 'test/r2rml/typed_cols.ttl', ignore_case true);
+
+# INTEGER → xsd:int, value preserved
+query TT
+SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#intVal';
+----
+42	http://www.w3.org/2001/XMLSchema#int
+
+# BOOLEAN → xsd:boolean, canonical form
+query TT
+SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#boolVal';
+----
+true	http://www.w3.org/2001/XMLSchema#boolean
+
+# DOUBLE → xsd:double (just verify the datatype; exact string varies by platform)
+query T
+SELECT object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#dblVal';
+----
+http://www.w3.org/2001/XMLSchema#double
+
+# DECIMAL → xsd:decimal
+query TT
+SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#decVal';
+----
+42.5	http://www.w3.org/2001/XMLSchema#decimal
+
+# DATE → xsd:date in YYYY-MM-DD form
+query TT
+SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#dateVal';
+----
+2023-01-15	http://www.w3.org/2001/XMLSchema#date
+
+# TIME → xsd:time
+query T
+SELECT object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#timeVal';
+----
+http://www.w3.org/2001/XMLSchema#time
+
+# TIMESTAMP → xsd:dateTime with 'T' separator (not space)
+query TT
+SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#tsVal';
+----
+2023-01-15T09:30:00	http://www.w3.org/2001/XMLSchema#dateTime
+
+# BIGINT → xsd:long
+query TT
+SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#bigintVal';
+----
+9999999999999	http://www.w3.org/2001/XMLSchema#long
+
+# VARCHAR → plain string literal: no XSD datatype annotation (RDF 1.1 plain literal)
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#strVal';
+----
+hello
+
+query T
+SELECT object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+WHERE predicate = 'http://example.com/types#strVal';
+----
+NULL
