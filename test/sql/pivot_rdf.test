@@ -84,13 +84,13 @@ WHERE subject = 'http://ex.org/s1';
 ----
 true	true
 
-# s2 has no p_multi → empty list
+# s2 has no p_multi → NULL
 query I
-SELECT len("http://ex.org/p_multi")
+SELECT "http://ex.org/p_multi" IS NULL
 FROM pivot_rdf('test/rdf/pivot_test.nt')
 WHERE subject = 'http://ex.org/s2';
 ----
-0
+true
 
 # ── pivot_test.nt: lang-tagged predicate (MAP) ────────────────────────────────
 
@@ -111,13 +111,13 @@ WHERE subject = 'http://ex.org/s1';
 ----
 Hello	Hola
 
-# s2 has no p_lang → empty map
+# s2 has no p_lang → NULL
 query I
-SELECT cardinality("http://ex.org/p_lang")
+SELECT "http://ex.org/p_lang" IS NULL
 FROM pivot_rdf('test/rdf/pivot_test.nt')
 WHERE subject = 'http://ex.org/s2';
 ----
-0
+true
 
 # ── pivot_test.nt: typed integer predicate ────────────────────────────────────
 
