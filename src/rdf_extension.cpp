@@ -8,6 +8,7 @@
 #include "include/sparql_reader.hpp"
 #include "include/r2rml_copy.hpp"
 #include "include/profile_rdf.hpp"
+#include "include/pivot_rdf.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -222,6 +223,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	RegisterR2RMLCopy(loader);
 	RegisterSPARQLReader(loader);
 	RegisterProfileRDF(loader);
+	RegisterPivotRDF(loader);
 }
 
 void RdfExtension::Load(ExtensionLoader &loader) {

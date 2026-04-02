@@ -77,7 +77,7 @@ void RDFProfileAccumulator::AddTriple(const std::string &graph, const std::strin
                                       const std::string &predicate, const std::string &object, ObjectKind object_kind,
                                       const std::string &datatype, const std::string &lang) {
 	std::string type_name = XsdToDuckDBType(datatype, lang, object_kind);
-	_profiles[predicate].AddTriple(graph, subject, object, type_name);
+	_profiles[predicate].AddTriple(graph, subject, object, type_name, !lang.empty());
 }
 
 void RDFProfileAccumulator::Merge(const RDFProfileAccumulator &other) {

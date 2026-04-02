@@ -1,0 +1,165 @@
+# name: test/sql/pivot_rdf.test
+# description: test pivot_rdf extension function
+# group: [sql]
+
+require rdf
+
+# ── Error handling ───────────────────────────────────────────────────────────
+
+statement error
+SELECT * FROM pivot_rdf('not_exist.nt');
+----
+IO Error: No files found matching: not_exist.nt
+
+# ── Schema shape ─────────────────────────────────────────────────────────────
+
+# tests.nt has 7 unique predicates → 9 total columns (graph + subject + 7)
+query I
+SELECT COUNT(*) FROM (DESCRIBE SELECT * FROM pivot_rdf('test/rdf/tests.nt'));
+----
+9
+
+# First two columns are always graph and subject
+query TT
+SELECT column_name, column_type
+FROM (DESCRIBE SELECT * FROM pivot_rdf('test/rdf/tests.nt'))
+WHERE column_name IN ('graph', 'subject')
+ORDER BY column_name;
+----
+graph	VARCHAR
+subject	VARCHAR
+
+# ── Row count ────────────────────────────────────────────────────────────────
+
+# tests.nt has 4 distinct subjects → 4 output rows
+query I
+SELECT COUNT(*) FROM pivot_rdf('test/rdf/tests.nt');
+----
+4
+
+# ── Typed predicate values ───────────────────────────────────────────────────
+
+# foaf:age column is HUGEINT (xsd:integer); JohnDoe's value is 30
+query I
+SELECT "http://xmlns.com/foaf/0.1/age"
+FROM pivot_rdf('test/rdf/tests.nt')
+WHERE subject = 'http://example.org/person/JohnDoe';
+----
+30
+
+# rdf:type column: JohnDoe is foaf:Person
+query T
+SELECT "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+FROM pivot_rdf('test/rdf/tests.nt')
+WHERE subject = 'http://example.org/person/JohnDoe';
+----
+http://xmlns.com/foaf/0.1/Person
+
+# ── NULL for missing predicate ────────────────────────────────────────────────
+
+# The book subject has no foaf:age → NULL
+query I
+SELECT "http://xmlns.com/foaf/0.1/age" IS NULL
+FROM pivot_rdf('test/rdf/tests.nt')
+WHERE subject = 'http://example.org/book/123';
+----
+true
+
+# ── pivot_test.nt: multi-valued predicate (LIST) ─────────────────────────────
+
+# p_multi has two values for s1 → column type is LIST
+query T
+SELECT typeof("http://ex.org/p_multi")
+FROM pivot_rdf('test/rdf/pivot_test.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+VARCHAR[]
+
+# The list contains both values (order may vary — check via array_contains)
+query II
+SELECT array_contains("http://ex.org/p_multi", 'a'),
+       array_contains("http://ex.org/p_multi", 'b')
+FROM pivot_rdf('test/rdf/pivot_test.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+true	true
+
+# s2 has no p_multi → empty list
+query I
+SELECT len("http://ex.org/p_multi")
+FROM pivot_rdf('test/rdf/pivot_test.nt')
+WHERE subject = 'http://ex.org/s2';
+----
+0
+
+# ── pivot_test.nt: lang-tagged predicate (MAP) ────────────────────────────────
+
+# p_lang has only lang-tagged values → MAP(VARCHAR, VARCHAR)
+query T
+SELECT typeof("http://ex.org/p_lang")
+FROM pivot_rdf('test/rdf/pivot_test.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+MAP(VARCHAR, VARCHAR)
+
+# Access individual language values
+query TT
+SELECT "http://ex.org/p_lang"['en'],
+       "http://ex.org/p_lang"['es']
+FROM pivot_rdf('test/rdf/pivot_test.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+Hello	Hola
+
+# s2 has no p_lang → empty map
+query I
+SELECT cardinality("http://ex.org/p_lang")
+FROM pivot_rdf('test/rdf/pivot_test.nt')
+WHERE subject = 'http://ex.org/s2';
+----
+0
+
+# ── pivot_test.nt: typed integer predicate ────────────────────────────────────
+
+query II
+SELECT "http://ex.org/p_int", "http://ex.org/p_str"
+FROM pivot_rdf('test/rdf/pivot_test.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+42	hello
+
+query II
+SELECT "http://ex.org/p_int", "http://ex.org/p_str"
+FROM pivot_rdf('test/rdf/pivot_test.nt')
+WHERE subject = 'http://ex.org/s2';
+----
+7	world
+
+# ── Named parameters ─────────────────────────────────────────────────────────
+
+# file_type override
+query I
+SELECT COUNT(*) FROM pivot_rdf('test/rdf/tests.nt', file_type='ntriples');
+----
+4
+
+# strict_parsing=false doesn't crash on valid files
+query I
+SELECT COUNT(*) FROM pivot_rdf('test/rdf/tests.nt', strict_parsing=false);
+----
+4
+
+# ── Glob pattern ─────────────────────────────────────────────────────────────
+
+query I
+SELECT COUNT(*) > 0 FROM pivot_rdf('test/rdf/shards/*.nt');
+----
+true
+
+# ── NQuads (named graph) ──────────────────────────────────────────────────────
+
+# tests.nq has a named graph; rows should have a non-empty graph column
+query I
+SELECT COUNT(*) > 0 FROM pivot_rdf('test/rdf/tests.nq') WHERE graph != '';
+----
+true
