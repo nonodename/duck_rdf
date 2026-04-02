@@ -72,8 +72,8 @@ John Doe
 
 # Text data type prefix_expansion
 query T
-select object_datatype from read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true) 
-where subject = 'person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
+select object_datatype from read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true)
+where subject = 'http://example.org/person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
 ----
 http://www.w3.org/2001/XMLSchema#integer
 
@@ -86,8 +86,8 @@ xsd:integer
 
 # Text data type prefix_expansion trig
 query T
-select object_datatype from read_rdf('test/rdf/tests-base.trig', prefix_expansion = true) 
-where subject = 'person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
+select object_datatype from read_rdf('test/rdf/tests-base.trig', prefix_expansion = true)
+where subject = 'http://example.org/person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
 ----
 http://www.w3.org/2001/XMLSchema#integer
 
@@ -97,3 +97,61 @@ select object_datatype from read_rdf('test/rdf/tests-base.trig', prefix_expansio
 where subject = 'person/JohnDoe' and predicate = 'foaf:age';
 ----
 xsd:integer
+
+## @base expansion — relative URIs resolved against @base
+
+# Turtle: relative subject stays as-is when prefix_expansion = false
+query T
+SELECT subject FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = false)
+WHERE subject = 'person/JohnDoe' AND predicate = 'foaf:name';
+----
+person/JohnDoe
+
+# Turtle: relative subject is expanded when prefix_expansion = true
+query T
+SELECT subject FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true)
+WHERE subject = 'http://example.org/person/JohnDoe' AND predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+http://example.org/person/JohnDoe
+
+# Turtle: relative predicate expanded when prefix_expansion = true
+query T
+SELECT predicate FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true)
+WHERE subject = 'http://example.org/book/123' AND predicate = 'http://example.org/authoredBy';
+----
+http://example.org/authoredBy
+
+# Turtle: relative predicate stays as-is when prefix_expansion = false
+query T
+SELECT predicate FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = false)
+WHERE subject = 'ex:123' AND predicate = 'authoredBy';
+----
+authoredBy
+
+# Turtle: relative URI in object position expanded when prefix_expansion = true
+query T
+SELECT object FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true)
+WHERE subject = 'http://example.org/book/123' AND predicate = 'http://purl.org/dc/elements/1.1/creator';
+----
+http://example.org/person/JohnDoe
+
+# Turtle: relative URI in object position stays as-is when prefix_expansion = false
+query T
+SELECT object FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = false)
+WHERE subject = 'ex:123' AND predicate = 'http://purl.org/dc/elements/1.1/creator';
+----
+person/JohnDoe
+
+# TriG: relative subject stays as-is when prefix_expansion = false
+query T
+SELECT subject FROM read_rdf('test/rdf/tests-base.trig', prefix_expansion = false)
+WHERE subject = 'person/JohnDoe' AND predicate = 'foaf:name';
+----
+person/JohnDoe
+
+# TriG: relative subject is expanded when prefix_expansion = true
+query T
+SELECT subject FROM read_rdf('test/rdf/tests-base.trig', prefix_expansion = true)
+WHERE subject = 'http://example.org/person/JohnDoe' AND predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+http://example.org/person/JohnDoe
