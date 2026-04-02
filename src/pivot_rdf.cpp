@@ -197,82 +197,31 @@ static Value StringToValue(const std::string &str, const std::string &datatype, 
 		return Value(str);
 	if (target == LogicalType::BOOLEAN)
 		return Value::BOOLEAN(str == "true" || str == "1");
-	if (target == LogicalType::TINYINT) {
-		try {
+	try {
+		if (target == LogicalType::TINYINT)
 			return Value::TINYINT(static_cast<int8_t>(std::stoi(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::UTINYINT) {
-		try {
+		if (target == LogicalType::UTINYINT)
 			return Value::UTINYINT(static_cast<uint8_t>(std::stoul(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::SMALLINT) {
-		try {
+		if (target == LogicalType::SMALLINT)
 			return Value::SMALLINT(static_cast<int16_t>(std::stoi(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::USMALLINT) {
-		try {
+		if (target == LogicalType::USMALLINT)
 			return Value::USMALLINT(static_cast<uint16_t>(std::stoul(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::INTEGER) {
-		try {
+		if (target == LogicalType::INTEGER)
 			return Value::INTEGER(static_cast<int32_t>(std::stoi(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::UINTEGER) {
-		try {
+		if (target == LogicalType::UINTEGER)
 			return Value::UINTEGER(static_cast<uint32_t>(std::stoul(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::BIGINT) {
-		try {
+		if (target == LogicalType::BIGINT)
 			return Value::BIGINT(static_cast<int64_t>(std::stoll(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::UBIGINT) {
-		try {
+		if (target == LogicalType::UBIGINT)
 			return Value::UBIGINT(static_cast<uint64_t>(std::stoull(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::HUGEINT) {
-		try {
+		if (target == LogicalType::HUGEINT)
 			return Value::HUGEINT(static_cast<int64_t>(std::stoll(str)));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::FLOAT) {
-		try {
+		if (target == LogicalType::FLOAT)
 			return Value::FLOAT(std::stof(str));
-		} catch (...) {
-			return Value(str);
-		}
-	}
-	if (target == LogicalType::DOUBLE) {
-		try {
+		if (target == LogicalType::DOUBLE)
 			return Value::DOUBLE(std::stod(str));
-		} catch (...) {
-			return Value(str);
-		}
+	} catch (...) {
+		return Value(str);
 	}
 	// For DATE, TIME, TIMESTAMP, BLOB, INTERVAL, etc. fall back to VARCHAR.
 	// A full implementation would cast via DuckDB's cast machinery.
