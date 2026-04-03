@@ -102,7 +102,7 @@ void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNod
 		return;
 	}
 	// Zero-copy from Serd buffer to DuckDB String Heap
-	if (_expand_prefixes && node->type == SERD_CURIE) {
+	if (_expand_prefixes && (node->type == SERD_CURIE || node->type == SERD_URI)) {
 		SerdNode expanded = serd_env_expand_node(_env.get(), node);
 		if (expanded.buf) {
 			auto str = duckdb::StringVector::AddString(vec, (const char *)expanded.buf, expanded.n_bytes);
@@ -110,7 +110,7 @@ void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNod
 			serd_node_free(&expanded);
 			return;
 		}
-		// If expansion failed, fall through to adding the original CURIE
+		// If expansion failed, fall through to adding the original node
 	}
 	auto str = duckdb::StringVector::AddString(vec, (const char *)node->buf, node->n_bytes);
 	duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
@@ -202,7 +202,7 @@ string SerdBuffer::SafeString(const SerdNode *node) {
 	if (!node || !node->buf || node->n_bytes == 0)
 		return {};
 	std::string retVal;
-	if (_expand_prefixes && node->type == SERD_CURIE) {
+	if (_expand_prefixes && (node->type == SERD_CURIE || node->type == SERD_URI)) {
 		SerdNode expanded = serd_env_expand_node(_env.get(), node);
 		if (expanded.buf) {
 			retVal = std::string(reinterpret_cast<const char *>(expanded.buf), expanded.n_bytes);
