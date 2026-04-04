@@ -50,7 +50,7 @@ WHERE subject='http://unicode.org/duck';
 query T
 SELECT object FROM read_rdf('test/rdf/tests.ttl')
 WHERE subject LIKE 'jane%'
-  AND predicate='http://xmlns.com/foaf/0.1/name';
+  AND predicate='foaf:name';
 ----
 Jane Smith
 

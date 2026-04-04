@@ -1,16 +1,21 @@
-<http://example.org/person/JohnDoe>
-	a <http://xmlns.com/foaf/0.1/Person> ;
-	<http://xmlns.com/foaf/0.1/name> "John Doe" ;
-	<http://xmlns.com/foaf/0.1/age> 30 ;
-	<http://xmlns.com/foaf/0.1/knows> _:jane .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@base <http://example.org/> .
+@prefix uni: <http://unicode.org/> .
+
+<person/JohnDoe>
+    a foaf:Person ;
+    foaf:name "John Doe" ;
+    foaf:age 30 ;
+    foaf:knows _:jane .
 
 _:jane
-	a <http://xmlns.com/foaf/0.1/Person> ;
-	<http://xmlns.com/foaf/0.1/name> "Jane Smith"@en .
+    a foaf:Person ;
+    foaf:name "Jane Smith"@en .
 
-<http://example.org/book/123>
-	<http://purl.org/dc/elements/1.1/title> "The Great Book" ;
-	<http://purl.org/dc/elements/1.1/creator> <http://example.org/person/JohnDoe> .
+<book/123>
+    dc:title "The Great Book" ;
+    dc:creator <person/JohnDoe> .
 
-<http://unicode.org/duck>
-	<http://example.org/hasEmoji> "🦆" .
+uni:duck
+    uni:hasEmoji "🦆" .

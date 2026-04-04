@@ -24,6 +24,7 @@ set(EXTENSION_SOURCES
     src/sparql_reader.cpp
     src/rdf_profiler.cpp
     src/profile_rdf.cpp
+    src/pivot_rdf.cpp
 )
 
 # ------------------------------------------------------------

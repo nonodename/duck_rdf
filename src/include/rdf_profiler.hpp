@@ -55,12 +55,26 @@ struct PredicateProfile {
 	std::unordered_map<std::string, TypeStats> type_stats;
 	std::unordered_set<std::string> subjects;
 	std::unordered_set<std::string> graphs;
+	/// True if any object for this predicate carried a non-empty language tag.
+	bool has_lang_tagged = false;
+	/// True if any object was a plain or typed literal without a language tag.
+	bool has_non_lang_literal = false;
+	/// True if any subject appeared more than once for this predicate (multi-valued).
+	bool is_multi_valued = false;
 
 	void AddTriple(const std::string &graph, const std::string &subject, const std::string &object,
-	               const std::string &type_name) {
+	               const std::string &type_name, bool lang_tagged = false) {
 		type_stats[type_name].Update(object);
-		subjects.insert(subject);
+		if (!subjects.insert(subject).second) {
+			is_multi_valued = true;
+		}
 		graphs.insert(graph);
+		if (lang_tagged) {
+			has_lang_tagged = true;
+		} else if (type_name == "VARCHAR" || type_name != "IRI" && type_name != "BLANK") {
+			// plain or typed literal (not an IRI or blank node)
+			has_non_lang_literal = true;
+		}
 	}
 
 	void Merge(const PredicateProfile &other) {
@@ -69,6 +83,15 @@ struct PredicateProfile {
 		}
 		subjects.insert(other.subjects.begin(), other.subjects.end());
 		graphs.insert(other.graphs.begin(), other.graphs.end());
+		if (other.has_lang_tagged) {
+			has_lang_tagged = true;
+		}
+		if (other.has_non_lang_literal) {
+			has_non_lang_literal = true;
+		}
+		if (other.is_multi_valued) {
+			is_multi_valued = true;
+		}
 	}
 };
 
@@ -100,7 +123,7 @@ private:
 /// Parse an RDF file using the Serd library and feed all triples into accumulator.
 /// file_type must be one of TURTLE, NTRIPLES, NQUADS, TRIG.
 void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITriplesBuffer::FileType file_type,
-                     bool strict_parsing, RDFProfileAccumulator &accumulator);
+                     bool strict_parsing, bool expand_prefixes, RDFProfileAccumulator &accumulator);
 
 /// Parse an RDF/XML file and feed all triples into accumulator.
 void ProfileFileXML(const std::string &file_path, duckdb::FileSystem &fs, bool strict_parsing,
