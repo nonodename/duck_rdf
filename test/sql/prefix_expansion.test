@@ -40,7 +40,38 @@ John Doe
 
 ## Trig and turtle
 
-# Verify John Doe's name prefix_expansion off on trig
+# One row back for preix expansion off and short matches on turtle
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion = false)
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
+----
+John Doe
+
+#  One row back for preix expansion on and long matches on turtle
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion = true)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Zero rows back for preix expansion off and long matches on turtle
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion = true)
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
+----
+
+# Zero rows back for preix expansion on and short matches on turtle
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion = false)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+
+
+# One row back for preix expansion off and short matches on trig
 query T
 SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
 WHERE subject='person/JohnDoe'
@@ -48,27 +79,28 @@ WHERE subject='person/JohnDoe'
 ----
 John Doe
 
-# Verify 0 rows for name prefix_expansion on for trig
-query T
-SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
-WHERE subject='http://example.org/person/JohnDoe'
-  AND predicate='http://xmlns.com/foaf/0.1/name';
-----
-
-# Verify 0 rows for name prefix_expansion on for trig
-query T
-SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
-WHERE subject='person/JohnDoe'
-  AND predicate='foaf:name';
-----
-
-# Verify John Doe's name prefix_expansion off for trig
+#  One row back for preix expansion on and long matches on trig
 query T
 SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
 WHERE subject='http://example.org/person/JohnDoe'
   AND predicate='http://xmlns.com/foaf/0.1/name';
 ----
 John Doe
+
+# Zero rows back for preix expansion off and long matches on trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
+----
+
+# Zero rows back for preix expansion on and short matches on trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+
 
 # Text data type prefix_expansion
 query T
