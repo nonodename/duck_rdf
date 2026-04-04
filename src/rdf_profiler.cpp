@@ -94,16 +94,17 @@ struct SerdProfileState {
 	RDFProfileAccumulator *accumulator;
 	SerdEnv *env;
 	bool strict_parsing;
+	bool expand_prefixes = true;
 	std::string file_path;
 	bool has_error = false;
 	std::string error_message;
 	uint64_t skip_count = 0;
 };
 
-static std::string SerdNodeToString(SerdEnv *env, const SerdNode *node) {
+static std::string SerdNodeToString(SerdEnv *env, const SerdNode *node, bool expand_curies = true) {
 	if (!node || !node->buf)
 		return {};
-	if (node->type == SERD_CURIE) {
+	if (expand_curies && node->type == SERD_CURIE) {
 		SerdNode expanded = serd_env_expand_node(env, node);
 		if (expanded.buf) {
 			std::string result(reinterpret_cast<const char *>(expanded.buf), expanded.n_bytes);
@@ -133,12 +134,13 @@ static SerdStatus SerdProfileStatement(void *user_data, SerdStatementFlags /*fla
                                        const SerdNode *object_datatype, const SerdNode *object_lang) {
 	auto *state = static_cast<SerdProfileState *>(user_data);
 
-	std::string graph_str = SerdNodeToString(state->env, graph);
-	std::string subject_str = SerdNodeToString(state->env, subject);
-	std::string predicate_str = SerdNodeToString(state->env, predicate);
-	std::string object_str = SerdNodeToString(state->env, object);
-	std::string datatype_str = SerdNodeToString(state->env, object_datatype);
-	std::string lang_str = SerdNodeToString(state->env, object_lang);
+	bool ep = state->expand_prefixes;
+	std::string graph_str = SerdNodeToString(state->env, graph, ep);
+	std::string subject_str = SerdNodeToString(state->env, subject, ep);
+	std::string predicate_str = SerdNodeToString(state->env, predicate, ep);
+	std::string object_str = SerdNodeToString(state->env, object, ep);
+	std::string datatype_str = SerdNodeToString(state->env, object_datatype, ep);
+	std::string lang_str = SerdNodeToString(state->env, object_lang, ep);
 	ObjectKind kind = SerdNodeKind(object);
 
 	state->accumulator->AddTriple(graph_str, subject_str, predicate_str, object_str, kind, datatype_str, lang_str);
@@ -166,7 +168,9 @@ static SerdStatus SerdProfileBase(void *user_data, const SerdNode *uri) {
 
 static SerdStatus SerdProfilePrefix(void *user_data, const SerdNode *name, const SerdNode *uri) {
 	auto *state = static_cast<SerdProfileState *>(user_data);
-	serd_env_set_prefix(state->env, name, uri);
+	if (state->expand_prefixes) {
+		serd_env_set_prefix(state->env, name, uri);
+	}
 	return SERD_SUCCESS;
 }
 
@@ -186,7 +190,7 @@ static SerdSyntax MapSerdSyntax(ITriplesBuffer::FileType file_type) {
 }
 
 void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITriplesBuffer::FileType file_type,
-                     bool strict_parsing, RDFProfileAccumulator &accumulator) {
+                     bool strict_parsing, bool expand_prefixes, RDFProfileAccumulator &accumulator) {
 	// Open file via DuckDB FileSystem (supports remote filesystems)
 	std::unique_ptr<duckdb::FileHandle> fh;
 	try {
@@ -204,6 +208,7 @@ void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITrip
 	state.accumulator = &accumulator;
 	state.env = env.get();
 	state.strict_parsing = strict_parsing;
+	state.expand_prefixes = expand_prefixes;
 	state.file_path = file_path;
 
 	SerdSyntax syntax = MapSerdSyntax(file_type);
