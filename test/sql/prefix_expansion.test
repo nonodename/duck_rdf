@@ -43,7 +43,7 @@ John Doe
 # Verify John Doe's name prefix_expansion off on trig
 query T
 SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
-WHERE subject='http://example.org/person/JohnDoe'
+WHERE subject='person/JohnDoe'
   AND predicate='foaf:name';
 ----
 John Doe
@@ -52,14 +52,14 @@ John Doe
 query T
 SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
 WHERE subject='http://example.org/person/JohnDoe'
-  AND predicate='foaf:name';
+  AND predicate='http://xmlns.com/foaf/0.1/name';
 ----
 
 # Verify 0 rows for name prefix_expansion on for trig
 query T
 SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
-WHERE subject='http://example.org/person/JohnDoe'
-  AND predicate='http://xmlns.com/foaf/0.1/name';
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
 ----
 
 # Verify John Doe's name prefix_expansion off for trig
@@ -155,3 +155,20 @@ SELECT subject FROM read_rdf('test/rdf/tests-base.trig', prefix_expansion = true
 WHERE subject = 'http://example.org/person/JohnDoe' AND predicate = 'http://xmlns.com/foaf/0.1/name';
 ----
 http://example.org/person/JohnDoe
+
+# Verify turtle parsing with prefix expansion
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion=true)
+WHERE subject LIKE 'jane%'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith
+
+
+# Turtle: SELECT * still returns all 6 columns with correct data
+query TTTTTT
+SELECT * FROM read_rdf('test/rdf/tests.ttl',prefix_expansion=true)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+NULL	http://example.org/person/JohnDoe	http://xmlns.com/foaf/0.1/name	John Doe	NULL	NULL

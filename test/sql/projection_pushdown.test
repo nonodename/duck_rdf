@@ -53,16 +53,32 @@ Jane Smith	en
 # Turtle: SELECT * still returns all 6 columns with correct data
 query TTTTTT
 SELECT * FROM read_rdf('test/rdf/tests.ttl')
-WHERE subject='http://example.org/person/JohnDoe'
-  AND predicate='http://xmlns.com/foaf/0.1/name';
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
 ----
-NULL	http://example.org/person/JohnDoe	http://xmlns.com/foaf/0.1/name	John Doe	NULL	NULL
+NULL	person/JohnDoe	foaf:name	John Doe	NULL	NULL
 
 # Turtle: Projecting only object works
 query T
 SELECT object FROM read_rdf('test/rdf/tests.ttl')
-WHERE subject='http://example.org/person/JohnDoe'
-  AND predicate='http://xmlns.com/foaf/0.1/name';
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
+----
+John Doe
+
+# Turtle: SELECT * still returns all 6 columns with correct data
+query TTTTTT
+SELECT * FROM read_rdf('test/rdf/tests.trig')
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
+----
+read_rdf	person/JohnDoe	foaf:name	John Doe	NULL	NULL
+
+# Turtle: Projecting only object works
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig')
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
 ----
 John Doe
 
