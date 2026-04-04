@@ -123,7 +123,7 @@ private:
 /// Parse an RDF file using the Serd library and feed all triples into accumulator.
 /// file_type must be one of TURTLE, NTRIPLES, NQUADS, TRIG.
 void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITriplesBuffer::FileType file_type,
-                     bool strict_parsing, RDFProfileAccumulator &accumulator);
+                     bool strict_parsing, bool expand_prefixes, RDFProfileAccumulator &accumulator);
 
 /// Parse an RDF/XML file and feed all triples into accumulator.
 void ProfileFileXML(const std::string &file_path, duckdb::FileSystem &fs, bool strict_parsing,

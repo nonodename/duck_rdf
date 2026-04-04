@@ -293,7 +293,7 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 			case ITriplesBuffer::NTRIPLES:
 			case ITriplesBuffer::NQUADS:
 			case ITriplesBuffer::TRIG:
-				ProfileFileSerd(file_path, fs, ft, result->strict_parsing, accumulator);
+				ProfileFileSerd(file_path, fs, ft, result->strict_parsing, result->expand_prefixes, accumulator);
 				break;
 			case ITriplesBuffer::XML:
 				ProfileFileXML(file_path, fs, result->strict_parsing, accumulator);

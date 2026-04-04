@@ -156,6 +156,38 @@ SELECT COUNT(*) > 0 FROM pivot_rdf('test/rdf/shards/*.nt');
 ----
 true
 
+# ── prefix_expansion=false: CURIE column names and populated values ───────────
+
+# Bug 1: column names use CURIEs when prefix_expansion=false (TriG)
+query I
+SELECT COUNT(*) FROM (DESCRIBE SELECT * FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=false))
+WHERE column_name = 'foaf:age';
+----
+1
+
+# Bug 1: column names use CURIEs when prefix_expansion=false (Turtle)
+query I
+SELECT COUNT(*) FROM (DESCRIBE SELECT * FROM pivot_rdf('test/rdf/tests.ttl', prefix_expansion=false))
+WHERE column_name = 'foaf:age';
+----
+1
+
+# Bug 2: predicate columns populated when prefix_expansion=false (TriG)
+query I
+SELECT "foaf:age"
+FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=false)
+WHERE subject = 'person/JohnDoe';
+----
+30
+
+# Bug 2: predicate columns populated when prefix_expansion=false (Turtle)
+query I
+SELECT "foaf:age"
+FROM pivot_rdf('test/rdf/tests.ttl', prefix_expansion=false)
+WHERE subject = 'person/JohnDoe';
+----
+30
+
 # ── NQuads (named graph) ──────────────────────────────────────────────────────
 
 # tests.nq has a named graph; rows should have a non-empty graph column
