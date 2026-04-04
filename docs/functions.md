@@ -123,6 +123,44 @@ ORDER BY subject_count DESC;
 ```
 
 ---
+## `pivot_rdf(path, [options])`
+
+Table function. Reads one or more RDF files and returns a wide table with at least one row per subject and one predicate per column. Requires two passes of the RDF passed, first essentially uses profile_rdf to compute the schema for the table. Types of the predicate columns will be set based on what is encountered. 
+
+In principle this will work for arbitrary size RDF files (unlike doing a pivot in the SQL domain)
+
+**Parameters**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `path` | VARCHAR | Yes | — | File path or glob pattern |
+| `strict_parsing` | BOOLEAN | No | `true` | When `false`, skips malformed triples instead of raising an error |
+| `file_type` | VARCHAR | No | auto-detect | Override format detection. Same values as `read_rdf` |
+
+**Returns**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `graph` | VARCHAR | Named graph, if available |
+| `subject` | VARCHAR | Subject encountered in the RDF|
+| _varies_ | _varies_ | One colimn for each unique predicate |
+
+**Column Type Rules**
+| Condition |	Column Type |
+|-----------|-------------|
+| All-lang-tagged predicate |`MAP(VARCHAR, VARCHAR)` — key=language, value=string |
+| Single uniform type |`(IRI/BLANK → VARCHAR)`	That DuckDB type (e.g. `HUGEINT`, `VARCHAR)` |
+| Mixed types |`UNION(tag := type, ...)` |
+| Any above + multi-valued per subject | `LIST(<element_type>)` |
+
+**Examples**
+
+```sql
+-- Pivot everything in a trig file
+SELECT * FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=true);
+```
+
+---
 
 ## `read_sparql(endpoint, query)`
 
