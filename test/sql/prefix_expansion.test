@@ -40,40 +40,72 @@ John Doe
 
 ## Trig and turtle
 
-# Verify John Doe's name prefix_expansion off on trig
+# One row back for preix expansion off and short matches on turtle
 query T
-SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
-WHERE subject='http://example.org/person/JohnDoe'
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion = false)
+WHERE subject='person/JohnDoe'
   AND predicate='foaf:name';
 ----
 John Doe
 
-# Verify 0 rows for name prefix_expansion on for trig
+#  One row back for preix expansion on and long matches on turtle
 query T
-SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion = true)
 WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Zero rows back for preix expansion off and long matches on turtle
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion = true)
+WHERE subject='person/JohnDoe'
   AND predicate='foaf:name';
 ----
 
-# Verify 0 rows for name prefix_expansion on for trig
+# Zero rows back for preix expansion on and short matches on turtle
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion = false)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+
+
+# One row back for preix expansion off and short matches on trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
+----
+John Doe
+
+#  One row back for preix expansion on and long matches on trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Zero rows back for preix expansion off and long matches on trig
+query T
+SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
+WHERE subject='person/JohnDoe'
+  AND predicate='foaf:name';
+----
+
+# Zero rows back for preix expansion on and short matches on trig
 query T
 SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = false)
 WHERE subject='http://example.org/person/JohnDoe'
   AND predicate='http://xmlns.com/foaf/0.1/name';
 ----
 
-# Verify John Doe's name prefix_expansion off for trig
-query T
-SELECT object FROM read_rdf('test/rdf/tests.trig',prefix_expansion = true)
-WHERE subject='http://example.org/person/JohnDoe'
-  AND predicate='http://xmlns.com/foaf/0.1/name';
-----
-John Doe
 
 # Text data type prefix_expansion
 query T
-select object_datatype from read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true) 
-where subject = 'person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
+select object_datatype from read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true)
+where subject = 'http://example.org/person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
 ----
 http://www.w3.org/2001/XMLSchema#integer
 
@@ -86,8 +118,8 @@ xsd:integer
 
 # Text data type prefix_expansion trig
 query T
-select object_datatype from read_rdf('test/rdf/tests-base.trig', prefix_expansion = true) 
-where subject = 'person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
+select object_datatype from read_rdf('test/rdf/tests-base.trig', prefix_expansion = true)
+where subject = 'http://example.org/person/JohnDoe' and predicate = 'http://xmlns.com/foaf/0.1/age';
 ----
 http://www.w3.org/2001/XMLSchema#integer
 
@@ -97,3 +129,78 @@ select object_datatype from read_rdf('test/rdf/tests-base.trig', prefix_expansio
 where subject = 'person/JohnDoe' and predicate = 'foaf:age';
 ----
 xsd:integer
+
+## @base expansion — relative URIs resolved against @base
+
+# Turtle: relative subject stays as-is when prefix_expansion = false
+query T
+SELECT subject FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = false)
+WHERE subject = 'person/JohnDoe' AND predicate = 'foaf:name';
+----
+person/JohnDoe
+
+# Turtle: relative subject is expanded when prefix_expansion = true
+query T
+SELECT subject FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true)
+WHERE subject = 'http://example.org/person/JohnDoe' AND predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+http://example.org/person/JohnDoe
+
+# Turtle: relative predicate expanded when prefix_expansion = true
+query T
+SELECT predicate FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true)
+WHERE subject = 'http://example.org/book/123' AND predicate = 'http://example.org/authoredBy';
+----
+http://example.org/authoredBy
+
+# Turtle: relative predicate stays as-is when prefix_expansion = false
+query T
+SELECT predicate FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = false)
+WHERE subject = 'ex:123' AND predicate = 'authoredBy';
+----
+authoredBy
+
+# Turtle: relative URI in object position expanded when prefix_expansion = true
+query T
+SELECT object FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = true)
+WHERE subject = 'http://example.org/book/123' AND predicate = 'http://purl.org/dc/elements/1.1/creator';
+----
+http://example.org/person/JohnDoe
+
+# Turtle: relative URI in object position stays as-is when prefix_expansion = false
+query T
+SELECT object FROM read_rdf('test/rdf/tests-base.ttl', prefix_expansion = false)
+WHERE subject = 'ex:123' AND predicate = 'http://purl.org/dc/elements/1.1/creator';
+----
+person/JohnDoe
+
+# TriG: relative subject stays as-is when prefix_expansion = false
+query T
+SELECT subject FROM read_rdf('test/rdf/tests-base.trig', prefix_expansion = false)
+WHERE subject = 'person/JohnDoe' AND predicate = 'foaf:name';
+----
+person/JohnDoe
+
+# TriG: relative subject is expanded when prefix_expansion = true
+query T
+SELECT subject FROM read_rdf('test/rdf/tests-base.trig', prefix_expansion = true)
+WHERE subject = 'http://example.org/person/JohnDoe' AND predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+http://example.org/person/JohnDoe
+
+# Verify turtle parsing with prefix expansion
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl',prefix_expansion=true)
+WHERE subject LIKE 'jane%'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith
+
+
+# Turtle: SELECT * still returns all 6 columns with correct data
+query TTTTTT
+SELECT * FROM read_rdf('test/rdf/tests.ttl',prefix_expansion=true)
+WHERE subject='http://example.org/person/JohnDoe'
+  AND predicate='http://xmlns.com/foaf/0.1/name';
+----
+NULL	http://example.org/person/JohnDoe	http://xmlns.com/foaf/0.1/name	John Doe	NULL	NULL

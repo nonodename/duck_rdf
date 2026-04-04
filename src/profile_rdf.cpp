@@ -180,7 +180,7 @@ static unique_ptr<GlobalTableFunctionState> ProfileRDFGlobalInit(ClientContext &
 			case ITriplesBuffer::NTRIPLES:
 			case ITriplesBuffer::NQUADS:
 			case ITriplesBuffer::TRIG:
-				ProfileFileSerd(file_path, fs, ft, bind_data.strict_parsing, accumulator);
+				ProfileFileSerd(file_path, fs, ft, bind_data.strict_parsing, true, accumulator);
 				break;
 			case ITriplesBuffer::XML:
 				ProfileFileXML(file_path, fs, bind_data.strict_parsing, accumulator);
