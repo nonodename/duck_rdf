@@ -10,6 +10,16 @@
 
 namespace duckdb {
 
+// Maximum SPARQL response body accepted (256 MiB). Prevents OOM from
+// unbounded responses by malicious or misbehaving endpoints.
+static const size_t SPARQL_MAX_RESPONSE_BYTES = 256ULL * 1024 * 1024;
+
+// HTTP request timeout in seconds.
+static const long SPARQL_TIMEOUT_SECONDS = 30;
+
+// Maximum number of HTTP redirects to follow.
+static const long SPARQL_MAX_REDIRECTS = 5;
+
 // ============================================================
 // CSV parsing (RFC 4180)
 // ============================================================
@@ -111,10 +121,36 @@ ParseSPARQLCSV(const std::string &body) {
 // HTTP fetch via libcurl
 // ============================================================
 
+struct CurlWriteState {
+	std::string body;
+	bool limit_exceeded = false;
+};
+
 static size_t CurlWriteCallback(char *ptr, size_t size, size_t nmemb, void *userdata) {
-	auto *body = static_cast<std::string *>(userdata);
-	body->append(ptr, size * nmemb);
-	return size * nmemb;
+	auto *state = static_cast<CurlWriteState *>(userdata);
+	size_t incoming = size * nmemb;
+	if (state->body.size() + incoming > SPARQL_MAX_RESPONSE_BYTES) {
+		state->limit_exceeded = true;
+		// Return 0 to abort the transfer (curl will report CURLE_WRITE_ERROR).
+		return 0;
+	}
+	state->body.append(ptr, incoming);
+	return incoming;
+}
+
+// Validate that the endpoint URL uses an allowed scheme (http or https).
+// This prevents SSRF attacks via file://, dict://, gopher://, etc.
+static void ValidateSPARQLEndpoint(const std::string &endpoint) {
+	// Case-insensitive prefix check for http:// and https://
+	if (endpoint.size() >= 7 && (endpoint.substr(0, 7) == "http://" || endpoint.substr(0, 7) == "HTTP://")) {
+		return;
+	}
+	if (endpoint.size() >= 8 && (endpoint.substr(0, 8) == "https://" || endpoint.substr(0, 8) == "HTTPS://")) {
+		return;
+	}
+	throw InvalidInputException("read_sparql: endpoint must use http:// or https:// (got: '%s'). "
+	                            "Other schemes are not permitted.",
+	                            endpoint.c_str());
 }
 
 static std::string FetchSPARQLCSV(const std::string &endpoint, const std::string &query) {
@@ -136,7 +172,7 @@ static std::string FetchSPARQLCSV(const std::string &endpoint, const std::string
 	url += escaped_query;
 	curl_free(escaped_query);
 
-	std::string response_body;
+	CurlWriteState write_state;
 
 	struct curl_slist *headers = nullptr;
 	headers = curl_slist_append(headers, "Accept: text/csv");
@@ -144,8 +180,10 @@ static std::string FetchSPARQLCSV(const std::string &endpoint, const std::string
 	curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
 	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, CurlWriteCallback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &write_state);
 	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_MAXREDIRS, SPARQL_MAX_REDIRECTS);
+	curl_easy_setopt(curl, CURLOPT_TIMEOUT, SPARQL_TIMEOUT_SECONDS);
 	// Identify ourselves politely — version injected by the build system
 #ifdef EXT_VERSION_RDF
 	curl_easy_setopt(curl, CURLOPT_USERAGENT, "duck_rdf/" EXT_VERSION_RDF);
@@ -159,6 +197,10 @@ static std::string FetchSPARQLCSV(const std::string &endpoint, const std::string
 		std::string err = curl_easy_strerror(res);
 		curl_slist_free_all(headers);
 		curl_easy_cleanup(curl);
+		if (write_state.limit_exceeded) {
+			throw IOException("SPARQL response exceeded maximum allowed size (" +
+			                  std::to_string(SPARQL_MAX_RESPONSE_BYTES / (1024 * 1024)) + " MiB)");
+		}
 		throw IOException("SPARQL HTTP request failed: " + err);
 	}
 
@@ -171,7 +213,7 @@ static std::string FetchSPARQLCSV(const std::string &endpoint, const std::string
 		throw IOException("SPARQL endpoint returned HTTP " + std::to_string(http_code) + " for endpoint: " + endpoint);
 	}
 
-	return response_body;
+	return std::move(write_state.body);
 }
 
 // ============================================================
@@ -202,6 +244,8 @@ static unique_ptr<FunctionData> SPARQLBind(ClientContext &context, TableFunction
 	if (query.empty()) {
 		throw InvalidInputException("read_sparql: query must not be empty");
 	}
+
+	ValidateSPARQLEndpoint(endpoint);
 
 	std::string body = FetchSPARQLCSV(endpoint, query);
 	auto parsed = ParseSPARQLCSV(body);
@@ -243,15 +287,18 @@ static void SPARQLFunc(ClientContext &context, TableFunctionInput &input, DataCh
 	idx_t end = (std::min)(start + (idx_t)STANDARD_VECTOR_SIZE, num_rows);
 	idx_t count = end - start;
 
-	// Populate output vectors
+	// Populate output vectors using the fast-path string API to avoid
+	// per-cell boxing through Value().
 	for (idx_t col = 0; col < num_cols; col++) {
 		auto &vec = output.data[col];
+		auto *flat = FlatVector::GetData<string_t>(vec);
+		auto &validity = FlatVector::Validity(vec);
 		for (idx_t row = 0; row < count; row++) {
 			const auto &data_row = bind_data.rows[start + row];
-			if (col < data_row.size()) {
-				vec.SetValue(row, Value(data_row[col]));
+			if (col < data_row.size() && !data_row[col].empty()) {
+				flat[row] = StringVector::AddString(vec, data_row[col]);
 			} else {
-				vec.SetValue(row, Value(""));
+				validity.SetInvalid(row);
 			}
 		}
 	}

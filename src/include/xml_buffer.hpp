@@ -24,6 +24,13 @@ private:
 	void namespaceCallback(const std::string &prefix, const std::string &uri);
 	void errorCallback(const std::string &msg);
 	RdfXmlParser _parser;
+
+	// Deferred error state: statementCallback and namespaceCallback are invoked
+	// from within libxml2 SAX handlers (C code on the call stack). Throwing a
+	// C++ exception through C frames is undefined behaviour, so instead we save
+	// the exception message here and re-throw it after xmlParseChunk() returns.
+	bool _deferred_error = false;
+	std::string _deferred_error_message;
 };
 
 #endif // XML_BUFFER_H

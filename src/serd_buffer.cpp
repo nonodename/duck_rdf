@@ -65,11 +65,15 @@ SerdBuffer::SerdBuffer(std::string path, std::string base_uri, duckdb::FileSyste
 }
 
 SerdBuffer::~SerdBuffer() {
-	if (_reader.get())
+	// End the stream before freeing the reader; the unique_ptr destructor will
+	// then call serd_reader_free via its registered deleter. Calling release()
+	// and manually invoking the deleter is avoided here because it is fragile
+	// and defeats the RAII abstraction.
+	if (_reader) {
 		serd_reader_end_stream(_reader.get());
-	serd_reader_free(_reader.release());
-	if (_env.get())
-		serd_env_free(_env.release());
+	}
+	// unique_ptr destructors for _reader and _env invoke serd_reader_free /
+	// serd_env_free automatically; no explicit calls needed.
 	_file_handle.reset();
 }
 
@@ -120,23 +124,32 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 	_current_chunk = &output;
 	_current_count = 0;
 
+	// Helper: write a string field to an output vector slot using the fast
+	// path (StringVector::AddString + FlatVector::GetData). Empty strings are
+	// written as SQL NULL, matching the behaviour of the main statement callback.
+	auto writeOverflowStr = [&](int8_t slot, const std::string &s) {
+		if (slot < 0) {
+			return;
+		}
+		auto &vec = output.data[slot];
+		if (s.empty()) {
+			duckdb::FlatVector::SetNull(vec, _current_count, true);
+		} else {
+			duckdb::FlatVector::GetData<duckdb::string_t>(vec)[_current_count] =
+			    duckdb::StringVector::AddString(vec, s);
+		}
+	};
+
 	// 1. Drain overflow buffer first (if any)
 	while (!_overflow_buffer.empty() && _current_count < STANDARD_VECTOR_SIZE) {
 		RDFRow row = _overflow_buffer.front();
 		_overflow_buffer.pop_front();
-		// Manual copy from string to vector (slow path)
-		if (_output_slot[0] >= 0)
-			output.SetValue(_output_slot[0], _current_count, duckdb::Value(row.graph));
-		if (_output_slot[1] >= 0)
-			output.SetValue(_output_slot[1], _current_count, duckdb::Value(row.subject));
-		if (_output_slot[2] >= 0)
-			output.SetValue(_output_slot[2], _current_count, duckdb::Value(row.predicate));
-		if (_output_slot[3] >= 0)
-			output.SetValue(_output_slot[3], _current_count, duckdb::Value(row.object));
-		if (_output_slot[4] >= 0)
-			output.SetValue(_output_slot[4], _current_count, duckdb::Value(row.datatype));
-		if (_output_slot[5] >= 0)
-			output.SetValue(_output_slot[5], _current_count, duckdb::Value(row.lang));
+		writeOverflowStr(_output_slot[0], row.graph);
+		writeOverflowStr(_output_slot[1], row.subject);
+		writeOverflowStr(_output_slot[2], row.predicate);
+		writeOverflowStr(_output_slot[3], row.object);
+		writeOverflowStr(_output_slot[4], row.datatype);
+		writeOverflowStr(_output_slot[5], row.lang);
 		_current_count++;
 	}
 

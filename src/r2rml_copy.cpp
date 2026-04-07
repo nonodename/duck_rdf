@@ -23,6 +23,28 @@ using namespace std;
 
 static const char *const XSD_NS = "http://www.w3.org/2001/XMLSchema#";
 
+// Pre-built XSD datatype IRI strings. Each ensureConverted() call previously
+// did std::string(XSD_NS) + "boolean" etc., allocating a new string per value.
+// Static statics are initialised once at program start and reused thereafter.
+static const std::string XSD_BOOLEAN = std::string(XSD_NS) + "boolean";
+static const std::string XSD_BYTE = std::string(XSD_NS) + "byte";
+static const std::string XSD_SHORT = std::string(XSD_NS) + "short";
+static const std::string XSD_INT = std::string(XSD_NS) + "int";
+static const std::string XSD_LONG = std::string(XSD_NS) + "long";
+static const std::string XSD_UNSIGNED_BYTE = std::string(XSD_NS) + "unsignedByte";
+static const std::string XSD_UNSIGNED_SHORT = std::string(XSD_NS) + "unsignedShort";
+static const std::string XSD_UNSIGNED_INT = std::string(XSD_NS) + "unsignedInt";
+static const std::string XSD_UNSIGNED_LONG = std::string(XSD_NS) + "unsignedLong";
+static const std::string XSD_INTEGER = std::string(XSD_NS) + "integer";
+static const std::string XSD_NON_NEGATIVE_INT = std::string(XSD_NS) + "nonNegativeInteger";
+static const std::string XSD_FLOAT = std::string(XSD_NS) + "float";
+static const std::string XSD_DOUBLE = std::string(XSD_NS) + "double";
+static const std::string XSD_DECIMAL = std::string(XSD_NS) + "decimal";
+static const std::string XSD_DATE = std::string(XSD_NS) + "date";
+static const std::string XSD_TIME = std::string(XSD_NS) + "time";
+static const std::string XSD_DATETIME = std::string(XSD_NS) + "dateTime";
+static const std::string XSD_DATETIME_STAMP = std::string(XSD_NS) + "dateTimeStamp";
+
 #define MAPPING_OPTION          "mapping"
 #define RDF_FORMAT_OPTION       "rdf_format"
 #define IGNORE_NON_FATAL_ERRORS "ignore_non_fatal_errors"
@@ -125,82 +147,82 @@ private:
 		case LogicalTypeId::BOOLEAN:
 			type_ = Type::Boolean;
 			string_ = val_.GetValue<bool>() ? "true" : "false";
-			datatypeIRI_ = std::string(XSD_NS) + "boolean";
+			datatypeIRI_ = XSD_BOOLEAN;
 			break;
 		case LogicalTypeId::TINYINT:
 			type_ = Type::Integer;
 			string_ = std::to_string(val_.GetValue<int8_t>());
-			datatypeIRI_ = std::string(XSD_NS) + "byte";
+			datatypeIRI_ = XSD_BYTE;
 			break;
 		case LogicalTypeId::SMALLINT:
 			type_ = Type::Integer;
 			string_ = std::to_string(val_.GetValue<int16_t>());
-			datatypeIRI_ = std::string(XSD_NS) + "short";
+			datatypeIRI_ = XSD_SHORT;
 			break;
 		case LogicalTypeId::INTEGER:
 			type_ = Type::Integer;
 			string_ = std::to_string(val_.GetValue<int32_t>());
-			datatypeIRI_ = std::string(XSD_NS) + "int";
+			datatypeIRI_ = XSD_INT;
 			break;
 		case LogicalTypeId::UTINYINT:
 			type_ = Type::Integer;
 			string_ = std::to_string(static_cast<uint32_t>(val_.GetValue<uint8_t>()));
-			datatypeIRI_ = std::string(XSD_NS) + "unsignedByte";
+			datatypeIRI_ = XSD_UNSIGNED_BYTE;
 			break;
 		case LogicalTypeId::USMALLINT:
 			type_ = Type::Integer;
 			string_ = std::to_string(static_cast<uint32_t>(val_.GetValue<uint16_t>()));
-			datatypeIRI_ = std::string(XSD_NS) + "unsignedShort";
+			datatypeIRI_ = XSD_UNSIGNED_SHORT;
 			break;
 		case LogicalTypeId::UINTEGER:
 			type_ = Type::Integer;
 			string_ = std::to_string(val_.GetValue<uint32_t>());
-			datatypeIRI_ = std::string(XSD_NS) + "unsignedInt";
+			datatypeIRI_ = XSD_UNSIGNED_INT;
 			break;
 		case LogicalTypeId::BIGINT:
 			type_ = Type::String;
 			string_ = std::to_string(val_.GetValue<int64_t>());
-			datatypeIRI_ = std::string(XSD_NS) + "long";
+			datatypeIRI_ = XSD_LONG;
 			break;
 		case LogicalTypeId::UBIGINT:
 			type_ = Type::String;
 			string_ = std::to_string(val_.GetValue<uint64_t>());
-			datatypeIRI_ = std::string(XSD_NS) + "unsignedLong";
+			datatypeIRI_ = XSD_UNSIGNED_LONG;
 			break;
 		case LogicalTypeId::HUGEINT:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = std::string(XSD_NS) + "integer";
+			datatypeIRI_ = XSD_INTEGER;
 			break;
 		case LogicalTypeId::UHUGEINT:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = std::string(XSD_NS) + "nonNegativeInteger";
+			datatypeIRI_ = XSD_NON_NEGATIVE_INT;
 			break;
 		case LogicalTypeId::FLOAT:
 			type_ = Type::Double;
 			string_ = formatDouble(static_cast<double>(val_.GetValue<float>()));
-			datatypeIRI_ = std::string(XSD_NS) + "float";
+			datatypeIRI_ = XSD_FLOAT;
 			break;
 		case LogicalTypeId::DOUBLE:
 			type_ = Type::Double;
 			string_ = formatDouble(val_.GetValue<double>());
-			datatypeIRI_ = std::string(XSD_NS) + "double";
+			datatypeIRI_ = XSD_DOUBLE;
 			break;
 		case LogicalTypeId::DECIMAL:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = std::string(XSD_NS) + "decimal";
+			datatypeIRI_ = XSD_DECIMAL;
 			break;
 		case LogicalTypeId::DATE:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = std::string(XSD_NS) + "date";
+			datatypeIRI_ = XSD_DATE;
 			break;
 		case LogicalTypeId::TIME:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = std::string(XSD_NS) + "time";
+			datatypeIRI_ = XSD_TIME;
 			break;
 		case LogicalTypeId::TIMESTAMP:
 		case LogicalTypeId::TIMESTAMP_SEC:
@@ -212,7 +234,7 @@ private:
 			if (string_.size() > 10 && string_[10] == ' ') {
 				string_[10] = 'T';
 			}
-			datatypeIRI_ = std::string(XSD_NS) + "dateTime";
+			datatypeIRI_ = XSD_DATETIME;
 			break;
 		}
 		case LogicalTypeId::TIMESTAMP_TZ: {
@@ -221,7 +243,7 @@ private:
 			if (string_.size() > 10 && string_[10] == ' ') {
 				string_[10] = 'T';
 			}
-			datatypeIRI_ = std::string(XSD_NS) + "dateTimeStamp";
+			datatypeIRI_ = XSD_DATETIME_STAMP;
 			break;
 		}
 		case LogicalTypeId::VARCHAR:
@@ -408,6 +430,9 @@ struct R2RMLWriteBindData : public FunctionData {
 	SerdSyntax output_syntax = SERD_NTRIPLES;
 	bool ignore_non_fatal_errors = true;
 	bool ignore_case = false;
+	// Column-name → DataChunk index map built once at bind time; constant across
+	// all chunks so there is no need to rebuild it per chunk in the sink function.
+	std::unordered_map<std::string, idx_t> col_index;
 
 	unique_ptr<FunctionData> Copy() const override {
 		auto c = make_uniq<R2RMLWriteBindData>();
@@ -419,6 +444,7 @@ struct R2RMLWriteBindData : public FunctionData {
 		c->output_syntax = output_syntax;
 		c->ignore_non_fatal_errors = ignore_non_fatal_errors;
 		c->ignore_case = ignore_case;
+		c->col_index = col_index;
 		return c;
 	}
 	bool Equals(const FunctionData &other) const override {
@@ -508,8 +534,10 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	result->ignore_non_fatal_errors = ignore_nfe;
 	result->ignore_case = ignore_case;
 
-	for (const auto &name : names) {
-		result->column_names.push_back(ignore_case ? stringtoLower(name) : name);
+	for (idx_t i = 0; i < names.size(); i++) {
+		std::string col_name = ignore_case ? stringtoLower(names[i]) : names[i];
+		result->column_names.push_back(col_name);
+		result->col_index[col_name] = i;
 	}
 
 	return std::move(result);
@@ -551,15 +579,9 @@ static void R2RMLCopyToSink(ExecutionContext &, FunctionData &bind_data, GlobalF
 	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
 	NullSQLConnection null_conn;
 
-	// Build column-name → index map once per chunk; reused for every row.
-	std::unordered_map<std::string, idx_t> col_index;
-	col_index.reserve(input.ColumnCount());
-	for (idx_t col = 0; col < input.ColumnCount(); col++) {
-		col_index[bind.column_names[col]] = col;
-	}
-
+	// col_index was built once at bind time — reuse it across all chunks.
 	for (idx_t row = 0; row < input.size(); row++) {
-		DataChunkSQLRow sql_row(input, row, col_index, bind.ignore_case);
+		DataChunkSQLRow sql_row(input, row, bind.col_index, bind.ignore_case);
 		for (const auto &tm : bind.mapping->triplesMaps) {
 			if (tm) {
 				tm->generateTriples(sql_row, *global.serd_writer, *bind.mapping, null_conn);
