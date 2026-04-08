@@ -87,7 +87,7 @@ If the pattern matches no files an `IO Error` is raised.
 
 ## Reading RDF Prefixes
 
-`read_rdf_prefixes()` returns the `@prefix` and `@base` declarations from Turtle or TriG files. It is useful for namespace introspection, documentation, and building CURIE-aware tooling. NTriples and NQuads are not supported (they have no prefix declarations) and will raise an error.
+`read_rdf_prefixes()` returns the `@prefix` and `@base` declarations from Turtle or TriG files. It is useful for namespace introspection, documentation, and building CURIE-aware tooling. NTriples, RDF/XML & NQuads are not supported (they have no prefix declarations) and will raise an error.
 
 ```sql
 SELECT prefix, uri, is_base FROM read_rdf_prefixes('test/rdf/tests.ttl');

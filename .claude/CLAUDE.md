@@ -51,6 +51,8 @@ Or load the extension and run queries interactively:
 ./build/release/duckdb
 ```
 
+Any test that involves filenames needs to account for the fact that directory paths are different on Windows than unix based systems. Simplest solution is to wrap the filename column. Something like `replace(filename,'\','/')`
+
 ## Architecture
 
 Note that you must stick with C++ 11 and earlier as that's the standard that DuckDB uses.

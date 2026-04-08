@@ -105,7 +105,7 @@ SELECT COUNT(*) FROM (
 
 # include_filenames with glob: each row knows which file it came from
 query TI
-SELECT filename, COUNT(*) as cnt
+SELECT replace(filename,'\','/') as filename, COUNT(*) as cnt
 FROM read_rdf_prefixes('test/rdf/tests.t*', include_filenames=true)
 GROUP BY filename
 ORDER BY filename;
