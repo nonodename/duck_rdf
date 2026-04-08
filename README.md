@@ -85,6 +85,35 @@ SELECT * FROM read_rdf('data/shards/*.dat', file_type = 'ttl', strict_parsing = 
 
 If the pattern matches no files an `IO Error` is raised.
 
+## Reading RDF Prefixes
+
+`read_rdf_prefixes()` returns the `@prefix` and `@base` declarations from Turtle or TriG files. It is useful for namespace introspection, documentation, and building CURIE-aware tooling. NTriples and NQuads are not supported (they have no prefix declarations) and will raise an error.
+
+```sql
+SELECT prefix, uri, is_base FROM read_rdf_prefixes('test/rdf/tests.ttl');
+```
+
+```
+┌────────┬───────────────────────────────┬─────────┐
+│ prefix │              uri              │ is_base │
+│varchar │            varchar            │ boolean │
+├────────┼───────────────────────────────┼─────────┤
+│ foaf   │ http://xmlns.com/foaf/0.1/    │ false   │
+│ dc     │ http://purl.org/dc/elements/… │ false   │
+│        │ http://example.org/           │ true    │
+│ uni    │ http://unicode.org/           │ false   │
+└────────┴───────────────────────────────┴─────────┘
+```
+
+`read_rdf_prefixes()` accepts the same `strict_parsing`, `file_type`, and `include_filenames` parameters as `read_rdf()` and supports glob patterns:
+
+```sql
+-- Collect all unique prefixes across a set of Turtle files
+SELECT DISTINCT prefix, uri
+FROM read_rdf_prefixes('ontologies/*.ttl')
+ORDER BY prefix;
+```
+
 ## Pivoting RDF
 
 `pivot_rdf()` takes the same path/glob argument as `read_rdf()` and returns a pivoted table, one column per predicate, at least one row per subject. (To operate on arbitrary file sizes subjects _may_ be repeated if encountered out of sequence). While a pivot is possible in the SQL domain, it is subject to memory limits which this function aims to avoid by doing two passes on the RDF.
