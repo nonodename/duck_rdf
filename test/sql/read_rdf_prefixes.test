@@ -1,0 +1,138 @@
+# name: test/sql/read_rdf_prefixes.test
+# description: test read_rdf_prefixes function
+# group: [sql]
+
+# Before we load the extension, this will fail
+statement error
+SELECT * FROM read_rdf_prefixes('test/rdf/tests.ttl');
+----
+Catalog Error: Table Function with name read_rdf_prefixes does not exist!
+
+require rdf
+
+# Non-matching path should error
+statement error
+SELECT * FROM read_rdf_prefixes('not_exist.ttl');
+----
+IO Error: No files found matching: not_exist.ttl
+
+# tests.ttl has 3 @prefix declarations and 1 @base declaration = 4 rows
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests.ttl');
+----
+4
+
+# tests.trig has 4 @prefix declarations and 1 @base declaration = 5 rows
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests.trig');
+----
+5
+
+# @base rows have NULL prefix; @prefix rows have a non-null prefix
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests.ttl')
+WHERE prefix IS NULL AND is_base = true;
+----
+1
+
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests.ttl')
+WHERE prefix IS NOT NULL AND is_base = false;
+----
+3
+
+# Verify @base URI from tests.ttl
+query TT
+SELECT prefix, uri FROM read_rdf_prefixes('test/rdf/tests.ttl')
+WHERE is_base = true;
+----
+NULL	http://example.org/
+
+# Verify specific prefix from tests.ttl
+query TT
+SELECT prefix, uri FROM read_rdf_prefixes('test/rdf/tests.ttl')
+WHERE prefix = 'foaf';
+----
+foaf	http://xmlns.com/foaf/0.1/
+
+# Verify all prefixes from tests.ttl (sorted by prefix, NULLs last)
+query TT
+SELECT prefix, uri FROM read_rdf_prefixes('test/rdf/tests.ttl')
+WHERE is_base = false
+ORDER BY prefix;
+----
+dc	http://purl.org/dc/elements/1.1/
+foaf	http://xmlns.com/foaf/0.1/
+uni	http://unicode.org/
+
+# NTriples should throw an error
+statement error
+SELECT * FROM read_rdf_prefixes('test/rdf/tests.nt');
+----
+Invalid Input Error: read_rdf_prefixes() does not support NTriples or NQuads format
+
+# NQuads should throw an error
+statement error
+SELECT * FROM read_rdf_prefixes('test/rdf/tests.nq');
+----
+Invalid Input Error: read_rdf_prefixes() does not support NTriples or NQuads format
+
+# Explicit file_type=ntriples should throw
+statement error
+SELECT * FROM read_rdf_prefixes('test/rdf/tests.ttl', file_type='ntriples');
+----
+Invalid Input Error: read_rdf_prefixes() does not support NTriples or NQuads format
+
+# Explicit file_type=nquads should throw
+statement error
+SELECT * FROM read_rdf_prefixes('test/rdf/tests.ttl', file_type='nquads');
+----
+Invalid Input Error: read_rdf_prefixes() does not support NTriples or NQuads format
+
+# Glob: tests.t* matches tests.ttl and tests.trig — should return 4+5 = 9 rows total
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests.t*');
+----
+9
+
+# include_filenames adds a filename column
+query I
+SELECT COUNT(*) FROM (
+  SELECT * FROM read_rdf_prefixes('test/rdf/tests.ttl', include_filenames=true)
+) WHERE filename = 'test/rdf/tests.ttl';
+----
+4
+
+# include_filenames with glob: each row knows which file it came from
+query TI
+SELECT replace(filename,'\','/') as filename, COUNT(*) as cnt
+FROM read_rdf_prefixes('test/rdf/tests.t*', include_filenames=true)
+GROUP BY filename
+ORDER BY filename;
+----
+test/rdf/tests.trig	5
+test/rdf/tests.ttl	4
+
+# file_type override: parse tests.ttl with explicit file_type=turtle
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests.ttl', file_type='turtle');
+----
+4
+
+# file_type override: parse tests.trig with explicit file_type=trig
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests.trig', file_type='trig');
+----
+5
+
+# strict_parsing=false should not throw on malformed files, just return what was parsed
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests-bad.ttl', strict_parsing=false);
+----
+0
+
+# Unknown file_type parameter should error (consistent with read_rdf)
+statement error
+SELECT * FROM read_rdf_prefixes('test/rdf/tests.ttl', file_type='unknown_format');
+----
+Invalid Input Error: Unknown file_type override: 'unknown_format'

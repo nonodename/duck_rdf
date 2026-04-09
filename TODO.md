@@ -9,8 +9,9 @@ Currently all 6 columns are VARCHAR. The object_datatype column contains XSD typ
 2. **Source filename column** ✅
 When reading multiple files via glob, there's no way to know which triple came from which file. Adding a filename column (like DuckDB's read_parquet does) would be very useful for tracing provenance.
 
-3. **read_rdf_prefixes() table function**
+3. **read_rdf_prefixes() table function** ✅
 A companion function that returns the prefix declarations (@prefix / @base) from a Turtle/TriG file. Useful for documentation and for building CURIE-aware tooling.
+Implemented in `src/read_rdf_prefixes.cpp`. Returns three columns: `prefix` (VARCHAR), `uri` (VARCHAR), `is_base` (BOOLEAN). Supports the same `strict_parsing`, `file_type`, and `include_filenames` parameters as `read_rdf()`, and glob patterns. Throws `InvalidInputException` for NTriples, NQuads, and RDF/XML.
 
 4. **SPARQL endpoint reader** ✅
 `read_sparql(endpoint, query)` is now implemented. It sends a SPARQL SELECT against an HTTP/HTTPS endpoint and returns the result set as a table.
