@@ -25,16 +25,16 @@ jobs:
     name: Build extension binaries
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@v1.5.0
     with:
-      duckdb_version: v1.5.0
-      ci_tools_version: v1.5.0
+      duckdb_version: v1.5.3
+      ci_tools_version: v1.5.3
       extension_name: rdf
 
   format-check:
     name: Format Check
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_code_quality.yml@v1.5.0
     with:
-      duckdb_version: v1.5.0
-      ci_tools_version: v1.5.0
+      duckdb_version: v1.5.3
+      ci_tools_version: v1.5.3
       extension_name: rdf
       format_checks: 'format'
 
@@ -59,7 +59,7 @@ jobs:
         name: Checkout Extension CI tools
         with:
           path: 'extension-ci-tools'
-          ref: v1.5.0
+          ref: v1.5.3
           repository: duckdb/extension-ci-tools
 
       - name: Install
