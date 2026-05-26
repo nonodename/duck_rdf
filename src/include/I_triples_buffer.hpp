@@ -63,15 +63,15 @@ public:
 		return ITriplesBuffer::UNKNOWN;
 	}
 
-	static bool IsGzipPath(const std::string &path) {
+	static bool IsCompressedPath(const std::string &path) {
 		auto pos = path.rfind('.');
 		if (pos == std::string::npos)
 			return false;
-		return stringtoLower(path.substr(pos + 1)) == "gz";
+		return stringtoLower(path.substr(pos + 1)) == "gz" || stringtoLower(path.substr(pos + 1)) == "zst";
 	}
 
 	static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
-		std::string inner = IsGzipPath(path) ? path.substr(0, path.rfind('.')) : path;
+		std::string inner = IsCompressedPath(path) ? path.substr(0, path.rfind('.')) : path;
 		auto pos = inner.rfind('.');
 		if (pos == std::string::npos)
 			return ITriplesBuffer::UNKNOWN;
