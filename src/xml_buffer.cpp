@@ -13,7 +13,8 @@ XMLBuffer::XMLBuffer(std::string path, std::string base_uri, duckdb::FileSystem 
 	}
 	this->_fs = fs;
 	try {
-		this->_file_handle = this->_fs->OpenFile(this->_file_path, duckdb::FileFlags::FILE_FLAGS_READ);
+		this->_file_handle = this->_fs->OpenFile(this->_file_path, duckdb::FileFlags::FILE_FLAGS_READ |
+		                                                               duckdb::FileCompressionType::AUTO_DETECT);
 	} catch (std::exception &ex) {
 		throw std::runtime_error("Could not open RDF file: " + this->_file_path + ": " + ex.what());
 	}

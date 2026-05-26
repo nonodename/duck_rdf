@@ -1,0 +1,65 @@
+# name: test/sql/gz_compression.test
+# description: reading gzip-compressed RDF files (.nt.gz and .rdf.gz)
+# group: [sql]
+
+require rdf
+
+# Serd path: .nt.gz should yield the same triple count as the uncompressed .nt
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt.gz');
+----
+9
+
+# Explicit file_type = 'nt' override on a .nt.gz file still works
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt.gz', file_type = 'nt');
+----
+9
+
+# Explicit wrong file_type on .nt.gz: XML parser rejects NTriples content
+statement error
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt.gz', file_type = 'rdf');
+----
+Syntax Error
+
+# XML path: .rdf.gz should parse identically to the uncompressed .rdf
+statement ok
+prepare gz_xml_delta as
+  select count(a.*) - count(b.*) as delta
+  from (
+    select subject, predicate, object, object_datatype, upper(object_lang)
+      from read_rdf('test/xmlrdf/example07.nt')
+    union
+    select subject, predicate, object, object_datatype, upper(object_lang)
+      from read_rdf('test/xmlrdf/example07.rdf.gz')
+  ) as a,
+  (select count(*) from read_rdf('test/xmlrdf/example07.nt')) as b;
+
+query I
+execute gz_xml_delta;
+----
+0
+
+# Explicit file_type = 'rdf' on .rdf.gz still works
+statement ok
+prepare gz_rdf_explicit as
+  select count(a.*) - count(b.*) as delta
+  from (
+    select subject, predicate, object, object_datatype, upper(object_lang)
+      from read_rdf('test/xmlrdf/example07.nt')
+    union
+    select subject, predicate, object, object_datatype, upper(object_lang)
+      from read_rdf('test/xmlrdf/example07.rdf.gz', file_type = 'rdf')
+  ) as a,
+  (select count(*) from read_rdf('test/xmlrdf/example07.nt')) as b;
+
+query I
+execute gz_rdf_explicit;
+----
+0
+
+# Explicit wrong file_type on .rdf.gz: Serd rejects XML content
+statement error
+SELECT COUNT(*) FROM read_rdf('test/xmlrdf/example07.rdf.gz', file_type = 'nt');
+----
+Syntax Error
