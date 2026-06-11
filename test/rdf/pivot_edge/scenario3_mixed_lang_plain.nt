@@ -1,0 +1,2 @@
+<http://ex.org/s1> <http://ex.org/p_mixed> "Hello"@en .
+<http://ex.org/s1> <http://ex.org/p_mixed> "plain" .
