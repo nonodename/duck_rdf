@@ -1,0 +1,18 @@
+@prefix dc11: <http://purl.org/dc/elements/1.1/> .
+@prefix ns0: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+<http://example.org/book/123>
+  dc11:creator <http://example.org/person/JohnDoe> ;
+  dc11:title "The Great Book" .
+
+<http://unicode.org/duck> ns0:hasEmoji "🦆" .
+<http://example.org/person/JohnDoe>
+  a foaf:Person ;
+  foaf:age 30 ;
+  foaf:knows [ ] ;
+  foaf:name "John Doe" .
+
+[]
+  a foaf:Person ;
+  foaf:name "Jane Smith"@en .

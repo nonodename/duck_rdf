@@ -1,0 +1,34 @@
+# name: test/sql/parse_regressions.test
+# description: test read parsing does the same thing across different file formats.
+# group: [sql]
+
+
+
+# Require statement will ensure this test is run with this extension loaded
+require rdf
+
+# Parameterized testing statement
+statement ok
+prepare determine_delta as 
+    select count(a.*)-count(b.*) as delta 
+    from (
+        select graph, subject, predicate, object, object_datatype, upper(object_lang)  
+        from read_rdf($testFileA) 
+        union
+        select graph, subject, predicate, object, object_datatype, upper(object_lang)  
+        from read_rdf($testFileB)
+    ) as a, 
+    (select count(*) from read_rdf($testFileB)) as b;
+
+
+select union_count, sole_count from (
+             select count(*) as union_count 
+                               from (
+                                   select graph, subject, predicate, object, object_datatype, upper(object_lang)  
+                                   from read_rdf('test/rdf/regression_compares/standard.ttl') 
+                                   union
+                                   select graph, subject, predicate, object, object_datatype, upper(object_lang)  
+                                   from read_rdf('test/rdf/regression_compares/standard.nt'))) as a,
+                         
+             (select count(*) as sole_count  from read_rdf('test/rdf/regression_compares/standard.nt')) as b;
+         ;
