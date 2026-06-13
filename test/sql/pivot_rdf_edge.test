@@ -184,11 +184,9 @@ http://ex.org/s2	1
 # ── Scenario 8: SAME SUBJECT IN TWO NAMED GRAPHS ──────────────────────────────
 # An .nq file where <s1> has triples in graph g1 and graph g2, interleaved
 # g1, g2, g1. Expected: one row per (graph, subject) pair = 2 rows total.
-# Observed: 3 rows (g1 gets split into two due to the interleaving change).
 
 # Bug 8: INTERLEAVED GRAPHS PRODUCE MULTIPLE ROWS PER GRAPH
 # Expected: 2 total rows (s1/g1 consolidated + s1/g2 consolidated)
-# Observed: 3 rows (s1 in g1 split into 2 rows, s1 in g2 is 1 row)
 # Input file: scenario8_same_subject_graphs.nq
 query I
 SELECT COUNT(*) FROM pivot_rdf('test/rdf/pivot_edge/scenario8_same_subject_graphs.nq');
