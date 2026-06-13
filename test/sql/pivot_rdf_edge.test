@@ -55,12 +55,14 @@ http://ex.org/s3	1
 
 # Scenario 3: Mixed lang + plain literals
 # Input file: scenario3_mixed_lang_plain.nt
+# Any lang-tagged value forces STRUCT("object" VARCHAR, lang VARCHAR)[]; plain literals
+# appear in the list with an empty lang field.
 query T
 SELECT typeof("http://ex.org/p_mixed")
 FROM pivot_rdf('test/rdf/pivot_edge/scenario3_mixed_lang_plain.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
-VARCHAR[]
+STRUCT("object" VARCHAR, lang VARCHAR)[]
 
 query I
 SELECT array_length("http://ex.org/p_mixed")
@@ -69,28 +71,45 @@ WHERE subject = 'http://ex.org/s1';
 ----
 2
 
+# Lang-tagged value accessible by lang='en'; plain literal has lang=''
+query TT
+SELECT list_filter("http://ex.org/p_mixed", x -> x.lang = 'en')[1].object,
+       list_filter("http://ex.org/p_mixed", x -> x.lang = '')[1].object
+FROM pivot_rdf('test/rdf/pivot_edge/scenario3_mixed_lang_plain.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+Hello	plain
+
 # ── Scenario 4: DUPLICATE LANG TAG ──────────────────────────────────────────
 # s1 has "first"@en and "second"@en on one lang-only predicate.
 # Two values per subject normally forces LIST; expected behavior: LIST of MAPs
 # or at minimum preserve both values. Observed: MAP with only one value.
 
-# Bug 4: DUPLICATE LANG TAGS SILENTLY DROP VALUES
-# Expected: Two values in the MAP (or a LIST of MAPs), one for each lang tag
-# Observed: MAP with only one value (the last one seen), first value is lost
+# Scenario 4: DUPLICATE LANG TAGS — both values preserved in list
+# Both "first"@en and "second"@en appear as separate struct entries.
 # Input file: scenario4_duplicate_lang.nt
 query T
 SELECT typeof("http://ex.org/p_lang")
 FROM pivot_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
-MAP(VARCHAR, VARCHAR)
+STRUCT("object" VARCHAR, lang VARCHAR)[]
 
-query T
-SELECT "http://ex.org/p_lang"['en']
+# Both en-tagged values are in the list
+query I
+SELECT array_length(list_filter("http://ex.org/p_lang", x -> x.lang = 'en'))
 FROM pivot_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
-second
+2
+
+query TT
+SELECT list_filter("http://ex.org/p_lang", x -> x.lang = 'en')[1].object,
+       list_filter("http://ex.org/p_lang", x -> x.lang = 'en')[2].object
+FROM pivot_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+first	second
 
 # ── Scenario 5: INVALID TYPED LITERAL ───────────────────────────────────────
 # A predicate where every value is declared xsd:integer but one value is

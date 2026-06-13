@@ -23,8 +23,9 @@ namespace duckdb {
 
 enum class PivotColKind {
 	SCALAR,
-	LANG_MAP,
 	LIST,
+	LANG_STRUCT,      // STRUCT(object VARCHAR, lang VARCHAR) — single lang value
+	LANG_STRUCT_LIST, // STRUCT(object VARCHAR, lang VARCHAR)[] — multiple lang values
 };
 
 struct PivotColumn {
@@ -83,22 +84,38 @@ static LogicalType TypeNameToLogical(const std::string &name) {
 	return LogicalType::VARCHAR;
 }
 
+static LogicalType MakeLangStructType() {
+	child_list_t<LogicalType> fields;
+	fields.push_back({"object", LogicalType::VARCHAR});
+	fields.push_back({"lang", LogicalType::VARCHAR});
+	return LogicalType::STRUCT(fields);
+}
+
 static PivotColumn BuildPivotColumn(const std::string &predicate, const PredicateProfile &profile) {
 	PivotColumn col;
 	col.predicate = predicate;
 
-	bool use_lang_map = profile.has_lang_tagged && !profile.has_non_lang_literal;
-	if (use_lang_map) {
-		col.kind = PivotColKind::LANG_MAP;
-		col.elem_type = LogicalType::MAP(LogicalType::VARCHAR, LogicalType::VARCHAR);
-		col.col_type = col.elem_type;
+	bool has_lang = profile.type_stats.count("LANG_STRING") > 0;
+	if (has_lang) {
+		LogicalType lang_struct = MakeLangStructType();
+		if (profile.is_multi_valued) {
+			col.kind = PivotColKind::LANG_STRUCT_LIST;
+			col.elem_type = lang_struct;
+			col.col_type = LogicalType::LIST(lang_struct);
+		} else {
+			col.kind = PivotColKind::LANG_STRUCT;
+			col.elem_type = lang_struct;
+			col.col_type = lang_struct;
+		}
 		return col;
 	}
 
 	std::vector<std::string> type_names;
 	type_names.reserve(profile.type_stats.size());
-	for (const auto &kv : profile.type_stats)
-		type_names.push_back(kv.first);
+	for (const auto &kv : profile.type_stats) {
+		if (kv.first != "LANG_STRING")
+			type_names.push_back(kv.first);
+	}
 	std::sort(type_names.begin(), type_names.end());
 
 	std::vector<LogicalType> distinct_types;
@@ -209,13 +226,13 @@ struct PivotRDFGlobalState : public GlobalTableFunctionState {
 };
 
 struct PivotColAccum {
-	// For LANG_MAP: key=lang, value=string
-	std::unordered_map<std::string, std::string> lang_map;
-	// For SCALAR: first value. For LIST: all values.
+	// For LANG_STRUCT/LANG_STRUCT_LIST: (object, lang) pairs
+	std::vector<std::pair<std::string, std::string>> lang_values;
+	// For SCALAR/LIST: typed string values
 	std::vector<std::string> values;
 
 	void Reset() {
-		lang_map.clear();
+		lang_values.clear();
 		values.clear();
 	}
 };
@@ -370,19 +387,27 @@ static unique_ptr<LocalTableFunctionState> PivotRDFLocalInit(ExecutionContext &c
 
 static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col) {
 	switch (col.kind) {
-	case PivotColKind::LANG_MAP: {
-		if (accum.lang_map.empty())
+	case PivotColKind::LANG_STRUCT: {
+		if (accum.lang_values.empty())
 			return Value(col.col_type); // typed NULL
-		duckdb::vector<Value> keys, vals;
-		keys.reserve(accum.lang_map.size());
-		vals.reserve(accum.lang_map.size());
-		std::vector<std::pair<std::string, std::string>> sorted(accum.lang_map.begin(), accum.lang_map.end());
-		std::sort(sorted.begin(), sorted.end());
-		for (const auto &kv : sorted) {
-			keys.emplace_back(Value(kv.first));
-			vals.emplace_back(Value(kv.second));
+		const auto &lv = accum.lang_values[0];
+		child_list_t<Value> fields;
+		fields.push_back({"object", Value(lv.first)});
+		fields.push_back({"lang", Value(lv.second)});
+		return Value::STRUCT(fields);
+	}
+	case PivotColKind::LANG_STRUCT_LIST: {
+		if (accum.lang_values.empty())
+			return Value(col.col_type); // typed NULL
+		duckdb::vector<Value> list_vals;
+		list_vals.reserve(accum.lang_values.size());
+		for (const auto &lv : accum.lang_values) {
+			child_list_t<Value> fields;
+			fields.push_back({"object", Value(lv.first)});
+			fields.push_back({"lang", Value(lv.second)});
+			list_vals.emplace_back(Value::STRUCT(fields));
 		}
-		return Value::MAP(LogicalType::VARCHAR, LogicalType::VARCHAR, keys, vals);
+		return Value::LIST(col.elem_type, list_vals);
 	}
 	case PivotColKind::SCALAR: {
 		if (accum.values.empty())
@@ -515,8 +540,12 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 				PivotColAccum &accum = state.entries[entry_idx].cols[col_idx];
 				const PivotColInfo &col = bind_data.columns[col_idx];
 				switch (col.kind) {
-				case PivotColKind::LANG_MAP:
-					accum.lang_map[lang] = object;
+				case PivotColKind::LANG_STRUCT:
+					if (accum.lang_values.empty())
+						accum.lang_values.emplace_back(object, lang);
+					break;
+				case PivotColKind::LANG_STRUCT_LIST:
+					accum.lang_values.emplace_back(object, lang);
 					break;
 				case PivotColKind::SCALAR:
 					if (accum.values.empty())
