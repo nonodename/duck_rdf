@@ -16,7 +16,7 @@ require rdf
 query I
 SELECT COUNT(*) FROM pivot_rdf('test/rdf/pivot_edge/scenario1_interleaved.nt');
 ----
-3
+2
 
 # Verify the bug: s1 appears twice, s2 once
 query II
@@ -25,7 +25,7 @@ FROM pivot_rdf('test/rdf/pivot_edge/scenario1_interleaved.nt')
 GROUP BY subject
 ORDER BY subject;
 ----
-http://ex.org/s1	2
+http://ex.org/s1	1
 http://ex.org/s2	1
 
 # ── Scenario 2: SUBJECT SPLIT ACROSS GLOBBED FILES ──────────────────────────
@@ -163,7 +163,7 @@ http://ex.org/s2	2
 query I
 SELECT COUNT(*) FROM pivot_rdf('test/rdf/pivot_edge/scenario8_same_subject_graphs.nq');
 ----
-3
+2
 
 query III
 SELECT graph, subject, COUNT(*) as row_count
@@ -171,7 +171,7 @@ FROM pivot_rdf('test/rdf/pivot_edge/scenario8_same_subject_graphs.nq')
 GROUP BY graph, subject
 ORDER BY graph, subject;
 ----
-http://ex.org/g1	http://ex.org/s1	2
+http://ex.org/g1	http://ex.org/s1	1
 http://ex.org/g2	http://ex.org/s1	1
 
 # ── Scenario 9: BLANK NODE SUBJECTS ──────────────────────────────────────────

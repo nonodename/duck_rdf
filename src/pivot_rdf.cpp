@@ -225,11 +225,16 @@ struct PivotRDFLocalState : public LocalTableFunctionState {
 	DataChunk raw_chunk;
 	idx_t raw_chunk_pos = 0;
 
-	std::string current_graph;
-	std::string current_subject;
-	bool has_pending = false;
-
-	std::vector<PivotColAccum> col_accum;
+	struct SubjectEntry {
+		std::string graph;
+		std::string subject;
+		std::vector<PivotColAccum> cols;
+	};
+	// key = graph + '\x01' + subject
+	std::unordered_map<std::string, idx_t> subject_index;
+	std::vector<SubjectEntry> entries;
+	idx_t emit_idx = 0;
+	bool in_emit_phase = false;
 };
 
 // ============================================================
@@ -351,9 +356,7 @@ static unique_ptr<GlobalTableFunctionState> PivotRDFGlobalInit(ClientContext &, 
 
 static unique_ptr<LocalTableFunctionState> PivotRDFLocalInit(ExecutionContext &context, TableFunctionInitInput &input,
                                                              GlobalTableFunctionState *) {
-	auto &bind_data = (PivotRDFBindData &)*input.bind_data;
 	auto state = make_uniq<PivotRDFLocalState>();
-	state->col_accum.resize(bind_data.columns.size());
 
 	vector<LogicalType> raw_types(6, LogicalType::VARCHAR);
 	state->raw_chunk.Initialize(Allocator::Get(context.client), raw_types);
@@ -399,17 +402,13 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col) 
 	return Value(col.col_type);
 }
 
-static void EmitRow(PivotRDFLocalState &state, const PivotRDFBindData &bind_data, DataChunk &output, idx_t out_idx) {
-	output.SetValue(0, out_idx, Value(state.current_graph));
-	output.SetValue(1, out_idx, Value(state.current_subject));
+static void EmitRow(const PivotRDFLocalState::SubjectEntry &entry, const PivotRDFBindData &bind_data,
+                    DataChunk &output, idx_t out_idx) {
+	output.SetValue(0, out_idx, Value(entry.graph));
+	output.SetValue(1, out_idx, Value(entry.subject));
 	for (idx_t i = 0; i < bind_data.columns.size(); i++) {
-		output.SetValue(2 + i, out_idx, BuildColValue(state.col_accum[i], bind_data.columns[i]));
+		output.SetValue(2 + i, out_idx, BuildColValue(entry.cols[i], bind_data.columns[i]));
 	}
-}
-
-static void ResetAccum(PivotRDFLocalState &state) {
-	for (auto &a : state.col_accum)
-		a.Reset();
 }
 
 // ============================================================
@@ -423,26 +422,26 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 	auto &fs = FileSystem::GetFileSystem(context);
 
 	idx_t out_idx = 0;
+	idx_t num_pred_cols = bind_data.columns.size();
 
 	while (out_idx < STANDARD_VECTOR_SIZE) {
-		if (state.raw_chunk_pos >= state.raw_chunk.size()) {
-			if (state.ib) {
-				state.raw_chunk.Reset();
-				state.ib->PopulateChunk(state.raw_chunk);
-				state.raw_chunk_pos = 0;
-
-				if (state.raw_chunk.size() == 0) {
-					if (state.has_pending) {
-						EmitRow(state, bind_data, output, out_idx++);
-						ResetAccum(state);
-						state.has_pending = false;
-					}
-					state.ib.reset();
-				} else {
-					continue;
-				}
+		// Emit phase: output buffered subject rows
+		if (state.in_emit_phase) {
+			while (out_idx < STANDARD_VECTOR_SIZE && state.emit_idx < state.entries.size()) {
+				EmitRow(state.entries[state.emit_idx++], bind_data, output, out_idx++);
 			}
+			if (state.emit_idx >= state.entries.size()) {
+				state.in_emit_phase = false;
+				state.entries.clear();
+				state.subject_index.clear();
+				state.emit_idx = 0;
+			}
+			if (out_idx >= STANDARD_VECTOR_SIZE)
+				break;
+		}
 
+		// Open next file if needed
+		if (!state.ib) {
 			idx_t file_idx;
 			{
 				std::lock_guard<std::mutex> lk(global_state.lock);
@@ -450,7 +449,6 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 					break;
 				file_idx = global_state.next_file++;
 			}
-
 			const string &file_path = bind_data.file_paths[file_idx];
 			try {
 				auto new_ib = PivotOpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
@@ -462,61 +460,80 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 			} catch (const std::runtime_error &re) {
 				throw IOException(re.what());
 			}
-
 			state.raw_chunk.Reset();
-			state.ib->PopulateChunk(state.raw_chunk);
 			state.raw_chunk_pos = 0;
+		}
 
-			if (state.raw_chunk.size() == 0) {
-				state.ib.reset();
-				continue;
+		// Read all triples from current file into subject map
+		bool file_exhausted = false;
+		while (!file_exhausted) {
+			if (state.raw_chunk_pos >= state.raw_chunk.size()) {
+				state.raw_chunk.Reset();
+				state.ib->PopulateChunk(state.raw_chunk);
+				state.raw_chunk_pos = 0;
+				if (state.raw_chunk.size() == 0) {
+					file_exhausted = true;
+					break;
+				}
+			}
+
+			idx_t row = state.raw_chunk_pos++;
+
+			auto ReadStr = [&](idx_t col) -> std::string {
+				auto &vec = state.raw_chunk.data[col];
+				auto *data = FlatVector::GetData<string_t>(vec);
+				auto &validity = FlatVector::Validity(vec);
+				if (!validity.RowIsValid(row))
+					return std::string();
+				return data[row].GetString();
+			};
+
+			std::string graph = ReadStr(0);
+			std::string subject = ReadStr(1);
+			std::string predicate = ReadStr(2);
+			std::string object = ReadStr(3);
+			std::string lang = ReadStr(5);
+
+			std::string key = graph + '\x01' + subject;
+			auto map_it = state.subject_index.find(key);
+			idx_t entry_idx;
+			if (map_it == state.subject_index.end()) {
+				entry_idx = state.entries.size();
+				state.subject_index[key] = entry_idx;
+				PivotRDFLocalState::SubjectEntry entry;
+				entry.graph = graph;
+				entry.subject = subject;
+				entry.cols.resize(num_pred_cols);
+				state.entries.push_back(std::move(entry));
+			} else {
+				entry_idx = map_it->second;
+			}
+
+			auto it = bind_data.pred_to_col.find(predicate);
+			if (it != bind_data.pred_to_col.end()) {
+				idx_t col_idx = it->second;
+				PivotColAccum &accum = state.entries[entry_idx].cols[col_idx];
+				const PivotColInfo &col = bind_data.columns[col_idx];
+				switch (col.kind) {
+				case PivotColKind::LANG_MAP:
+					accum.lang_map[lang] = object;
+					break;
+				case PivotColKind::SCALAR:
+					if (accum.values.empty())
+						accum.values.push_back(object);
+					break;
+				case PivotColKind::LIST:
+					accum.values.push_back(object);
+					break;
+				}
 			}
 		}
 
-		idx_t row = state.raw_chunk_pos++;
-
-		auto ReadStr = [&](idx_t col) -> std::string {
-			auto &vec = state.raw_chunk.data[col];
-			auto *data = FlatVector::GetData<string_t>(vec);
-			auto &validity = FlatVector::Validity(vec);
-			if (!validity.RowIsValid(row))
-				return std::string();
-			return data[row].GetString();
-		};
-
-		std::string graph = ReadStr(0);
-		std::string subject = ReadStr(1);
-		std::string predicate = ReadStr(2);
-		std::string object = ReadStr(3);
-		std::string lang = ReadStr(5);
-
-		if (state.has_pending && (graph != state.current_graph || subject != state.current_subject)) {
-			EmitRow(state, bind_data, output, out_idx++);
-			ResetAccum(state);
-			state.current_graph = graph;
-			state.current_subject = subject;
-		} else if (!state.has_pending) {
-			state.current_graph = graph;
-			state.current_subject = subject;
-			state.has_pending = true;
-		}
-
-		auto it = bind_data.pred_to_col.find(predicate);
-		if (it != bind_data.pred_to_col.end()) {
-			idx_t col_idx = it->second;
-			PivotColAccum &accum = state.col_accum[col_idx];
-			const PivotColInfo &col = bind_data.columns[col_idx];
-			switch (col.kind) {
-			case PivotColKind::LANG_MAP:
-				accum.lang_map[lang] = object;
-				break;
-			case PivotColKind::SCALAR:
-				if (accum.values.empty())
-					accum.values.push_back(object);
-				break;
-			case PivotColKind::LIST:
-				accum.values.push_back(object);
-				break;
+		if (file_exhausted) {
+			state.ib.reset();
+			if (!state.entries.empty()) {
+				state.in_emit_phase = true;
+				state.emit_idx = 0;
 			}
 		}
 	}
