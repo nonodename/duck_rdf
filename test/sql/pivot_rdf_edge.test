@@ -50,8 +50,7 @@ http://ex.org/s3	1
 
 # ── Scenario 3: MIXED LANG + PLAIN LITERALS ON ONE PREDICATE ────────────────
 # s1 has "Hello"@en and "plain" (no tag) on the same predicate.
-# Expected: values are accessible as a MAP or similar structure that preserves
-# the language distinction. Observed: type is VARCHAR[], language tag is lost.
+# Expected: values are accessible as a struct that preserves the language tag.
 
 # Scenario 3: Mixed lang + plain literals
 # Input file: scenario3_mixed_lang_plain.nt
