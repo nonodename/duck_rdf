@@ -198,6 +198,27 @@ static Value StringToTypedValue(const std::string &str, const LogicalType &targe
 	return Value(str);
 }
 
+static Value StringToUnionValue(const std::string &str, const std::string &raw_datatype,
+                                const LogicalType &union_type, bool strict_parsing) {
+	std::string type_name = XsdToDuckDBType(raw_datatype, "", ObjectKind::LITERAL);
+	LogicalType target_lt = TypeNameToLogical(type_name);
+
+	idx_t member_count = UnionType::GetMemberCount(union_type);
+	child_list_t<LogicalType> members;
+	for (idx_t j = 0; j < member_count; j++)
+		members.push_back({UnionType::GetMemberName(union_type, j), UnionType::GetMemberType(union_type, j)});
+
+	for (idx_t tag = 0; tag < member_count; tag++) {
+		if (UnionType::GetMemberType(union_type, tag) == target_lt) {
+			Value inner = StringToTypedValue(str, UnionType::GetMemberType(union_type, tag), strict_parsing);
+			return Value::UNION(members, static_cast<uint8_t>(tag), inner);
+		}
+	}
+	// Fallback: use first member
+	Value inner = StringToTypedValue(str, UnionType::GetMemberType(union_type, 0), strict_parsing);
+	return Value::UNION(members, 0, inner);
+}
+
 // ============================================================
 // State structs
 // ============================================================
@@ -230,12 +251,14 @@ struct PivotRDFGlobalState : public GlobalTableFunctionState {
 struct PivotColAccum {
 	// For LANG_STRUCT/LANG_STRUCT_LIST: (object, lang) pairs
 	std::vector<std::pair<std::string, std::string>> lang_values;
-	// For SCALAR/LIST: typed string values
+	// For SCALAR/LIST: typed string values + parallel raw XSD datatype URIs
 	std::vector<std::string> values;
+	std::vector<std::string> datatypes;
 
 	void Reset() {
 		lang_values.clear();
 		values.clear();
+		datatypes.clear();
 	}
 };
 
@@ -414,6 +437,10 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 	case PivotColKind::SCALAR: {
 		if (accum.values.empty())
 			return Value(col.col_type); // typed NULL
+		if (col.elem_type.id() == LogicalTypeId::UNION) {
+			const std::string &dt = accum.datatypes.empty() ? "" : accum.datatypes[0];
+			return StringToUnionValue(accum.values[0], dt, col.elem_type, strict_parsing);
+		}
 		return StringToTypedValue(accum.values[0], col.elem_type, strict_parsing);
 	}
 	case PivotColKind::LIST: {
@@ -421,8 +448,15 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 			return Value(col.col_type); // typed NULL
 		duckdb::vector<Value> list_vals;
 		list_vals.reserve(accum.values.size());
-		for (const auto &v : accum.values)
-			list_vals.emplace_back(StringToTypedValue(v, col.elem_type, strict_parsing));
+		bool is_union = col.elem_type.id() == LogicalTypeId::UNION;
+		for (idx_t i = 0; i < accum.values.size(); i++) {
+			if (is_union) {
+				const std::string &dt = i < accum.datatypes.size() ? accum.datatypes[i] : "";
+				list_vals.emplace_back(StringToUnionValue(accum.values[i], dt, col.elem_type, strict_parsing));
+			} else {
+				list_vals.emplace_back(StringToTypedValue(accum.values[i], col.elem_type, strict_parsing));
+			}
+		}
 		return Value::LIST(col.elem_type, list_vals);
 	}
 	}
@@ -519,6 +553,7 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 			std::string subject = ReadStr(1);
 			std::string predicate = ReadStr(2);
 			std::string object = ReadStr(3);
+			std::string datatype = ReadStr(4);
 			std::string lang = ReadStr(5);
 
 			std::string key = graph + '\x01' + subject;
@@ -550,11 +585,14 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 					accum.lang_values.emplace_back(object, lang);
 					break;
 				case PivotColKind::SCALAR:
-					if (accum.values.empty())
+					if (accum.values.empty()) {
 						accum.values.push_back(object);
+						accum.datatypes.push_back(datatype);
+					}
 					break;
 				case PivotColKind::LIST:
 					accum.values.push_back(object);
+					accum.datatypes.push_back(datatype);
 					break;
 				}
 			}

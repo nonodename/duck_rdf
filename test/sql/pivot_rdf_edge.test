@@ -132,14 +132,33 @@ FROM pivot_rdf('test/rdf/pivot_edge/scenario5_invalid_typed.nt', strict_parsing=
 # ── Scenario 6: MIXED DATATYPES -> UNION ────────────────────────────────────
 # One predicate with "1"^^xsd:integer on s1 and "2.5"^^xsd:double on s2.
 # Expected: column is a UNION and both values are retrievable.
-# Observed: hard error when trying to select the column.
 
-# Scenario 6: Mixed datatypes union error
+# Scenario 6: Mixed datatypes produce a UNION column
 # Input file: scenario6_mixed_datatypes.nt
-statement error
-SELECT * FROM pivot_rdf('test/rdf/pivot_edge/scenario6_mixed_datatypes.nt');
+query T
+SELECT typeof("http://ex.org/p_mixed")
+FROM pivot_rdf('test/rdf/pivot_edge/scenario6_mixed_datatypes.nt')
+LIMIT 1;
 ----
-Conversion Error: Type VARCHAR can't be cast as UNION
+UNION("DOUBLE" DOUBLE, HUGEINT HUGEINT)
+
+query TT
+SELECT subject, union_tag("http://ex.org/p_mixed")
+FROM pivot_rdf('test/rdf/pivot_edge/scenario6_mixed_datatypes.nt')
+ORDER BY subject;
+----
+http://ex.org/s1	HUGEINT
+http://ex.org/s2	DOUBLE
+
+query TII
+SELECT subject,
+       union_extract("http://ex.org/p_mixed", 'hugeint'),
+       union_extract("http://ex.org/p_mixed", 'double')
+FROM pivot_rdf('test/rdf/pivot_edge/scenario6_mixed_datatypes.nt')
+ORDER BY subject;
+----
+http://ex.org/s1	1	NULL
+http://ex.org/s2	NULL	2.5
 
 # ── Scenario 7: EXACT DUPLICATE TRIPLES ─────────────────────────────────────
 # Same triple twice for a single-valued predicate and twice for a multi-valued
