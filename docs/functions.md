@@ -159,7 +159,8 @@ In principle this will work for arbitrary size RDF files (unlike doing a pivot i
 -- Pivot everything in a trig file
 SELECT * FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=true);
 ```
-
+**Limitations**
+Subjects that repeat across multiple files will appear as multiple rows in the resulting table. To do otherwise would greatly impact performance.
 ---
 
 ## `read_sparql(endpoint, query)`

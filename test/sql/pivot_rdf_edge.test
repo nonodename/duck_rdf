@@ -4,21 +4,16 @@
 
 require rdf
 
-# ── Scenario 1: INTERLEAVED SUBJECTS ─────────────────────────────────────────
-# An .nt file with triples ordered s1, s2, s1 (subject s1's triples are not
-# contiguous). Correct behavior: one output row per distinct subject.
-# Suspected: s1 appears as TWO rows.
 
-# Bug 1: INTERLEAVED SUBJECTS PRODUCE MULTIPLE ROWS
+# Fix 1: INTERLEAVED SUBJECTS PRODUCE MULTIPLE ROWS
 # Expected: 2 rows (one per distinct subject)
-# Observed: 3 rows (s1 split into two rows due to interleaving)
 # Input file: scenario1_interleaved.nt
 query I
 SELECT COUNT(*) FROM pivot_rdf('test/rdf/pivot_edge/scenario1_interleaved.nt');
 ----
 2
 
-# Verify the bug: s1 appears twice, s2 once
+# Verify the fix: s1 appears once, s2 once
 query II
 SELECT subject, COUNT(*) as row_count
 FROM pivot_rdf('test/rdf/pivot_edge/scenario1_interleaved.nt')
@@ -31,6 +26,8 @@ http://ex.org/s2	1
 # ── Scenario 2: SUBJECT SPLIT ACROSS GLOBBED FILES ──────────────────────────
 # s1 has triples in both fileA.nt and fileB.nt, read via a glob.
 # Correct: one row for s1. Suspected: two rows.
+# NOT PLANNING TO FIX THIS FOR NOW AS WILL GREATLY IMPACT PERFORMANCE
+# DOCUMENT AS KNOWN LIMITATION
 
 # Bug 2: SUBJECT SPLIT ACROSS FILES PRODUCES MULTIPLE ROWS
 # Expected: 1 row for s1 (consolidated across fileA and fileB)
