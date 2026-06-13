@@ -198,8 +198,8 @@ static Value StringToTypedValue(const std::string &str, const LogicalType &targe
 	return Value(str);
 }
 
-static Value StringToUnionValue(const std::string &str, const std::string &raw_datatype,
-                                const LogicalType &union_type, bool strict_parsing) {
+static Value StringToUnionValue(const std::string &str, const std::string &raw_datatype, const LogicalType &union_type,
+                                bool strict_parsing) {
 	std::string type_name = XsdToDuckDBType(raw_datatype, "", ObjectKind::LITERAL);
 	LogicalType target_lt = TypeNameToLogical(type_name);
 
@@ -463,8 +463,8 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 	return Value(col.col_type);
 }
 
-static void EmitRow(const PivotRDFLocalState::SubjectEntry &entry, const PivotRDFBindData &bind_data,
-                    DataChunk &output, idx_t out_idx) {
+static void EmitRow(const PivotRDFLocalState::SubjectEntry &entry, const PivotRDFBindData &bind_data, DataChunk &output,
+                    idx_t out_idx) {
 	output.SetValue(0, out_idx, Value(entry.graph));
 	output.SetValue(1, out_idx, Value(entry.subject));
 	for (idx_t i = 0; i < bind_data.columns.size(); i++) {
