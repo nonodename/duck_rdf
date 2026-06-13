@@ -581,19 +581,38 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 					if (accum.lang_values.empty())
 						accum.lang_values.emplace_back(object, lang);
 					break;
-				case PivotColKind::LANG_STRUCT_LIST:
-					accum.lang_values.emplace_back(object, lang);
+				case PivotColKind::LANG_STRUCT_LIST: {
+					bool dup = false;
+					for (const auto &lv : accum.lang_values) {
+						if (lv.first == object && lv.second == lang) {
+							dup = true;
+							break;
+						}
+					}
+					if (!dup)
+						accum.lang_values.emplace_back(object, lang);
 					break;
+				}
 				case PivotColKind::SCALAR:
 					if (accum.values.empty()) {
 						accum.values.push_back(object);
 						accum.datatypes.push_back(datatype);
 					}
 					break;
-				case PivotColKind::LIST:
-					accum.values.push_back(object);
-					accum.datatypes.push_back(datatype);
+				case PivotColKind::LIST: {
+					bool dup = false;
+					for (idx_t i = 0; i < accum.values.size(); i++) {
+						if (accum.values[i] == object && accum.datatypes[i] == datatype) {
+							dup = true;
+							break;
+						}
+					}
+					if (!dup) {
+						accum.values.push_back(object);
+						accum.datatypes.push_back(datatype);
+					}
 					break;
+				}
 				}
 			}
 		}

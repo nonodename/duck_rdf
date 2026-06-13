@@ -137,7 +137,7 @@ In principle this will work for arbitrary size RDF files (unlike doing a pivot i
 | `strict_parsing` | BOOLEAN | No | `true` | When `false`, skips malformed triples instead of raising an error |
 | `file_type` | VARCHAR | No | auto-detect | Override format detection. Same values as `read_rdf` |
 
-_note that strict_parsing = false will permit some scenarios such as "notanumber"^^xsd:integer by using a union for that column rather than the expected type._
+*note that strict_parsing = false will permit some scenarios such as "notanumber"^^xsd:integer by using a union for that column rather than the expected type.*
 
 **Returns**
 
@@ -162,7 +162,7 @@ _note that strict_parsing = false will permit some scenarios such as "notanumber
 SELECT * FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=true);
 ```
 **Limitations**
-Subjects that repeat across multiple files will appear as multiple rows in the resulting table. To do otherwise would greatly impact performance.
+Subjects that repeat across multiple files will appear as multiple rows in the resulting table. To do otherwise would greatly impact performance. In the same way, triples or quads that *exactly* duplicate within a file will be deduped but not across files.
 ---
 
 ## `read_sparql(endpoint, query)`
