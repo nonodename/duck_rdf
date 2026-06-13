@@ -137,6 +137,8 @@ In principle this will work for arbitrary size RDF files (unlike doing a pivot i
 | `strict_parsing` | BOOLEAN | No | `true` | When `false`, skips malformed triples instead of raising an error |
 | `file_type` | VARCHAR | No | auto-detect | Override format detection. Same values as `read_rdf` |
 
+_note that strict_parsing = false will permit some scenarios such as "notanumber"^^xsd:integer by using a union for that column rather than the expected type.
+
 **Returns**
 
 | Column | Type | Description |

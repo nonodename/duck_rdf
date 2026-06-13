@@ -114,7 +114,6 @@ first	second
 # A predicate where every value is declared xsd:integer but one value is
 # "notanumber"^^xsd:integer. Column type will be HUGEINT; expected behavior is
 # either error or graceful degradation (e.g., fallback to string).
-# Observed: hard error during parsing.
 
 # Scenario 5: Invalid typed literal (hard error)
 # Input file: scenario5_invalid_typed.nt
@@ -123,11 +122,12 @@ SELECT * FROM pivot_rdf('test/rdf/pivot_edge/scenario5_invalid_typed.nt');
 ----
 Invalid Input Error: Failed to cast value: Could not convert string 'notanumber' to INT128
 
-# Also fails with strict_parsing=false
-statement error
-SELECT * FROM pivot_rdf('test/rdf/pivot_edge/scenario5_invalid_typed.nt', strict_parsing=false);
+# With strict_parsing=false the invalid literal falls back to NULL
+query II
+SELECT "http://ex.org/p_int"[1], "http://ex.org/p_int"[2]
+FROM pivot_rdf('test/rdf/pivot_edge/scenario5_invalid_typed.nt', strict_parsing=false);
 ----
-Invalid Input Error: Failed to cast value: Could not convert string 'notanumber' to INT128
+1	NULL
 
 # ── Scenario 6: MIXED DATATYPES -> UNION ────────────────────────────────────
 # One predicate with "1"^^xsd:integer on s1 and "2.5"^^xsd:double on s2.

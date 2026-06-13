@@ -162,7 +162,7 @@ static PivotColumn BuildPivotColumn(const std::string &predicate, const Predicat
 	return col;
 }
 
-static Value StringToTypedValue(const std::string &str, const LogicalType &target) {
+static Value StringToTypedValue(const std::string &str, const LogicalType &target, bool strict_parsing) {
 	if (target == LogicalType::VARCHAR)
 		return Value(str);
 	if (target == LogicalType::BOOLEAN)
@@ -191,6 +191,8 @@ static Value StringToTypedValue(const std::string &str, const LogicalType &targe
 		if (target == LogicalType::DOUBLE)
 			return Value::DOUBLE(std::stod(str));
 	} catch (...) {
+		if (!strict_parsing)
+			return Value(target); // typed NULL — avoids implicit cast failure downstream
 		return Value(str);
 	}
 	return Value(str);
@@ -385,7 +387,7 @@ static unique_ptr<LocalTableFunctionState> PivotRDFLocalInit(ExecutionContext &c
 // Helpers — scan emits typed scalars, NULL for missing, ignores MAP/LIST
 // ============================================================
 
-static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col) {
+static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, bool strict_parsing) {
 	switch (col.kind) {
 	case PivotColKind::LANG_STRUCT: {
 		if (accum.lang_values.empty())
@@ -412,7 +414,7 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col) 
 	case PivotColKind::SCALAR: {
 		if (accum.values.empty())
 			return Value(col.col_type); // typed NULL
-		return StringToTypedValue(accum.values[0], col.elem_type);
+		return StringToTypedValue(accum.values[0], col.elem_type, strict_parsing);
 	}
 	case PivotColKind::LIST: {
 		if (accum.values.empty())
@@ -420,7 +422,7 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col) 
 		duckdb::vector<Value> list_vals;
 		list_vals.reserve(accum.values.size());
 		for (const auto &v : accum.values)
-			list_vals.emplace_back(StringToTypedValue(v, col.elem_type));
+			list_vals.emplace_back(StringToTypedValue(v, col.elem_type, strict_parsing));
 		return Value::LIST(col.elem_type, list_vals);
 	}
 	}
@@ -432,7 +434,7 @@ static void EmitRow(const PivotRDFLocalState::SubjectEntry &entry, const PivotRD
 	output.SetValue(0, out_idx, Value(entry.graph));
 	output.SetValue(1, out_idx, Value(entry.subject));
 	for (idx_t i = 0; i < bind_data.columns.size(); i++) {
-		output.SetValue(2 + i, out_idx, BuildColValue(entry.cols[i], bind_data.columns[i]));
+		output.SetValue(2 + i, out_idx, BuildColValue(entry.cols[i], bind_data.columns[i], bind_data.strict_parsing));
 	}
 }
 
