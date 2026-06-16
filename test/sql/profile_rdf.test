@@ -70,18 +70,19 @@ WHERE predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
 ----
 1
 
-# foaf:name has VARCHAR objects (plain literal "John Doe" and lang-tagged "Jane Smith"@en)
-query T
-SELECT types[1] FROM profile_rdf('test/rdf/tests.nt')
+# foaf:name has a plain literal ("John Doe") and a lang-tagged literal ("Jane Smith"@en).
+# Lang-tagged objects are reported as LANG_STRING; plain literals remain VARCHAR.
+query TT
+SELECT types[1], types[2] FROM profile_rdf('test/rdf/tests.nt')
 WHERE predicate = 'http://xmlns.com/foaf/0.1/name';
 ----
-VARCHAR
+LANG_STRING	VARCHAR
 
-query I
-SELECT count['VARCHAR'] FROM profile_rdf('test/rdf/tests.nt')
+query II
+SELECT count['LANG_STRING'], count['VARCHAR'] FROM profile_rdf('test/rdf/tests.nt')
 WHERE predicate = 'http://xmlns.com/foaf/0.1/name';
 ----
-2
+1	1
 
 # foaf:knows has one BLANK object (_:jane)
 query T
@@ -154,3 +155,45 @@ query I
 SELECT COUNT(*) > 0 FROM profile_rdf('test/rdf/shards/*.nt');
 ----
 true
+
+# ── LANG_STRING type tracking ────────────────────────────────────────────────
+
+# scenario4: all-lang predicate → only LANG_STRING in types
+query T
+SELECT types[1] FROM profile_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
+WHERE predicate = 'http://ex.org/p_lang';
+----
+LANG_STRING
+
+query I
+SELECT count['LANG_STRING'] FROM profile_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
+WHERE predicate = 'http://ex.org/p_lang';
+----
+2
+
+# scenario3: mixed lang + plain → LANG_STRING and VARCHAR both present
+query TT
+SELECT types[1], types[2] FROM profile_rdf('test/rdf/pivot_edge/scenario3_mixed_lang_plain.nt')
+WHERE predicate = 'http://ex.org/p_mixed';
+----
+LANG_STRING	VARCHAR
+
+query II
+SELECT count['LANG_STRING'], count['VARCHAR']
+FROM profile_rdf('test/rdf/pivot_edge/scenario3_mixed_lang_plain.nt')
+WHERE predicate = 'http://ex.org/p_mixed';
+----
+1	1
+
+# pivot_test.nt plain predicate → only VARCHAR, no LANG_STRING
+query T
+SELECT types[1] FROM profile_rdf('test/rdf/pivot_test.nt')
+WHERE predicate = 'http://ex.org/p_str';
+----
+VARCHAR
+
+query I
+SELECT count['VARCHAR'] FROM profile_rdf('test/rdf/pivot_test.nt')
+WHERE predicate = 'http://ex.org/p_str';
+----
+2

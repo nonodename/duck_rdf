@@ -20,7 +20,7 @@ std::string XsdToDuckDBType(const std::string &datatype, const std::string &lang
 
 	// LITERAL path
 	if (!lang.empty())
-		return "VARCHAR"; // language-tagged string
+		return "LANG_STRING"; // language-tagged string
 
 	if (datatype.empty())
 		return "VARCHAR"; // plain literal, no datatype
@@ -77,7 +77,7 @@ void RDFProfileAccumulator::AddTriple(const std::string &graph, const std::strin
                                       const std::string &predicate, const std::string &object, ObjectKind object_kind,
                                       const std::string &datatype, const std::string &lang) {
 	std::string type_name = XsdToDuckDBType(datatype, lang, object_kind);
-	_profiles[predicate].AddTriple(graph, subject, object, type_name, !lang.empty());
+	_profiles[predicate].AddTriple(graph, subject, object, type_name);
 }
 
 void RDFProfileAccumulator::Merge(const RDFProfileAccumulator &other) {

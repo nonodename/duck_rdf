@@ -4,33 +4,30 @@
 
 require rdf
 
-# ── Scenario 1: INTERLEAVED SUBJECTS ─────────────────────────────────────────
-# An .nt file with triples ordered s1, s2, s1 (subject s1's triples are not
-# contiguous). Correct behavior: one output row per distinct subject.
-# Suspected: s1 appears as TWO rows.
 
-# Bug 1: INTERLEAVED SUBJECTS PRODUCE MULTIPLE ROWS
+# Fix 1: INTERLEAVED SUBJECTS PRODUCE MULTIPLE ROWS
 # Expected: 2 rows (one per distinct subject)
-# Observed: 3 rows (s1 split into two rows due to interleaving)
 # Input file: scenario1_interleaved.nt
 query I
 SELECT COUNT(*) FROM pivot_rdf('test/rdf/pivot_edge/scenario1_interleaved.nt');
 ----
-3
+2
 
-# Verify the bug: s1 appears twice, s2 once
+# Verify the fix: s1 appears once, s2 once
 query II
 SELECT subject, COUNT(*) as row_count
 FROM pivot_rdf('test/rdf/pivot_edge/scenario1_interleaved.nt')
 GROUP BY subject
 ORDER BY subject;
 ----
-http://ex.org/s1	2
+http://ex.org/s1	1
 http://ex.org/s2	1
 
 # ── Scenario 2: SUBJECT SPLIT ACROSS GLOBBED FILES ──────────────────────────
 # s1 has triples in both fileA.nt and fileB.nt, read via a glob.
 # Correct: one row for s1. Suspected: two rows.
+# NOT PLANNING TO FIX THIS FOR NOW AS WILL GREATLY IMPACT PERFORMANCE
+# DOCUMENT AS KNOWN LIMITATION
 
 # Bug 2: SUBJECT SPLIT ACROSS FILES PRODUCES MULTIPLE ROWS
 # Expected: 1 row for s1 (consolidated across fileA and fileB)
@@ -53,17 +50,18 @@ http://ex.org/s3	1
 
 # ── Scenario 3: MIXED LANG + PLAIN LITERALS ON ONE PREDICATE ────────────────
 # s1 has "Hello"@en and "plain" (no tag) on the same predicate.
-# Expected: values are accessible as a MAP or similar structure that preserves
-# the language distinction. Observed: type is VARCHAR[], language tag is lost.
+# Expected: values are accessible as a struct that preserves the language tag.
 
 # Scenario 3: Mixed lang + plain literals
 # Input file: scenario3_mixed_lang_plain.nt
+# Any lang-tagged value forces STRUCT("object" VARCHAR, lang VARCHAR)[]; plain literals
+# appear in the list with an empty lang field.
 query T
 SELECT typeof("http://ex.org/p_mixed")
 FROM pivot_rdf('test/rdf/pivot_edge/scenario3_mixed_lang_plain.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
-VARCHAR[]
+STRUCT("object" VARCHAR, lang VARCHAR)[]
 
 query I
 SELECT array_length("http://ex.org/p_mixed")
@@ -72,34 +70,50 @@ WHERE subject = 'http://ex.org/s1';
 ----
 2
 
+# Lang-tagged value accessible by lang='en'; plain literal has lang=''
+query TT
+SELECT list_filter("http://ex.org/p_mixed", x -> x.lang = 'en')[1].object,
+       list_filter("http://ex.org/p_mixed", x -> x.lang = '')[1].object
+FROM pivot_rdf('test/rdf/pivot_edge/scenario3_mixed_lang_plain.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+Hello	plain
+
 # ── Scenario 4: DUPLICATE LANG TAG ──────────────────────────────────────────
 # s1 has "first"@en and "second"@en on one lang-only predicate.
 # Two values per subject normally forces LIST; expected behavior: LIST of MAPs
 # or at minimum preserve both values. Observed: MAP with only one value.
 
-# Bug 4: DUPLICATE LANG TAGS SILENTLY DROP VALUES
-# Expected: Two values in the MAP (or a LIST of MAPs), one for each lang tag
-# Observed: MAP with only one value (the last one seen), first value is lost
+# Scenario 4: DUPLICATE LANG TAGS — both values preserved in list
+# Both "first"@en and "second"@en appear as separate struct entries.
 # Input file: scenario4_duplicate_lang.nt
 query T
 SELECT typeof("http://ex.org/p_lang")
 FROM pivot_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
-MAP(VARCHAR, VARCHAR)
+STRUCT("object" VARCHAR, lang VARCHAR)[]
 
-query T
-SELECT "http://ex.org/p_lang"['en']
+# Both en-tagged values are in the list
+query I
+SELECT array_length(list_filter("http://ex.org/p_lang", x -> x.lang = 'en'))
 FROM pivot_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
-second
+2
+
+query TT
+SELECT list_filter("http://ex.org/p_lang", x -> x.lang = 'en')[1].object,
+       list_filter("http://ex.org/p_lang", x -> x.lang = 'en')[2].object
+FROM pivot_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
+WHERE subject = 'http://ex.org/s1';
+----
+first	second
 
 # ── Scenario 5: INVALID TYPED LITERAL ───────────────────────────────────────
 # A predicate where every value is declared xsd:integer but one value is
 # "notanumber"^^xsd:integer. Column type will be HUGEINT; expected behavior is
 # either error or graceful degradation (e.g., fallback to string).
-# Observed: hard error during parsing.
 
 # Scenario 5: Invalid typed literal (hard error)
 # Input file: scenario5_invalid_typed.nt
@@ -108,32 +122,48 @@ SELECT * FROM pivot_rdf('test/rdf/pivot_edge/scenario5_invalid_typed.nt');
 ----
 Invalid Input Error: Failed to cast value: Could not convert string 'notanumber' to INT128
 
-# Also fails with strict_parsing=false
-statement error
-SELECT * FROM pivot_rdf('test/rdf/pivot_edge/scenario5_invalid_typed.nt', strict_parsing=false);
+# With strict_parsing=false the invalid literal falls back to NULL
+query II
+SELECT "http://ex.org/p_int"[1], "http://ex.org/p_int"[2]
+FROM pivot_rdf('test/rdf/pivot_edge/scenario5_invalid_typed.nt', strict_parsing=false);
 ----
-Invalid Input Error: Failed to cast value: Could not convert string 'notanumber' to INT128
+1	NULL
 
 # ── Scenario 6: MIXED DATATYPES -> UNION ────────────────────────────────────
 # One predicate with "1"^^xsd:integer on s1 and "2.5"^^xsd:double on s2.
 # Expected: column is a UNION and both values are retrievable.
-# Observed: hard error when trying to select the column.
 
-# Scenario 6: Mixed datatypes union error
+# Scenario 6: Mixed datatypes produce a UNION column
 # Input file: scenario6_mixed_datatypes.nt
-statement error
-SELECT * FROM pivot_rdf('test/rdf/pivot_edge/scenario6_mixed_datatypes.nt');
+query T
+SELECT typeof("http://ex.org/p_mixed")
+FROM pivot_rdf('test/rdf/pivot_edge/scenario6_mixed_datatypes.nt')
+LIMIT 1;
 ----
-Conversion Error: Type VARCHAR can't be cast as UNION
+UNION("DOUBLE" DOUBLE, HUGEINT HUGEINT)
+
+query TT
+SELECT subject, union_tag("http://ex.org/p_mixed")
+FROM pivot_rdf('test/rdf/pivot_edge/scenario6_mixed_datatypes.nt')
+ORDER BY subject;
+----
+http://ex.org/s1	HUGEINT
+http://ex.org/s2	DOUBLE
+
+query TII
+SELECT subject,
+       union_extract("http://ex.org/p_mixed", 'hugeint'),
+       union_extract("http://ex.org/p_mixed", 'double')
+FROM pivot_rdf('test/rdf/pivot_edge/scenario6_mixed_datatypes.nt')
+ORDER BY subject;
+----
+http://ex.org/s1	1	NULL
+http://ex.org/s2	NULL	2.5
 
 # ── Scenario 7: EXACT DUPLICATE TRIPLES ─────────────────────────────────────
 # Same triple twice for a single-valued predicate and twice for a multi-valued
 # predicate. Expected: one value survives (deduplication).
-# Observed: LIST contains the duplicate twice (for both single and multi).
 
-# Bug 7: DUPLICATE TRIPLES ARE NOT DEDUPLICATED
-# Expected: [value1] for single-valued and [value2] for multi-valued
-# Observed: [value1, value1] and [value2, value2]
 # Input file: scenario7_duplicate_triples.nt
 query II
 SELECT subject, array_length("http://ex.org/p_single")
@@ -141,7 +171,7 @@ FROM pivot_rdf('test/rdf/pivot_edge/scenario7_duplicate_triples.nt')
 WHERE subject = 'http://ex.org/s1'
 ORDER BY subject;
 ----
-http://ex.org/s1	2
+http://ex.org/s1	1
 
 query II
 SELECT subject, array_length("http://ex.org/p_multi")
@@ -149,21 +179,19 @@ FROM pivot_rdf('test/rdf/pivot_edge/scenario7_duplicate_triples.nt')
 WHERE subject = 'http://ex.org/s2'
 ORDER BY subject;
 ----
-http://ex.org/s2	2
+http://ex.org/s2	1
 
 # ── Scenario 8: SAME SUBJECT IN TWO NAMED GRAPHS ──────────────────────────────
 # An .nq file where <s1> has triples in graph g1 and graph g2, interleaved
 # g1, g2, g1. Expected: one row per (graph, subject) pair = 2 rows total.
-# Observed: 3 rows (g1 gets split into two due to the interleaving change).
 
 # Bug 8: INTERLEAVED GRAPHS PRODUCE MULTIPLE ROWS PER GRAPH
 # Expected: 2 total rows (s1/g1 consolidated + s1/g2 consolidated)
-# Observed: 3 rows (s1 in g1 split into 2 rows, s1 in g2 is 1 row)
 # Input file: scenario8_same_subject_graphs.nq
 query I
 SELECT COUNT(*) FROM pivot_rdf('test/rdf/pivot_edge/scenario8_same_subject_graphs.nq');
 ----
-3
+2
 
 query III
 SELECT graph, subject, COUNT(*) as row_count
@@ -171,7 +199,7 @@ FROM pivot_rdf('test/rdf/pivot_edge/scenario8_same_subject_graphs.nq')
 GROUP BY graph, subject
 ORDER BY graph, subject;
 ----
-http://ex.org/g1	http://ex.org/s1	2
+http://ex.org/g1	http://ex.org/s1	1
 http://ex.org/g2	http://ex.org/s1	1
 
 # ── Scenario 9: BLANK NODE SUBJECTS ──────────────────────────────────────────
