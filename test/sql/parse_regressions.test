@@ -2,8 +2,6 @@
 # description: test read parsing does the same thing across different file formats.
 # group: [sql]
 
-
-
 # Require statement will ensure this test is run with this extension loaded
 require rdf
 
