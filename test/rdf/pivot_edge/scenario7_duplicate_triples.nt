@@ -1,0 +1,4 @@
+<http://ex.org/s1> <http://ex.org/p_single> "value1" .
+<http://ex.org/s1> <http://ex.org/p_single> "value1" .
+<http://ex.org/s2> <http://ex.org/p_multi> "value2" .
+<http://ex.org/s2> <http://ex.org/p_multi> "value2" .

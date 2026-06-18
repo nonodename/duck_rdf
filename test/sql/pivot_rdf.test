@@ -92,20 +92,20 @@ WHERE subject = 'http://ex.org/s2';
 ----
 true
 
-# ── pivot_test.nt: lang-tagged predicate (MAP) ────────────────────────────────
+# ── pivot_test.nt: lang-tagged predicate (STRUCT list) ───────────────────────
 
-# p_lang has only lang-tagged values → MAP(VARCHAR, VARCHAR)
+# p_lang has only lang-tagged values → STRUCT("object" VARCHAR, lang VARCHAR)[]  (object is quoted since it is a SQL keyword)
 query T
 SELECT typeof("http://ex.org/p_lang")
 FROM pivot_rdf('test/rdf/pivot_test.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
-MAP(VARCHAR, VARCHAR)
+STRUCT("object" VARCHAR, lang VARCHAR)[]
 
-# Access individual language values
+# Access individual language values by filtering on the lang field
 query TT
-SELECT "http://ex.org/p_lang"['en'],
-       "http://ex.org/p_lang"['es']
+SELECT list_filter("http://ex.org/p_lang", x -> x.lang = 'en')[1].object,
+       list_filter("http://ex.org/p_lang", x -> x.lang = 'es')[1].object
 FROM pivot_rdf('test/rdf/pivot_test.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
