@@ -1,0 +1,3 @@
+<http://ex.org/s1> <http://ex.org/p_a> "value_a1" .
+<http://ex.org/s2> <http://ex.org/p_b> "value_b1" .
+<http://ex.org/s1> <http://ex.org/p_c> "value_c1" .

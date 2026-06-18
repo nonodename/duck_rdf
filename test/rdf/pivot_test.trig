@@ -1,0 +1,12 @@
+@prefix ex: <http://ex.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:g1 {
+    ex:s1 ex:p_str "hello" ;
+          ex:p_int 42 ;
+          ex:p_multi "a", "b" ;
+          ex:p_lang "Hello"@en, "Hola"@es .
+
+    ex:s2 ex:p_str "world" ;
+          ex:p_int 7 .
+}

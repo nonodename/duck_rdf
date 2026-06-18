@@ -1,0 +1,2 @@
+<http://ex.org/s1> <http://ex.org/p_int> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://ex.org/s1> <http://ex.org/p_int> "notanumber"^^<http://www.w3.org/2001/XMLSchema#integer> .

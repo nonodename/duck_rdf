@@ -1,0 +1,67 @@
+# name: test/sql/zst_compression.test
+# description: reading gzip-compressed RDF files (.nq.zst and .rdf.zst)
+# group: [sql]
+
+require rdf
+
+require parquet
+
+# Serd path: .nq.gz should yield the same triple count as the uncompressed .nt
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nq.zst');
+----
+9
+
+# Explicit file_type = 'nq' override on a .nq.zst file still works
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nq.zst', file_type = 'nq');
+----
+9
+
+# Explicit wrong file_type on .nq.zst: XML parser rejects NQuads content
+statement error
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nq.zst', file_type = 'rdf');
+----
+Syntax Error
+
+# XML path: .rdf.zst should parse identically to the uncompressed .rdf
+statement ok
+prepare zst_xml_delta as
+  select count(a.*) - count(b.*) as delta
+  from (
+    select subject, predicate, object, object_datatype, upper(object_lang)
+      from read_rdf('test/xmlrdf/example07.nt')
+    union
+    select subject, predicate, object, object_datatype, upper(object_lang)
+      from read_rdf('test/xmlrdf/example07.rdf.zst')
+  ) as a,
+  (select count(*) from read_rdf('test/xmlrdf/example07.nt')) as b;
+
+query I
+execute zst_xml_delta;
+----
+0
+
+# Explicit file_type = 'rdf' on .rdf.zst still works
+statement ok
+prepare zst_rdf_explicit as
+  select count(a.*) - count(b.*) as delta
+  from (
+    select subject, predicate, object, object_datatype, upper(object_lang)
+      from read_rdf('test/xmlrdf/example07.nt')
+    union
+    select subject, predicate, object, object_datatype, upper(object_lang)
+      from read_rdf('test/xmlrdf/example07.rdf.zst', file_type = 'rdf')
+  ) as a,
+  (select count(*) from read_rdf('test/xmlrdf/example07.nt')) as b;
+
+query I
+execute zst_rdf_explicit;
+----
+0
+
+# Explicit wrong file_type on .rdf.zst: Serd rejects XML content
+statement error
+SELECT COUNT(*) FROM read_rdf('test/xmlrdf/example07.rdf.zst', file_type = 'nt');
+----
+Syntax Error

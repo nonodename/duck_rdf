@@ -32,7 +32,8 @@ SerdBuffer::SerdBuffer(std::string path, std::string base_uri, duckdb::FileSyste
 	// Assign base class FileSystem pointer and open via FileSystem to allow remote filesystems
 	this->_fs = fs;
 	try {
-		this->_file_handle = this->_fs->OpenFile(this->_file_path, duckdb::FileFlags::FILE_FLAGS_READ);
+		this->_file_handle = this->_fs->OpenFile(this->_file_path, duckdb::FileFlags::FILE_FLAGS_READ |
+		                                                               duckdb::FileCompressionType::AUTO_DETECT);
 	} catch (std::exception &ex) {
 		throw std::runtime_error("Could not open RDF file: " + this->_file_path + ": " + ex.what());
 	}
@@ -164,24 +165,28 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 
 		case SERD_FAILURE:
 			serd_reader_end_stream(_reader.get());
-			// Determine EOF by comparing file position to file size
-			try {
-				idx_t pos = _file_handle->SeekPosition();
-				int64_t sz = _fs->GetFileSize(*_file_handle);
-				if (sz >= 0 && pos >= (idx_t)sz) {
-					_eof = true;
-				} else {
-					if (_has_error) {
-						throw duckdb::SyntaxException(_error_message);
-					} else {
-						throw std::runtime_error("SERD failure");
-					}
-				}
-			} catch (std::exception &ex) {
-				if (_has_error) {
+			if (!_file_handle->CanSeek()) {
+				// Non-seekable handle (e.g. gzip): no pending error means legitimate EOF
+				if (_has_error)
 					throw duckdb::SyntaxException(_error_message);
-				} else {
-					throw std::runtime_error(std::string("SERD failure: ") + ex.what());
+				_eof = true;
+			} else {
+				try {
+					idx_t pos = _file_handle->SeekPosition();
+					int64_t sz = _fs->GetFileSize(*_file_handle);
+					if (sz >= 0 && pos >= (idx_t)sz) {
+						_eof = true;
+					} else {
+						if (_has_error)
+							throw duckdb::SyntaxException(_error_message);
+						else
+							throw std::runtime_error("SERD failure");
+					}
+				} catch (std::exception &ex) {
+					if (_has_error)
+						throw duckdb::SyntaxException(_error_message);
+					else
+						throw std::runtime_error(std::string("SERD failure: ") + ex.what());
 				}
 			}
 			break;

@@ -63,12 +63,19 @@ public:
 		return ITriplesBuffer::UNKNOWN;
 	}
 
-	static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
+	static bool IsCompressedPath(const std::string &path) {
 		auto pos = path.rfind('.');
 		if (pos == std::string::npos)
+			return false;
+		return stringtoLower(path.substr(pos + 1)) == "gz" || stringtoLower(path.substr(pos + 1)) == "zst";
+	}
+
+	static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
+		std::string inner = IsCompressedPath(path) ? path.substr(0, path.rfind('.')) : path;
+		auto pos = inner.rfind('.');
+		if (pos == std::string::npos)
 			return ITriplesBuffer::UNKNOWN;
-		std::string ext = path.substr(pos + 1);
-		return ConvertLabelToFileType(ext);
+		return ConvertLabelToFileType(inner.substr(pos + 1));
 	}
 
 	static ITriplesBuffer::FileType ParseFileTypeString(const std::string &s) {

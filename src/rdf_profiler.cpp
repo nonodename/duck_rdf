@@ -20,7 +20,7 @@ std::string XsdToDuckDBType(const std::string &datatype, const std::string &lang
 
 	// LITERAL path
 	if (!lang.empty())
-		return "VARCHAR"; // language-tagged string
+		return "LANG_STRING"; // language-tagged string
 
 	if (datatype.empty())
 		return "VARCHAR"; // plain literal, no datatype
@@ -77,7 +77,7 @@ void RDFProfileAccumulator::AddTriple(const std::string &graph, const std::strin
                                       const std::string &predicate, const std::string &object, ObjectKind object_kind,
                                       const std::string &datatype, const std::string &lang) {
 	std::string type_name = XsdToDuckDBType(datatype, lang, object_kind);
-	_profiles[predicate].AddTriple(graph, subject, object, type_name, !lang.empty());
+	_profiles[predicate].AddTriple(graph, subject, object, type_name);
 }
 
 void RDFProfileAccumulator::Merge(const RDFProfileAccumulator &other) {
@@ -194,7 +194,7 @@ void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITrip
 	// Open file via DuckDB FileSystem (supports remote filesystems)
 	std::unique_ptr<duckdb::FileHandle> fh;
 	try {
-		fh = fs.OpenFile(file_path, duckdb::FileFlags::FILE_FLAGS_READ);
+		fh = fs.OpenFile(file_path, duckdb::FileFlags::FILE_FLAGS_READ | duckdb::FileCompressionType::AUTO_DETECT);
 	} catch (std::exception &ex) {
 		throw std::runtime_error("Could not open RDF file: " + file_path + ": " + ex.what());
 	}
@@ -244,20 +244,27 @@ void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITrip
 			continue;
 		} else if (st == SERD_FAILURE) {
 			serd_reader_end_stream(reader.get());
-			try {
-				duckdb::idx_t pos = fh->SeekPosition();
-				int64_t sz = fs.GetFileSize(*fh);
-				if (sz >= 0 && pos >= static_cast<duckdb::idx_t>(sz)) {
-					eof = true;
-				} else {
-					if (state.has_error)
-						throw duckdb::SyntaxException(state.error_message);
-					throw std::runtime_error("SERD failure in " + file_path);
-				}
-			} catch (std::exception &ex) {
+			if (!fh->CanSeek()) {
+				// Non-seekable handle (e.g. gzip): no pending error means legitimate EOF
 				if (state.has_error)
 					throw duckdb::SyntaxException(state.error_message);
-				throw std::runtime_error(std::string("SERD failure: ") + ex.what());
+				eof = true;
+			} else {
+				try {
+					duckdb::idx_t pos = fh->SeekPosition();
+					int64_t sz = fs.GetFileSize(*fh);
+					if (sz >= 0 && pos >= static_cast<duckdb::idx_t>(sz)) {
+						eof = true;
+					} else {
+						if (state.has_error)
+							throw duckdb::SyntaxException(state.error_message);
+						throw std::runtime_error("SERD failure in " + file_path);
+					}
+				} catch (std::exception &ex) {
+					if (state.has_error)
+						throw duckdb::SyntaxException(state.error_message);
+					throw std::runtime_error(std::string("SERD failure: ") + ex.what());
+				}
 			}
 		} else if (st == SERD_ERR_BAD_SYNTAX) {
 			if (strict_parsing) {
@@ -282,7 +289,7 @@ void ProfileFileXML(const std::string &file_path, duckdb::FileSystem &fs, bool s
                     RDFProfileAccumulator &accumulator) {
 	std::unique_ptr<duckdb::FileHandle> fh;
 	try {
-		fh = fs.OpenFile(file_path, duckdb::FileFlags::FILE_FLAGS_READ);
+		fh = fs.OpenFile(file_path, duckdb::FileFlags::FILE_FLAGS_READ | duckdb::FileCompressionType::AUTO_DETECT);
 	} catch (std::exception &ex) {
 		throw std::runtime_error("Could not open RDF/XML file: " + file_path + ": " + ex.what());
 	}
