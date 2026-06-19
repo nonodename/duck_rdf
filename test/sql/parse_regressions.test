@@ -1,0 +1,34 @@
+# name: test/sql/parse_regressions.test
+# description: test read parsing does the same thing across different file formats.
+# group: [sql]
+
+# Require statement will ensure this test is run with this extension loaded
+require rdf
+
+# Parameterized testing statement
+statement ok
+prepare compare_counts as 
+    select count(a.*) - count(b.*) 
+    from read_rdf($fileA) as a,
+    read_rdf($fileB) as b;
+
+
+query I
+execute compare_counts(fileA := 'test/rdf/regression_compares/standard.rdf', 
+fileB := 'test/rdf/regression_compares/standard.nt');
+----
+0
+
+query I
+execute compare_counts(fileA := 'test/rdf/regression_compares/standard.rdf', 
+fileB := 'test/rdf/regression_compares/standard.ttl');
+----
+0
+
+query I
+execute compare_counts(fileA := 'test/rdf/regression_compares/standard.nq', 
+fileB := 'test/rdf/regression_compares/standard.trig');
+----
+0
+
+# TODO More comparisons here

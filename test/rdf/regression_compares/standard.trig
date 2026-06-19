@@ -1,0 +1,18 @@
+@prefix dc11: <http://purl.org/dc/elements/1.1/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+_:read_rdf {
+	<http://example.org/book/123> dc11:creator <http://example.org/person/JohnDoe> ;
+		dc11:title "The Great Book" .
+
+	<http://unicode.org/duck> <http://example.org/hasEmoji> "🦆" .
+
+	<http://example.org/person/JohnDoe> a foaf:Person ;
+		foaf:age "30"^^<http://www.w3.org/2001/XMLSchema#integer> ;
+		foaf:knows _:b1 ;
+		foaf:name "John Doe" .
+
+	_:jane a foaf:Person ;
+		foaf:name "Jane Smith"@en .
+}

@@ -1,0 +1,9 @@
+<http://example.org/book/123> <http://purl.org/dc/elements/1.1/creator> <http://example.org/person/JohnDoe> _:read_rdf .
+<http://example.org/book/123> <http://purl.org/dc/elements/1.1/title> "The Great Book" _:read_rdf .
+<http://unicode.org/duck> <http://example.org/hasEmoji> "🦆" _:read_rdf .
+<http://example.org/person/JohnDoe> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Person> _:read_rdf .
+<http://example.org/person/JohnDoe> <http://xmlns.com/foaf/0.1/age> "30"^^<http://www.w3.org/2001/XMLSchema#integer> _:read_rdf .
+<http://example.org/person/JohnDoe> <http://xmlns.com/foaf/0.1/knows> _:b1 _:read_rdf .
+_:jane <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Person> _:read_rdf .
+_:jane <http://xmlns.com/foaf/0.1/name> "Jane Smith"@en _:read_rdf .
+<http://example.org/person/JohnDoe> <http://xmlns.com/foaf/0.1/name> "John Doe" _:read_rdf .

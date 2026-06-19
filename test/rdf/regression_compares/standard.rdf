@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:dc11="http://purl.org/dc/elements/1.1/"
+         xmlns:foaf="http://xmlns.com/foaf/0.1/"
+         xmlns:ns0="http://example.org/">
+
+  <rdf:Description rdf:about="http://example.org/book/123">
+    <dc11:creator>
+      <foaf:Person rdf:about="http://example.org/person/JohnDoe">
+        <foaf:age rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">30</foaf:age>
+        <foaf:knows rdf:nodeID="genid1"/>
+        <foaf:name>John Doe</foaf:name>
+      </foaf:Person>
+    </dc11:creator>
+
+    <dc11:title>The Great Book</dc11:title>
+  </rdf:Description>
+
+  <rdf:Description rdf:about="http://unicode.org/duck">
+    <ns0:hasEmoji>🦆</ns0:hasEmoji>
+  </rdf:Description>
+
+  <foaf:Person rdf:nodeID="genid2">
+    <foaf:name xml:lang="en">Jane Smith</foaf:name>
+  </foaf:Person>
+
+</rdf:RDF>

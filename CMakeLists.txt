@@ -25,6 +25,7 @@ set(EXTENSION_SOURCES
     src/rdf_profiler.cpp
     src/profile_rdf.cpp
     src/pivot_rdf.cpp
+    src/read_rdf_prefixes.cpp
 )
 
 # ------------------------------------------------------------

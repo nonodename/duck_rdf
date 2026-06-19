@@ -63,6 +63,65 @@ ORDER BY filename;
 
 ---
 
+## `read_rdf_prefixes(path, [options])`
+
+Table function. Reads one or more Turtle or TriG files and returns their `@prefix` and `@base` declarations as rows. Useful for namespace introspection, documentation, and building CURIE-aware tooling.
+
+Throws an error for NTriples, NQuads, and RDF/XML, as those formats do not contain prefix declarations.
+
+**Parameters**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `path` | VARCHAR | Yes | — | File path or glob pattern |
+| `strict_parsing` | BOOLEAN | No | `true` | When `false`, skips malformed content instead of raising an error |
+| `file_type` | VARCHAR | No | auto-detect | Override format detection. Values: `ttl`, `turtle`, `trig` |
+| `include_filenames` | BOOLEAN | No | `false` | When `true`, adds a 4th column `filename` containing the source file path |
+
+**Returns**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `prefix` | VARCHAR | Prefix name; `NULL` for `@base` declarations (which have no prefix name) |
+| `uri` | VARCHAR | Namespace URI |
+| `is_base` | BOOLEAN | `true` for `@base` declarations, `false` for `@prefix` declarations |
+| `filename` | VARCHAR | Source file path; only present when `include_filenames = true` |
+
+**Supported formats**
+
+| Format | Extensions |
+|--------|-----------|
+| Turtle | `.ttl` |
+| TriG | `.trig` |
+
+**Examples**
+
+```sql
+-- List all prefixes declared in a Turtle file
+SELECT prefix, uri FROM read_rdf_prefixes('data.ttl');
+
+-- Find the base URI
+SELECT uri FROM read_rdf_prefixes('data.ttl') WHERE is_base = true;
+
+-- Collect all prefixes from multiple files
+SELECT DISTINCT prefix, uri
+FROM read_rdf_prefixes('ontologies/*.ttl')
+ORDER BY prefix;
+
+-- Show which file each prefix came from
+SELECT filename, prefix, uri
+FROM read_rdf_prefixes('ontologies/*.ttl', include_filenames = true)
+ORDER BY filename, prefix;
+
+-- Count prefix declarations per file across a glob
+SELECT filename, COUNT(*) AS prefix_count
+FROM read_rdf_prefixes('data/*.ttl', include_filenames = true)
+GROUP BY filename
+ORDER BY prefix_count DESC;
+```
+
+---
+
 ## `profile_rdf(path, [options])`
 
 Table function. Reads one or more RDF files and returns a statistical profile with one row per unique predicate. Useful for exploring an unfamiliar dataset, understanding its type distribution, and validating data quality before building a full pipeline.
