@@ -1,0 +1,15 @@
+{
+  "name": "duck-rdf-wasm-smoke-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Regression smoke test for duck_rdf issue #39 (wasm LOAD with unresolved linkages).",
+  "scripts": {
+    "test": "node test-wasm-load.mjs"
+  },
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.33.1-dev57.0",
+    "apache-arrow": "^17.0.0",
+    "web-worker": "^1.3.0"
+  }
+}
