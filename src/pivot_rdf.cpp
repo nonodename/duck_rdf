@@ -2,7 +2,9 @@
 #include "include/rdf_profiler.hpp"
 #include "include/I_triples_buffer.hpp"
 #include "include/serd_buffer.hpp"
+#ifndef DUCK_RDF_NO_XML
 #include "include/xml_buffer.hpp"
+#endif
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -294,7 +296,11 @@ static unique_ptr<ITriplesBuffer> PivotOpenFile(const string &file_path, ITriple
 	case ITriplesBuffer::TRIG:
 		return make_uniq<SerdBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
 	case ITriplesBuffer::XML:
+#ifdef DUCK_RDF_NO_XML
+		throw IOException("RDF/XML parsing is not supported in this build");
+#else
 		return make_uniq<XMLBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
+#endif
 	default:
 		throw IOException("Cannot determine file type for: " + file_path);
 	}
