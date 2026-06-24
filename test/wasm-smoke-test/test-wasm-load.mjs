@@ -237,8 +237,8 @@ async function main() {
 
     // also confirm we can pull real values out (proves Serd actually parsed)
     const names = await conn.query(
-      `SELECT object FROM read_rdf('sample.ttl')
-       WHERE predicate = 'http://xmlns.com/foaf/0.1/name'
+      `SELECT object, predicate FROM read_rdf('sample.ttl')
+       WHERE predicate = 'foaf:name'
        ORDER BY object;`,
     );
     const got = names.toArray().map((r) => r.object);

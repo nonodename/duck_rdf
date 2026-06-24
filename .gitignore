@@ -9,3 +9,7 @@ test/python/__pycache__/
 src/test_runner
 .cache/*
 .vscode/
+CMakeCache.txt
+package-lock.json
+cmake.check_cache
+CMakeConfigureLog.yaml
