@@ -3,9 +3,13 @@
 #include "rdf_extension.hpp"
 #include "duckdb.hpp"
 #include "include/serd_buffer.hpp"
+#ifndef DUCK_RDF_NO_XML
 #include "include/xml_buffer.hpp"
+#endif
 #include "include/I_triples_buffer.hpp"
+#ifndef DUCK_RDF_NO_SPARQL
 #include "include/sparql_reader.hpp"
+#endif
 #include "include/r2rml_copy.hpp"
 #include "include/profile_rdf.hpp"
 #include "include/pivot_rdf.hpp"
@@ -136,7 +140,11 @@ static unique_ptr<ITriplesBuffer> OpenFile(const string &file_path, ITriplesBuff
 	case ITriplesBuffer::TRIG:
 		return make_uniq<SerdBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
 	case ITriplesBuffer::XML:
+#ifdef DUCK_RDF_NO_XML
+		throw IOException("RDF/XML parsing is not supported in this build");
+#else
 		return make_uniq<XMLBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
+#endif
 	default:
 		throw IOException("Cannot determine file type for: " + file_path);
 	}
@@ -222,7 +230,9 @@ static void LoadInternal(ExtensionLoader &loader) {
 	loader.RegisterFunction(tf);
 
 	RegisterR2RMLCopy(loader);
+#ifndef DUCK_RDF_NO_SPARQL
 	RegisterSPARQLReader(loader);
+#endif
 	RegisterProfileRDF(loader);
 	RegisterPivotRDF(loader);
 	RegisterReadRDFPrefixes(loader);

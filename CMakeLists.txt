@@ -7,8 +7,10 @@ set(TARGET_NAME rdf)
 set(SERD_NAME serd_lib)
 set(SQL2RDF_NAME sql2rdf_lib)
 
-find_package(LibXml2 REQUIRED)
-find_package(CURL REQUIRED)
+if (NOT EMSCRIPTEN)
+    find_package(LibXml2 REQUIRED)
+    find_package(CURL REQUIRED)
+endif()
 
 project(${TARGET_NAME} LANGUAGES C CXX)
 
@@ -19,14 +21,23 @@ set(EXTENSION_SOURCES
     src/rdf_extension.cpp
     src/r2rml_copy.cpp
     src/serd_buffer.cpp
-    src/rdf_xml_parser.cpp
-    src/xml_buffer.cpp
-    src/sparql_reader.cpp
     src/rdf_profiler.cpp
     src/profile_rdf.cpp
     src/pivot_rdf.cpp
     src/read_rdf_prefixes.cpp
 )
+
+# CURL and LibXml2 are not available in Emscripten/WASM builds:
+# - CURL requires OS sockets which do not exist in WASM
+# - LibXml2 is excluded to keep the WASM module minimal
+# These source files are compiled only for native targets.
+if (NOT EMSCRIPTEN)
+    list(APPEND EXTENSION_SOURCES
+        src/rdf_xml_parser.cpp
+        src/xml_buffer.cpp
+        src/sparql_reader.cpp
+    )
+endif()
 
 # ------------------------------------------------------------
 # SERD — internal static library
@@ -99,30 +110,39 @@ target_include_directories(${EXTENSION_NAME}
         src/include
         serd/include
         sql2rdf/include
-    ${LIBXML2_INCLUDE_DIR}
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
         serd/include
         sql2rdf/include
-    ${LIBXML2_INCLUDE_DIR}
 )
 
-# Link SERD internally (no leakage, no exports)
+if (NOT EMSCRIPTEN)
+    target_include_directories(${EXTENSION_NAME} PRIVATE ${LIBXML2_INCLUDE_DIR})
+    target_include_directories(${LOADABLE_EXTENSION_NAME} PRIVATE ${LIBXML2_INCLUDE_DIR})
+endif()
+
+# Link internal libs; LibXml2 and CURL are excluded for WASM (no OS sockets, no WASM build of CURL)
 target_link_libraries(${EXTENSION_NAME}
         ${SERD_NAME}
         ${SQL2RDF_NAME}
-        LibXml2::LibXml2
-        CURL::libcurl
 )
-
 target_link_libraries(${LOADABLE_EXTENSION_NAME}
         ${SERD_NAME}
         ${SQL2RDF_NAME}
-        LibXml2::LibXml2
-        CURL::libcurl
 )
+
+if (NOT EMSCRIPTEN)
+    target_link_libraries(${EXTENSION_NAME} LibXml2::LibXml2 CURL::libcurl)
+    target_link_libraries(${LOADABLE_EXTENSION_NAME} LibXml2::LibXml2 CURL::libcurl)
+endif()
+
+# Signal to C++ that XML and SPARQL features are disabled in WASM builds
+if (EMSCRIPTEN)
+    target_compile_definitions(${EXTENSION_NAME} PRIVATE DUCK_RDF_NO_XML DUCK_RDF_NO_SPARQL)
+    target_compile_definitions(${LOADABLE_EXTENSION_NAME} PRIVATE DUCK_RDF_NO_XML DUCK_RDF_NO_SPARQL)
+endif()
 
 # Windows: force static behavior (avoid dllimport/dllexport mismatches)
 if (WIN32)

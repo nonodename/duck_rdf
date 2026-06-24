@@ -109,6 +109,8 @@ private:
 void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITriplesBuffer::FileType file_type,
                      bool strict_parsing, bool expand_prefixes, RDFProfileAccumulator &accumulator);
 
+#ifndef DUCK_RDF_NO_XML
 /// Parse an RDF/XML file and feed all triples into accumulator.
 void ProfileFileXML(const std::string &file_path, duckdb::FileSystem &fs, bool strict_parsing,
                     RDFProfileAccumulator &accumulator);
+#endif
