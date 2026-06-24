@@ -349,7 +349,11 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 				ProfileFileSerd(file_path, fs, ft, result->strict_parsing, result->expand_prefixes, accumulator);
 				break;
 			case ITriplesBuffer::XML:
+#ifdef DUCK_RDF_NO_XML
+				throw duckdb::NotImplementedException("RDF/XML parsing is not supported in this build");
+#else
 				ProfileFileXML(file_path, fs, result->strict_parsing, accumulator);
+#endif
 				break;
 			default:
 				throw IOException("Cannot determine file type for: " + file_path);
