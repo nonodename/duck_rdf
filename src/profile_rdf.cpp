@@ -183,7 +183,11 @@ static unique_ptr<GlobalTableFunctionState> ProfileRDFGlobalInit(ClientContext &
 				ProfileFileSerd(file_path, fs, ft, bind_data.strict_parsing, true, accumulator);
 				break;
 			case ITriplesBuffer::XML:
+#ifdef DUCK_RDF_NO_XML
+				throw duckdb::NotImplementedException("RDF/XML parsing is not supported in this build");
+#else
 				ProfileFileXML(file_path, fs, bind_data.strict_parsing, accumulator);
+#endif
 				break;
 			default:
 				throw IOException("Cannot determine file type for: " + file_path);

@@ -28,13 +28,15 @@ Table function. Reads one or more RDF files and returns their triples as rows.
 
 **Supported formats**
 
-| Format | Extensions |
-|--------|-----------|
-| Turtle | `.ttl` |
-| NTriples | `.nt` |
-| NQuads | `.nq` |
-| TriG | `.trig` |
-| RDF/XML | `.rdf`, `.xml` |
+| Format | Extensions | Native | WebAssembly |
+|--------|-----------|--------|-------------|
+| Turtle | `.ttl` | Yes | Yes |
+| NTriples | `.nt` | Yes | Yes |
+| NQuads | `.nq` | Yes | Yes |
+| TriG | `.trig` | Yes | Yes |
+| RDF/XML | `.rdf`, `.xml` | Yes | No |
+
+> **WebAssembly note:** RDF/XML parsing is not available in the WASM build of this extension. Attempting to read an `.rdf` or `.xml` file (or passing `file_type = 'rdf'/'xml'`) will raise an error. Use Turtle or NTriples equivalents where possible.
 
 **Examples**
 
@@ -228,6 +230,8 @@ Subjects that repeat across multiple files will appear as multiple rows in the r
 
 Table function. Sends a SPARQL SELECT query to an HTTP/HTTPS endpoint and returns the result set as a table. Column names match the SPARQL variable names; all columns are VARCHAR.
 
+> **Not available in WebAssembly.** `read_sparql` requires libcurl for network access, which has no WASM-compatible build. Calling it in a WASM environment will raise an error.
+
 **Parameters**
 
 | Parameter | Type | Required | Description |
@@ -243,6 +247,7 @@ One VARCHAR column per variable named in the SELECT clause. Unbound variables ar
 
 - Anonymous (unauthenticated) endpoints only.
 - The entire result set is fetched at query-planning time; very large result sets will consume significant memory.
+- Not available in the WebAssembly build.
 
 **Examples**
 
