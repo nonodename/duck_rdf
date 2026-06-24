@@ -6,9 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A DuckDB extension that enables reading and writing RDF data directly in DuckDB. It provides:
 - `read_rdf(path, options)` — read RDF files into DuckDB tables (glob patterns supported)
-- `read_sparql(endpoint, query)` — query remote SPARQL endpoints
+- `read_sparql(endpoint, query)` — query remote SPARQL endpoints (native builds only; not available in WASM)
 - `profile_rdf(path, options)` - profile RDF files generating an DuckDB table overview
 - `COPY TO ... (FORMAT r2rml)` — write DuckDB query results to RDF using R2RML mappings
+
+### WebAssembly build limitations
+
+The WASM build (`make wasm_eh` / `make wasm_mvp`) excludes two features that require native OS capabilities:
+
+| Feature | Reason excluded from WASM |
+|---------|--------------------------|
+| RDF/XML parsing (`file_type = 'rdf'/'xml'`) | Requires LibXml2, which is not compiled for WASM |
+| `read_sparql()` | Requires libcurl, which has no WASM-compatible build (no OS sockets) |
+
+The source files `src/rdf_xml_parser.cpp`, `src/xml_buffer.cpp`, and `src/sparql_reader.cpp` are not compiled for Emscripten targets. The preprocessor flags `DUCK_RDF_NO_XML` and `DUCK_RDF_NO_SPARQL` gate the relevant code paths so a clear error is raised if those code paths are reached at runtime (they won't be for normal WASM use). The WASM `test/wasm-smoke-test/` harness validates local Turtle/NTriples/NQuads/TriG reads only.
 
 ## Build & Test Commands
 
@@ -66,7 +77,7 @@ All parsers implement `ITriplesBuffer` ([src/include/I_triples_buffer.hpp](src/i
 
 Concrete implementations:
 - **SerdBuffer** ([src/serd_buffer.cpp](src/serd_buffer.cpp)) — Turtle, NTriples, NQuads, TriG via the SERD library
-- **XMLBuffer** ([src/xml_buffer.cpp](src/xml_buffer.cpp)) + **RDFXMLParser** ([src/rdf_xml_parser.cpp](src/rdf_xml_parser.cpp)) — RDF/XML via LibXML2
+- **XMLBuffer** ([src/xml_buffer.cpp](src/xml_buffer.cpp)) + **RDFXMLParser** ([src/rdf_xml_parser.cpp](src/rdf_xml_parser.cpp)) — RDF/XML via LibXML2 (native builds only; excluded from WASM via `DUCK_RDF_NO_XML`)
 
 ### Output Schema
 
@@ -86,7 +97,7 @@ SERD is used for all RDF output (NTriples default, Turtle, NQuads).
 
 ### SPARQL Reader
 
-[src/sparql_reader.cpp](src/sparql_reader.cpp) uses CURL for HTTP GET, parses SPARQL results CSV, caches the full result at plan time. Columns are VARCHAR, named after SPARQL variables.
+[src/sparql_reader.cpp](src/sparql_reader.cpp) uses CURL for HTTP GET, parses SPARQL results CSV, caches the full result at plan time. Columns are VARCHAR, named after SPARQL variables. Not compiled for Emscripten targets (gated by `DUCK_RDF_NO_SPARQL`).
 
 ## Key Dependencies (Submodules)
 

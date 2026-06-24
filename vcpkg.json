@@ -2,12 +2,14 @@
         "dependencies": [
                 {
                         "name": "libxml2",
-                        "default-features": false
+                        "default-features": false,
+                        "platform": "!emscripten"
                 },
                 {
                         "name": "curl",
                         "default-features": false,
-                        "features": ["ssl"]
+                        "features": ["ssl"],
+                        "platform": "!emscripten"
                 }
         ],
         "vcpkg-configuration": {

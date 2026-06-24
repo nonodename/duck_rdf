@@ -1,5 +1,7 @@
 #include "include/rdf_profiler.hpp"
+#ifndef DUCK_RDF_NO_XML
 #include "include/rdf_xml_parser.hpp"
+#endif
 #include "duckdb/common/exception.hpp"
 
 #include <serd/serd.h>
@@ -285,6 +287,7 @@ void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITrip
 // RDF/XML file profiler
 // ============================================================
 
+#ifndef DUCK_RDF_NO_XML
 void ProfileFileXML(const std::string &file_path, duckdb::FileSystem &fs, bool strict_parsing,
                     RDFProfileAccumulator &accumulator) {
 	std::unique_ptr<duckdb::FileHandle> fh;
@@ -330,3 +333,4 @@ void ProfileFileXML(const std::string &file_path, duckdb::FileSystem &fs, bool s
 			parser.parseChunk(buf.data(), static_cast<int>(n), eof);
 	}
 }
+#endif // DUCK_RDF_NO_XML
