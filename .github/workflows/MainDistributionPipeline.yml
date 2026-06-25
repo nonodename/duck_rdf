@@ -52,13 +52,13 @@ jobs:
       TIDY_THREADS: 4
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         name: Checkout current repository
         with:
           fetch-depth: 0
           submodules: 'recursive'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         name: Checkout Extension CI tools
         with:
           path: 'extension-ci-tools'
