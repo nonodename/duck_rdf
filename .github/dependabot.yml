@@ -10,6 +10,11 @@ updates:
     schedule:
       interval: "weekly"
 
+  - package-ecosystem: "vcpkg"
+    directory: "/" 
+    schedule:
+      interval: "weekly"
+      
   - package-ecosystem: "gitsubmodule"
     directory: "/"
     schedule:
