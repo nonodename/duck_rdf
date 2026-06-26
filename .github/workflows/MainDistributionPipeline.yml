@@ -55,7 +55,7 @@ jobs:
       - uses: actions/download-artifact@v4
         name: Download WASM extension artifact
         with:
-          name: rdf-wasm_eh
+          name: rdf-v1.5.4-extension-wasm_eh
           path: wasm-build/
 
       - uses: actions/setup-node@v4
