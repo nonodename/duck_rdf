@@ -44,6 +44,36 @@ jobs:
       extension_name: rdf
       format_checks: 'format'
 
+  wasm-smoke-test:
+    name: WASM Smoke Test
+    needs: duckdb-stable-build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        name: Checkout current repository
+
+      - uses: actions/download-artifact@v4
+        name: Download WASM extension artifact
+        with:
+          name: rdf-wasm_eh
+          path: wasm-build/
+
+      - uses: actions/setup-node@v4
+        name: Set up Node.js
+        with:
+          node-version: '20'
+
+      - name: Install smoke-test dependencies
+        run: npm ci
+        working-directory: test/wasm-smoke-test
+
+      - name: Run WASM smoke test
+        run: |
+          WASM_PATH=$(find ../../wasm-build -name '*.duckdb_extension.wasm' | head -1)
+          echo "Using WASM extension: $WASM_PATH"
+          node test-wasm-load.mjs "$WASM_PATH"
+        working-directory: test/wasm-smoke-test
+
   tidy-check:
     name: Tidy Check
     runs-on: ubuntu-24.04
