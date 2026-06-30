@@ -317,9 +317,8 @@ void RegisterSPARQLReader(ExtensionLoader &loader) {
 
 	CreateTableFunctionInfo info(tf);
 	FunctionDescription desc;
-	desc.description =
-	    "Execute a SPARQL SELECT query against a remote endpoint and return the results as a table. "
-	    "Each SPARQL variable becomes a VARCHAR column. Not available in WebAssembly builds.";
+	desc.description = "Execute a SPARQL SELECT query against a remote endpoint and return the results as a table. "
+	                   "Each SPARQL variable becomes a VARCHAR column. Not available in WebAssembly builds.";
 	desc.examples.push_back(
 	    "SELECT * FROM read_sparql('https://dbpedia.org/sparql', 'SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10')");
 	info.descriptions.push_back(desc);
