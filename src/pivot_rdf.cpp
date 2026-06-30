@@ -10,6 +10,7 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/function/table_function.hpp"
+#include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 
 #include <algorithm>
 #include <mutex>
@@ -649,7 +650,16 @@ void RegisterPivotRDF(ExtensionLoader &loader) {
 	tf.named_parameters["file_type"] = LogicalType::VARCHAR;
 	tf.named_parameters["strict_parsing"] = LogicalType::BOOLEAN;
 	tf.named_parameters["prefix_expansion"] = LogicalType::BOOLEAN;
-	loader.RegisterFunction(tf);
+
+	CreateTableFunctionInfo info(tf);
+	FunctionDescription desc;
+	desc.description =
+	    "Read RDF triples and pivot them into a wide table where each distinct predicate becomes a column "
+	    "and subjects become row identifiers.";
+	desc.examples.push_back("SELECT * FROM pivot_rdf('data.ttl')");
+	desc.examples.push_back("SELECT * FROM pivot_rdf('data.nt', prefix_expansion=true)");
+	info.descriptions.push_back(desc);
+	loader.RegisterFunction(std::move(info));
 }
 
 } // namespace duckdb

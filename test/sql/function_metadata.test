@@ -1,0 +1,89 @@
+# name: test/sql/function_metadata.test
+# description: verify duckdb_functions() description and examples are set for all extension functions
+# group: [sql]
+
+require rdf
+
+# ── read_rdf ──────────────────────────────────────────────────────────────────
+
+query I
+SELECT description IS NOT NULL FROM duckdb_functions() WHERE function_name = 'read_rdf' LIMIT 1;
+----
+true
+
+query I
+SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'read_rdf' LIMIT 1;
+----
+true
+
+# ── profile_rdf ───────────────────────────────────────────────────────────────
+
+query I
+SELECT description IS NOT NULL FROM duckdb_functions() WHERE function_name = 'profile_rdf' LIMIT 1;
+----
+true
+
+query I
+SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'profile_rdf' LIMIT 1;
+----
+true
+
+# ── pivot_rdf ─────────────────────────────────────────────────────────────────
+
+query I
+SELECT description IS NOT NULL FROM duckdb_functions() WHERE function_name = 'pivot_rdf' LIMIT 1;
+----
+true
+
+query I
+SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'pivot_rdf' LIMIT 1;
+----
+true
+
+# ── read_rdf_prefixes ─────────────────────────────────────────────────────────
+
+query I
+SELECT description IS NOT NULL FROM duckdb_functions() WHERE function_name = 'read_rdf_prefixes' LIMIT 1;
+----
+true
+
+query I
+SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'read_rdf_prefixes' LIMIT 1;
+----
+true
+
+# ── read_sparql ───────────────────────────────────────────────────────────────
+
+query I
+SELECT description IS NOT NULL FROM duckdb_functions() WHERE function_name = 'read_sparql' LIMIT 1;
+----
+true
+
+query I
+SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'read_sparql' LIMIT 1;
+----
+true
+
+# ── can_call_inside_out ───────────────────────────────────────────────────────
+
+query I
+SELECT description IS NOT NULL FROM duckdb_functions() WHERE function_name = 'can_call_inside_out' LIMIT 1;
+----
+true
+
+query I
+SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'can_call_inside_out' LIMIT 1;
+----
+true
+
+# ── is_valid_r2rml ────────────────────────────────────────────────────────────
+
+query I
+SELECT description IS NOT NULL FROM duckdb_functions() WHERE function_name = 'is_valid_r2rml' LIMIT 1;
+----
+true
+
+query I
+SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'is_valid_r2rml' LIMIT 1;
+----
+true
