@@ -227,7 +227,17 @@ static void LoadInternal(ExtensionLoader &loader) {
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
 	tf.named_parameters[INCLUDE_FILENAMES] = LogicalType::BOOLEAN;
 	tf.projection_pushdown = true;
-	loader.RegisterFunction(tf);
+
+	CreateTableFunctionInfo info(tf);
+	FunctionDescription desc;
+	desc.description =
+	    "Read RDF triples from one or more files (Turtle, NTriples, NQuads, TriG, or RDF/XML) into a table with "
+	    "columns graph, subject, predicate, object, object_datatype, and object_lang. Glob patterns are supported.";
+	desc.examples.push_back("SELECT * FROM read_rdf('data.nt')");
+	desc.examples.push_back("SELECT subject, predicate, object FROM read_rdf('*.ttl')");
+	desc.examples.push_back("SELECT * FROM read_rdf('data.rdf', file_type='rdf', strict_parsing=false)");
+	info.descriptions.push_back(desc);
+	loader.RegisterFunction(std::move(info));
 
 	RegisterR2RMLCopy(loader);
 #ifndef DUCK_RDF_NO_SPARQL

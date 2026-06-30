@@ -5,6 +5,7 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/function/table_function.hpp"
+#include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include <serd/serd.h>
 
 #include <atomic>
@@ -301,7 +302,16 @@ void RegisterReadRDFPrefixes(ExtensionLoader &loader) {
 	tf.named_parameters[PREFIXES_STRICT_PARSING] = LogicalType::BOOLEAN;
 	tf.named_parameters[PREFIXES_FILE_TYPE] = LogicalType::VARCHAR;
 	tf.named_parameters[PREFIXES_INCLUDE_FILENAMES] = LogicalType::BOOLEAN;
-	loader.RegisterFunction(tf);
+
+	CreateTableFunctionInfo info(tf);
+	FunctionDescription desc;
+	desc.description =
+	    "Read the namespace prefix declarations from one or more RDF files. Returns prefix (local name), "
+	    "uri (namespace URI), and is_base (true for @base declarations) columns.";
+	desc.examples.push_back("SELECT * FROM read_rdf_prefixes('data.ttl')");
+	desc.examples.push_back("SELECT prefix, uri FROM read_rdf_prefixes('*.ttl')");
+	info.descriptions.push_back(desc);
+	loader.RegisterFunction(std::move(info));
 }
 
 } // namespace duckdb

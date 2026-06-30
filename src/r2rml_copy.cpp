@@ -1,4 +1,5 @@
 #include "include/r2rml_copy.hpp"
+#include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/exception.hpp"
 #include "duckdb/function/copy_function.hpp"
 #include "duckdb/parser/parsed_data/copy_info.hpp"
@@ -615,13 +616,24 @@ static CopyFunctionExecutionMode R2RMLCopyExecutionMode(bool, bool) {
 }
 
 void RegisterR2RMLCopy(ExtensionLoader &loader) {
-	auto can_call_inside_out_scalar_function =
-	    ScalarFunction("can_call_inside_out", {LogicalType::VARCHAR}, LogicalType::BOOLEAN, CanCallInsideOut);
-	loader.RegisterFunction(can_call_inside_out_scalar_function);
+	ScalarFunction can_call_inside_out_sf("can_call_inside_out", {LogicalType::VARCHAR}, LogicalType::BOOLEAN,
+	                                      CanCallInsideOut);
+	CreateScalarFunctionInfo can_call_info(can_call_inside_out_sf);
+	FunctionDescription can_call_desc;
+	can_call_desc.description =
+	    "Return true if the given R2RML mapping file can be executed in inside-out mode, where DuckDB runs "
+	    "the SQL query and the extension maps each output row to RDF triples.";
+	can_call_desc.examples.push_back("SELECT can_call_inside_out('mapping.ttl')");
+	can_call_info.descriptions.push_back(can_call_desc);
+	loader.RegisterFunction(std::move(can_call_info));
 
-	auto is_valid_r2rml_scalar_function =
-	    ScalarFunction("is_valid_r2rml", {LogicalType::VARCHAR}, LogicalType::BOOLEAN, IsValidR2RML);
-	loader.RegisterFunction(is_valid_r2rml_scalar_function);
+	ScalarFunction is_valid_r2rml_sf("is_valid_r2rml", {LogicalType::VARCHAR}, LogicalType::BOOLEAN, IsValidR2RML);
+	CreateScalarFunctionInfo is_valid_info(is_valid_r2rml_sf);
+	FunctionDescription is_valid_desc;
+	is_valid_desc.description = "Return true if the given file is a syntactically valid R2RML mapping document.";
+	is_valid_desc.examples.push_back("SELECT is_valid_r2rml('mapping.ttl')");
+	is_valid_info.descriptions.push_back(is_valid_desc);
+	loader.RegisterFunction(std::move(is_valid_info));
 
 	CopyFunction copy_func("r2rml");
 	copy_func.extension = "nt";
