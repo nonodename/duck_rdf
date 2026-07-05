@@ -65,9 +65,9 @@ static bool hasYarrrmlExtension(const std::string &path) {
 	return false;
 }
 
-static r2rml::R2RMLMapping parseHelper(const std::string &name){
+static r2rml::R2RMLMapping parseHelper(const std::string &name) {
 	r2rml::R2RMLMapping mapping;
-	if(hasYarrrmlExtension(name)) {
+	if (hasYarrrmlExtension(name)) {
 		yarrrml::YARRRMLParser parser;
 		mapping = parser.parse(name);
 	} else {
@@ -97,10 +97,9 @@ inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result
 			return false;
 		}
 		r2rml::R2RMLMapping mapping;
-		try{
+		try {
 			mapping = parseHelper(name.GetString());
-		}
-		catch (const std::runtime_error &e) {
+		} catch (const std::runtime_error &e) {
 			return false;
 		}
 		return mapping.isValid();
@@ -658,7 +657,8 @@ void RegisterR2RMLCopy(ExtensionLoader &loader) {
 	ScalarFunction is_valid_r2rml_sf("is_valid_r2rml", {LogicalType::VARCHAR}, LogicalType::BOOLEAN, IsValidR2RML);
 	CreateScalarFunctionInfo is_valid_info(is_valid_r2rml_sf);
 	FunctionDescription is_valid_desc;
-	is_valid_desc.description = "Return true if the given file is a syntactically valid R2RML or YARRML mapping document.";
+	is_valid_desc.description =
+	    "Return true if the given file is a syntactically valid R2RML or YARRML mapping document.";
 	is_valid_desc.examples.push_back("SELECT is_valid_r2rml('mapping.yml')");
 	is_valid_info.descriptions.push_back(is_valid_desc);
 	loader.RegisterFunction(std::move(is_valid_info));
