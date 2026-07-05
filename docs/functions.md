@@ -284,9 +284,9 @@ Scalar function. Validates an R2RML mapping file.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | VARCHAR | Path to the R2RML mapping file |
+| `path` | VARCHAR | Path to the R2RML or YARRML mapping file |
 
-**Returns** BOOLEAN — `true` if the file is a valid R2RML mapping, `false` otherwise.
+**Returns** BOOLEAN — `true` if the file is a valid R2RML or YARRML mapping, `false` otherwise. YARRML files are those that have extension ".yml", ".yaml", ".yarrrml"
 
 **Example**
 
@@ -298,13 +298,13 @@ SELECT is_valid_r2rml('mapping.ttl');
 
 ## `can_call_inside_out(path)`
 
-Scalar function. Determines whether an R2RML mapping is usable in inside-out mode (i.e. has no `rr:logicalTable` declarations). Use this to decide which write mode to use.
+Scalar function. Determines whether an R2RML or YARRML mapping is usable in inside-out mode (i.e. has no `rr:logicalTable` or t: declarations). Use this to decide which write mode to use.
 
 **Parameters**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | VARCHAR | Path to the R2RML mapping file |
+| `path` | VARCHAR | Path to the R2RML or YARRML mapping file |
 
 **Returns** BOOLEAN — `true` if the mapping is valid for inside-out mode.
 
@@ -318,13 +318,13 @@ SELECT can_call_inside_out('mapping.ttl');
 
 ## `COPY ... TO ... (FORMAT r2rml, ...)`
 
-Copy function. Writes RDF from a DuckDB query using an R2RML mapping.
+Copy function. Writes RDF from a DuckDB query using an R2RML or YARRML mapping.
 
 **Options**
 
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `mapping` | Yes | — | Path to the R2RML mapping file (`.ttl`) |
+| `mapping` | Yes | — | Path to the R2RML or YARRML mapping file (`.ttl`,`.yml`,`.yaml`, `.yarrrml`) |
 | `rdf_format` | No | `ntriples` | Output serialization: `ntriples`, `turtle`, or `nquads` |
 | `ignore_non_fatal_errors` | No | `true` | When `true`, logical errors are collected silently. When `false`, the first error raises an exception |
 | `ignore_case` | No | `false` | When `true`, all column and table names are lowercased before matching. Use when your R2RML mapping uses lowercase names, which is consistent with DuckDB's lowercase identifier folding. |

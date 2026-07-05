@@ -1,0 +1,12 @@
+prefixes:
+  ex: "http://example.com/ns#"
+
+mappings:
+  EmployeeMap:
+    sources:
+      - table: emp_quoted
+    s: http://data.example.com/employee/$(EMPNO)
+    po:
+      - [a, ex:Employee]
+      - [ex:name, $(ENAME)]
+      - [ex:department, http://data.example.com/department/$(DEPTNO)~iri]

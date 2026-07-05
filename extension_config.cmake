@@ -10,7 +10,7 @@ if (EMSCRIPTEN)
     duckdb_extension_load(rdf
         SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}
         LOAD_TESTS
-        LINKED_LIBS "$<TARGET_FILE:serd_lib>;$<TARGET_FILE:sql2rdf_lib>"
+        LINKED_LIBS "$<TARGET_FILE:serd_lib>;$<TARGET_FILE:sql2rdf_lib>;$<TARGET_FILE:yaml-cpp>"
     )
 else()
     duckdb_extension_load(rdf

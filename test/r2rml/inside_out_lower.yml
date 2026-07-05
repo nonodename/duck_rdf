@@ -1,0 +1,11 @@
+prefixes:
+  ex: "http://example.com/ns#"
+
+mappings:
+  EmployeeMap:
+    # No source: inside-out mode requires no rr:LogicalTable (DuckDB already ran the query).
+    s: http://data.example.com/employee/$(empno)
+    po:
+      - [a, ex:Employee]
+      - [ex:name, $(ename)]
+      - [ex:department, http://data.example.com/department/$(deptno)]

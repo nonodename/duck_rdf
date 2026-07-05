@@ -1,0 +1,18 @@
+prefixes:
+  ex: "http://example.com/types#"
+
+mappings:
+  TypedMap:
+    sources:
+      - table: your_table_name
+    s: http://example.com/row/$(id)
+    po:
+      - [ex:intVal, $(int_col)]
+      - [ex:boolVal, $(bool_col)]
+      - [ex:dblVal, $(dbl_col)]
+      - [ex:decVal, $(dec_col)]
+      - [ex:dateVal, $(date_col)]
+      - [ex:timeVal, $(time_col)]
+      - [ex:tsVal, $(ts_col)]
+      - [ex:bigintVal, $(bigint_col)]
+      - [ex:strVal, $(str_col)]
