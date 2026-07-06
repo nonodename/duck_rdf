@@ -31,6 +31,16 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(yaml-cpp)
 
+FetchContent_Declare(
+  serd
+  GIT_REPOSITORY https://github.com/drobilla/serd.git
+  GIT_TAG v0.32.10
+)
+FetchContent_GetProperties(serd)
+if(NOT serd_POPULATED)
+  FetchContent_Populate(serd)
+endif()
+
 set(EXTENSION_NAME         ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
@@ -60,22 +70,22 @@ endif()
 # SERD — internal static library
 # ------------------------------------------------------------
 add_library(${SERD_NAME} STATIC
-    serd/src/base64.c
-    serd/src/byte_source.c
-    serd/src/env.c
-    serd/src/n3.c
-    serd/src/node.c
-    serd/src/read_utf8.c
-    serd/src/reader.c
-    serd/src/string.c
-    serd/src/system.c
-    serd/src/uri.c
-    serd/src/writer.c
+    ${serd_SOURCE_DIR}/src/base64.c
+    ${serd_SOURCE_DIR}/src/byte_source.c
+    ${serd_SOURCE_DIR}/src/env.c
+    ${serd_SOURCE_DIR}/src/n3.c
+    ${serd_SOURCE_DIR}/src/node.c
+    ${serd_SOURCE_DIR}/src/read_utf8.c
+    ${serd_SOURCE_DIR}/src/reader.c
+    ${serd_SOURCE_DIR}/src/string.c
+    ${serd_SOURCE_DIR}/src/system.c
+    ${serd_SOURCE_DIR}/src/uri.c
+    ${serd_SOURCE_DIR}/src/writer.c
 )
 
 target_include_directories(${SERD_NAME}
     PRIVATE
-        serd/include
+        ${serd_SOURCE_DIR}/include
 )
 #------------------------------------------------------------
 # SQL2RDF — internal static library
@@ -106,7 +116,7 @@ add_library(${SQL2RDF_NAME} STATIC
 )
 target_include_directories(${SQL2RDF_NAME} PRIVATE
     sql2rdf/include
-    serd/include
+    ${serd_SOURCE_DIR}/include
 )
 target_link_libraries(${SQL2RDF_NAME} PRIVATE yaml-cpp::yaml-cpp)
 # ------------------------------------------------------------
@@ -127,13 +137,13 @@ build_loadable_extension(
 target_include_directories(${EXTENSION_NAME}
     PRIVATE
         src/include
-        serd/include
+        ${serd_SOURCE_DIR}/include
         sql2rdf/include
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
-        serd/include
+        ${serd_SOURCE_DIR}/include
         sql2rdf/include
 )
 
