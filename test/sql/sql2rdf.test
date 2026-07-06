@@ -18,9 +18,21 @@ select is_valid_r2rml('sql2rdf/tests/sourceR2RML/invalid_turtle_unclosed_literal
 ----
 false
 
+# Yarrml file exists but is invalid 
+query T
+select is_valid_r2rml('sql2rdf/tests/sourceYARRRML/invalid_yaml.yml');
+----
+false
+
 # Valid R2RML 
 query T
 select is_valid_r2rml('sql2rdf/tests/sourceR2RML/example4.ttl');
+----
+true
+
+# Valid YARRML 
+query T
+select is_valid_r2rml('sql2rdf/tests/sourceYARRRML/example4.yml');
 ----
 true
 
@@ -30,9 +42,20 @@ select can_call_inside_out('sql2rdf/tests/sourceR2RML/inside_out_with_rom.ttl');
 ----
 false
 
+# Valid YARRML invalid inside out
+query T
+select can_call_inside_out('test/r2rml/full_r2rml_lower.yml');
+----
+false
+
 # Valid R2RML valid inside out
 query T
 select can_call_inside_out('sql2rdf/tests/sourceR2RML/inside_out_valid.ttl');
 ----
 true
 
+# Valid YARRML valid inside out
+query T
+select can_call_inside_out('test/r2rml/inside_out.yml');
+----
+true

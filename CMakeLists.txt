@@ -13,6 +13,23 @@ if (NOT EMSCRIPTEN)
 endif()
 
 project(${TARGET_NAME} LANGUAGES C CXX)
+include(FetchContent)
+
+# For yarrml support
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+# Avoid a "format" custom-target name collision with this project's own
+# `format` target (below); yaml-cpp's own formatting is irrelevant to us.
+set(YAML_CPP_FORMAT_SOURCE OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG yaml-cpp-0.9.0
+)
+
+FetchContent_MakeAvailable(yaml-cpp)
 
 set(EXTENSION_NAME         ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
@@ -85,11 +102,13 @@ add_library(${SQL2RDF_NAME} STATIC
   sql2rdf/src/r2rml/SQLValue.cpp
   sql2rdf/src/r2rml/StringSQLValue.cpp
   sql2rdf/src/r2rml/R2RMLParser.cpp
+  sql2rdf/src/yarrrml/YARRRMLParser.cpp
 )
 target_include_directories(${SQL2RDF_NAME} PRIVATE
     sql2rdf/include
     serd/include
 )
+target_link_libraries(${SQL2RDF_NAME} PRIVATE yaml-cpp::yaml-cpp)
 # ------------------------------------------------------------
 # DuckDB extension: static + loadable
 # ------------------------------------------------------------
@@ -163,6 +182,14 @@ install(
 
 install(
     TARGETS ${SERD_NAME}
+    EXPORT "${DUCKDB_EXPORT_SET}"
+    ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"  # .a file on Unix, .lib on Windows
+)
+
+# yaml-cpp is privately linked by ${SQL2RDF_NAME}; since that target is part of
+# DUCKDB_EXPORT_SET, CMake requires yaml-cpp to be exported too.
+install(
+    TARGETS yaml-cpp
     EXPORT "${DUCKDB_EXPORT_SET}"
     ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"  # .a file on Unix, .lib on Windows
 )

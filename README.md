@@ -189,9 +189,9 @@ SELECT * FROM read_sparql(
 
 ## _Experimental_ RDF write support
 
-The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) mapping file, DuckDB's `COPY TO` syntax and the [SQL2RDF++](https://github.com/nonodename/sql2rdf) library. Two modes are supported, and the correct one is chosen automatically based on the mapping.
+The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) or [YARRML](https://rml.io/yarrrml/) mapping file, DuckDB's `COPY TO` syntax and the [SQL2RDF++](https://github.com/nonodename/sql2rdf) library. Two modes are supported, and the correct one is chosen automatically based on the mapping.
 
-This write support is **experimental**! It passes the tests but the author doesn't have any production scaled out workload to try this on. If you use it and find issues, please get in touch and contribute issues using the steps below.
+This write support is **experimental**! It passes the tests but the author doesn't have any production scaled out workload to try this on. If you use it and find issues, please get in touch and contribute issues using [contributing](CONTRIBUTING.md) guidance.
 
 ### Inside-out mode
 
@@ -257,8 +257,9 @@ Two scalar functions are available to validate R2RML mapping files:
 -- Returns true if the file is a valid R2RML mapping
 SELECT is_valid_r2rml('mapping.ttl');
 
--- Returns true if the mapping is valid for inside-out mode (no rr:logicalTable etc.)
-SELECT can_call_inside_out('mapping.ttl');
+-- Returns true if the mapping is valid for inside-out mode (no rr:logicalTable etc.) 
+-- note we break the YARRML spec a little here by not requiring tables
+SELECT can_call_inside_out('mapping.yml');
 ```
 
 ## Building
@@ -352,11 +353,5 @@ After running these steps, you can install and load your extension using the reg
 INSTALL rdf
 LOAD rdf
 ```
-
-If you'd like to see this listed as a community extension, please file an issue (or comment on an existing issue for the same) and if there's sufficient demand I'll try and make it happen.
-
-## Reporting bugs
-
-Please report bugs as issues on this project. Provide a sample RDF file that demonstrates the bug as well as steps to reproduce.
 
 This repository is based on https://github.com/duckdb/extension-template, check it out if you want to build and ship your own DuckDB extension.

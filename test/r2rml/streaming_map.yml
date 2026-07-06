@@ -1,0 +1,12 @@
+prefixes:
+  ex: "http://example.com/streaming#"
+
+mappings:
+  RowMap:
+    sources:
+      - table: large_table
+    s: http://example.com/row/$(id)
+    po:
+      - [a, ex:Row]
+      - [ex:id, $(id)]
+      - [ex:val, $(val)]
