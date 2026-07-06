@@ -41,6 +41,16 @@ if(NOT serd_POPULATED)
   FetchContent_Populate(serd)
 endif()
 
+FetchContent_Declare(
+  sql2rdf
+  GIT_REPOSITORY https://github.com/nonodename/sql2rdf.git
+  GIT_TAG v1.2.1
+)
+FetchContent_GetProperties(sql2rdf)
+if(NOT sql2rdf_POPULATED)
+  FetchContent_Populate(sql2rdf)
+endif()
+
 set(EXTENSION_NAME         ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
@@ -91,31 +101,31 @@ target_include_directories(${SERD_NAME}
 # SQL2RDF — internal static library
 #------------------------------------------------------------
 add_library(${SQL2RDF_NAME} STATIC
-  sql2rdf/src/r2rml/R2RMLMapping.cpp
-  sql2rdf/src/r2rml/LogicalTable.cpp
-  sql2rdf/src/r2rml/BaseTableOrView.cpp
-  sql2rdf/src/r2rml/R2RMLView.cpp
-  sql2rdf/src/r2rml/TriplesMap.cpp
-  sql2rdf/src/r2rml/PredicateObjectMap.cpp
-  sql2rdf/src/r2rml/TermMap.cpp
-  sql2rdf/src/r2rml/ConstantTermMap.cpp
-  sql2rdf/src/r2rml/ColumnTermMap.cpp
-  sql2rdf/src/r2rml/TemplateTermMap.cpp
-  sql2rdf/src/r2rml/SubjectMap.cpp
-  sql2rdf/src/r2rml/PredicateMap.cpp
-  sql2rdf/src/r2rml/ObjectMap.cpp
-  sql2rdf/src/r2rml/GraphMap.cpp
-  sql2rdf/src/r2rml/JoinCondition.cpp
-  sql2rdf/src/r2rml/ReferencingObjectMap.cpp
-  sql2rdf/src/r2rml/SQLRow.cpp
-  sql2rdf/src/r2rml/MapSQLRow.cpp
-  sql2rdf/src/r2rml/SQLValue.cpp
-  sql2rdf/src/r2rml/StringSQLValue.cpp
-  sql2rdf/src/r2rml/R2RMLParser.cpp
-  sql2rdf/src/yarrrml/YARRRMLParser.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/R2RMLMapping.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/LogicalTable.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/BaseTableOrView.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/R2RMLView.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/TriplesMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/PredicateObjectMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/TermMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/ConstantTermMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/ColumnTermMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/TemplateTermMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/SubjectMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/PredicateMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/ObjectMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/GraphMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/JoinCondition.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/ReferencingObjectMap.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/SQLRow.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/MapSQLRow.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/SQLValue.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/StringSQLValue.cpp
+  ${sql2rdf_SOURCE_DIR}/src/r2rml/R2RMLParser.cpp
+  ${sql2rdf_SOURCE_DIR}/src/yarrrml/YARRRMLParser.cpp
 )
 target_include_directories(${SQL2RDF_NAME} PRIVATE
-    sql2rdf/include
+    ${sql2rdf_SOURCE_DIR}/include
     ${serd_SOURCE_DIR}/include
 )
 target_link_libraries(${SQL2RDF_NAME} PRIVATE yaml-cpp::yaml-cpp)
@@ -138,13 +148,13 @@ target_include_directories(${EXTENSION_NAME}
     PRIVATE
         src/include
         ${serd_SOURCE_DIR}/include
-        sql2rdf/include
+        ${sql2rdf_SOURCE_DIR}/include
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
         ${serd_SOURCE_DIR}/include
-        sql2rdf/include
+        ${sql2rdf_SOURCE_DIR}/include
 )
 
 if (NOT EMSCRIPTEN)

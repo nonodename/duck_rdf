@@ -1,0 +1,14 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#>.
+@prefix ex: <http://example.com/ns#>.
+
+<#TriplesMap3>
+    rr:logicalTable [ rr:tableName "EMP2DEPT" ];
+    rr:subjectMap [ rr:template "http://data.example.com/employee={EMPNO}/department={DEPTNO}" ];
+    rr:predicateObjectMap [
+        rr:predicate ex:employee;
+        rr:objectMap [ rr:template "http://data.example.com/employee/{EMPNO}" ];
+    ];
+    rr:predicateObjectMap [
+        rr:predicate ex:department;
+        rr:objectMap [ rr:template "http://data.example.com/department/{DEPTNO}" ];
+    ].

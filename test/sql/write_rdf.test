@@ -168,7 +168,7 @@ Unknown rdf_format
 # mapping that is neither valid inside-out nor fully valid R2RML
 statement error
 COPY (SELECT 1) TO '__TEST_DIR__/x.nt'
-(FORMAT r2rml, mapping 'sql2rdf/tests/sourceR2RML/inside_out_with_rom.ttl');
+(FORMAT r2rml, mapping 'test/r2rml/inside_out_with_rom.ttl');
 ----
 not valid
 
@@ -193,7 +193,7 @@ SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_nfe_explicit.nt');
 # the mapping invalid — so this test isolates the strict-parse path.
 statement error
 COPY (SELECT 1) TO '__TEST_DIR__/nfe_strict.nt'
-(FORMAT r2rml, mapping 'sql2rdf/tests/sourceR2RML/valid_r2rml_unresolved_parent.ttl',
+(FORMAT r2rml, mapping 'test/r2rml/valid_r2rml_unresolved_parent.ttl',
  ignore_non_fatal_errors false);
 ----
 R2RML mapping parse error

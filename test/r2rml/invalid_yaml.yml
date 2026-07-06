@@ -1,0 +1,5 @@
+mappings:
+  m1:
+    s: [unbalanced
+    po:
+      - [ex:name, $(ENAME)]

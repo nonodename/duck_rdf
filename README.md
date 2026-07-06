@@ -284,7 +284,7 @@ To bring submodules up to same as upstream, run
 ```sh
 git submodule update --recursive
 ```
-To get the source for DuckDB, Serd and CI-tools. Next run: 
+To get the source for DuckDB and CI-tools. Next run: 
 
 ```sh
 make

@@ -89,7 +89,7 @@ Concrete implementations:
 
 ### R2RML Write
 
-[src/r2rml_copy.cpp](src/r2rml_copy.cpp) integrates the `sql2rdf` submodule library. Two execution modes:
+[src/r2rml_copy.cpp](src/r2rml_copy.cpp) integrates the `sql2rdf` library (fetched via CMake FetchContent). Two execution modes:
 - **Inside-out**: DuckDB drives the SQL query; each output row is handed to the extension for mapping → SERD output
 - **Full R2RML**: The extension executes the SQL queries itself from the mapping file, caches results, then maps and writes
 
@@ -99,13 +99,18 @@ SERD is used for all RDF output (NTriples default, Turtle, NQuads).
 
 [src/sparql_reader.cpp](src/sparql_reader.cpp) uses CURL for HTTP GET, parses SPARQL results CSV, caches the full result at plan time. Columns are VARCHAR, named after SPARQL variables. Not compiled for Emscripten targets (gated by `DUCK_RDF_NO_SPARQL`).
 
-## Key Dependencies (Submodules)
+## Key Dependencies
 
+Git submodules:
 - `duckdb/` — DuckDB v1.5.0 source (builds the extension against this version)
-- `serd/` — RDF parsing/writing library
-- `sql2rdf/` — R2RML mapping compiler/evaluator
 - `extension-ci-tools/` — shared DuckDB extension build framework (owns the real Makefile logic)
-- vcpkg: `libxml2`, `curl` (with SSL)
+
+CMake FetchContent (fetched at configure time, not checked into the repo):
+- `serd` — RDF parsing/writing library
+- `sql2rdf` — R2RML mapping compiler/evaluator
+- `yaml-cpp` — YARRRML parsing support
+
+vcpkg: `libxml2`, `curl` (with SSL)
 
 ## Tests
 

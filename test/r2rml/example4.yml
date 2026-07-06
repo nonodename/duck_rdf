@@ -1,0 +1,11 @@
+prefixes:
+  ex: http://example.com/ns#
+
+mappings:
+  emp2dept:
+    sources:
+      - table: EMP2DEPT
+    s: http://data.example.com/employee=$(EMPNO)/department=$(DEPTNO)
+    po:
+      - [ex:employee, http://data.example.com/employee/$(EMPNO)]
+      - [ex:department, http://data.example.com/department/$(DEPTNO)]
