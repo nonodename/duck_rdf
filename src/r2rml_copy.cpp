@@ -54,14 +54,14 @@ static const std::string XSD_DATETIME_STAMP = std::string(XSD_NS) + "dateTimeSta
 
 namespace duckdb {
 
-static r2rml::R2RMLMapping parseHelper(const std::string &name) {
+static r2rml::R2RMLMapping parseHelper(const std::string &name, bool ignoreNonFatalErrors = true) {
 	r2rml::R2RMLMapping mapping;
 	if (yarrrml::YARRRMLParser::hasYarrrmlExtension(name)) {
 		yarrrml::YARRRMLParser parser;
-		mapping = parser.parse(name);
+		mapping = parser.parse(name, ignoreNonFatalErrors);
 	} else {
 		r2rml::R2RMLParser parser;
-		mapping = parser.parse(name);
+		mapping = parser.parse(name, ignoreNonFatalErrors);
 	}
 	return mapping;
 }
@@ -523,10 +523,9 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 		ignore_case = ic_it->second[0].GetValue<bool>();
 	}
 
-	r2rml::R2RMLParser parser;
 	std::shared_ptr<r2rml::R2RMLMapping> mapping;
 	try {
-		mapping = std::make_shared<r2rml::R2RMLMapping>(parser.parse(mapping_path, ignore_nfe));
+		mapping = std::make_shared<r2rml::R2RMLMapping>(parseHelper(mapping_path, ignore_nfe));
 	} catch (const std::runtime_error &e) {
 		throw InvalidInputException("R2RML mapping parse error: %s", e.what());
 	}
