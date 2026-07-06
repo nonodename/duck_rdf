@@ -54,20 +54,9 @@ static const std::string XSD_DATETIME_STAMP = std::string(XSD_NS) + "dateTimeSta
 
 namespace duckdb {
 
-static bool hasYarrrmlExtension(const std::string &path) {
-	static const char *const yarrrmlExtensions[] = {".yml", ".yaml", ".yarrrml"};
-	for (const char *ext : yarrrmlExtensions) {
-		std::size_t extLen = std::strlen(ext);
-		if (path.size() >= extLen && path.compare(path.size() - extLen, extLen, ext) == 0) {
-			return true;
-		}
-	}
-	return false;
-}
-
 static r2rml::R2RMLMapping parseHelper(const std::string &name) {
 	r2rml::R2RMLMapping mapping;
-	if (hasYarrrmlExtension(name)) {
+	if (yarrrml::YARRRMLParser::hasYarrrmlExtension(name)) {
 		yarrrml::YARRRMLParser parser;
 		mapping = parser.parse(name);
 	} else {
