@@ -60,6 +60,42 @@ SELECT DISTINCT subject FROM read_rdf('__TEST_DIR__/io_out.nt');
 ----
 http://data.example.com/employee/7369
 
+# ── Inside-out mode via YARRRML (.yml) mapping ───────────────────────────────
+# Same mapping as test/r2rml/inside_out.ttl, expressed in YARRRML. Regression
+# test: COPY previously always parsed the mapping file as Turtle regardless of
+# extension, so a .yml mapping silently produced an empty output file.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/io_out_yarrrml.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.yml', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out_yarrrml.nt');
+----
+3
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_out_yarrrml.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#name';
+----
+SMITH
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_out_yarrrml.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://example.com/ns#department';
+----
+http://data.example.com/department/10
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/io_out_yarrrml.nt')
+WHERE subject = 'http://data.example.com/employee/7369'
+  AND predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+http://example.com/ns#Employee
+
 # ── Full R2RML mode ───────────────────────────────────────────────────────────
 # The mapping (test/r2rml/full_r2rml_lower.ttl) has rr:logicalTable [ rr:tableName "emp" ].
 # The extension ignores the COPY SELECT and queries the EMP table itself.
