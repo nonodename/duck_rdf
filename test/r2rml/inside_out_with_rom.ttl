@@ -1,0 +1,29 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# A mapping with no rr:logicalTable but containing a rr:refObjectMap
+# (ReferencingObjectMap) with a rr:joinCondition.
+# This should be INVALID for inside-out execution.
+
+<#DeptTriplesMap>
+    rr:subjectMap [
+        rr:template "http://data.example.com/department/{DEPTNO}" ;
+        rr:class ex:Department ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "DNAME" ] ;
+    ] .
+
+<#EmpTriplesMap>
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{EMPNO}" ;
+        rr:class ex:Employee ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:worksIn ;
+        rr:objectMap [
+            rr:parentTriplesMap <#DeptTriplesMap> ;
+            rr:joinCondition [ rr:child "DEPTNO" ; rr:parent "DEPTNO" ] ;
+        ] ;
+    ] .

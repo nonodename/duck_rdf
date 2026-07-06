@@ -1,0 +1,12 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#>.
+@prefix ex: <http://example.com/ns#>.
+
+# The tableName string literal is never closed.  Serd reports
+# "line end in short string" and recovers: it emits the rr:logicalTable
+# triple (so TriplesMap1 is identified) but the rr:tableName value inside
+# the blank node is malformed, leaving the blank node with no recognised
+# predicates.  buildLogicalTable() therefore returns nullptr.
+
+<#TriplesMap1>
+    rr:logicalTable [ rr:tableName "EMP ];
+    rr:subjectMap [ rr:template "http://data.example.com/employee/{EMPNO}" ].

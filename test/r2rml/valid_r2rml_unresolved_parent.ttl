@@ -1,0 +1,24 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#>.
+@prefix ex: <http://example.com/ns#>.
+
+# The objectMap carries rr:parentTriplesMap pointing at <#GhostTriplesMap>
+# which does not exist anywhere in this file.  Phase 3 of the parser must
+# leave parentTriplesMap as nullptr and emit a warning to stderr, but must
+# NOT crash.
+
+<#TriplesMap1>
+    rr:logicalTable [ rr:tableName "EMP" ];
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{EMPNO}";
+        rr:class ex:Employee;
+    ];
+    rr:predicateObjectMap [
+        rr:predicate ex:department;
+        rr:objectMap [
+            rr:parentTriplesMap <#GhostTriplesMap>;
+            rr:joinCondition [
+                rr:child  "DEPTNO";
+                rr:parent "DEPTNO";
+            ];
+        ];
+    ].

@@ -6,6 +6,3 @@
 	path = extension-ci-tools
 	url = https://github.com/duckdb/extension-ci-tools
 	branch = v1.5-variegata
-[submodule "sql2rdf"]
-	path = sql2rdf
-	url = https://github.com/nonodename/sql2rdf.git

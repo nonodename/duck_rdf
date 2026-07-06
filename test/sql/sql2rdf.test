@@ -14,31 +14,31 @@ false
 
 # File exists but is invalid 
 query T
-select is_valid_r2rml('sql2rdf/tests/sourceR2RML/invalid_turtle_unclosed_literal.ttl');
+select is_valid_r2rml('test/r2rml/invalid_turtle_unclosed_literal.ttl');
 ----
 false
 
 # Yarrml file exists but is invalid 
 query T
-select is_valid_r2rml('sql2rdf/tests/sourceYARRRML/invalid_yaml.yml');
+select is_valid_r2rml('test/r2rml/invalid_yaml.yml');
 ----
 false
 
 # Valid R2RML 
 query T
-select is_valid_r2rml('sql2rdf/tests/sourceR2RML/example4.ttl');
+select is_valid_r2rml('test/r2rml/example4.ttl');
 ----
 true
 
 # Valid YARRML 
 query T
-select is_valid_r2rml('sql2rdf/tests/sourceYARRRML/example4.yml');
+select is_valid_r2rml('test/r2rml/example4.yml');
 ----
 true
 
 # Valid R2RML invalid inside out
 query T
-select can_call_inside_out('sql2rdf/tests/sourceR2RML/inside_out_with_rom.ttl');
+select can_call_inside_out('test/r2rml/inside_out_with_rom.ttl');
 ----
 false
 
@@ -50,7 +50,7 @@ false
 
 # Valid R2RML valid inside out
 query T
-select can_call_inside_out('sql2rdf/tests/sourceR2RML/inside_out_valid.ttl');
+select can_call_inside_out('test/r2rml/inside_out_valid.ttl');
 ----
 true
 
