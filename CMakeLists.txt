@@ -36,10 +36,7 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/drobilla/serd.git
   GIT_TAG v0.32.10
 )
-FetchContent_GetProperties(serd)
-if(NOT serd_POPULATED)
-  FetchContent_Populate(serd)
-endif()
+FetchContent_MakeAvailable(serd)
 
 FetchContent_Declare(
   sql2rdf
