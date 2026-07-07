@@ -1,4 +1,5 @@
 #include "include/xml_buffer.hpp"
+#include "include/table_filter_eval.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
 #include <vector>
@@ -82,6 +83,20 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 	// behaviour, so we use a deferred-error pattern: catch any exception, store
 	// it, and re-throw it after xmlParseChunk() returns in PopulateChunk().
 	try {
+		// Filter pushdown: reject non-matching rows before any vector write.
+		// Graph is always empty (and therefore NULL, see writeToVector) for RDF/XML files.
+		auto passes = [&](int col, const std::string &s) {
+			auto *filter = _column_filters[col].get();
+			if (!filter) {
+				return true;
+			}
+			return PassesFilter(filter, s.data(), s.size(), s.empty());
+		};
+		if (!passes(0, std::string()) || !passes(1, stmt.subject) || !passes(2, stmt.predicate) ||
+		    !passes(3, stmt.object) || !passes(4, stmt.datatype) || !passes(5, stmt.language)) {
+			return;
+		}
+
 		// Safety check: If chunk is full, push to overflow and return
 		if (_current_count >= STANDARD_VECTOR_SIZE) {
 			RDFRow row;

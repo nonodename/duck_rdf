@@ -1,5 +1,6 @@
 
 #include "include/serd_buffer.hpp"
+#include "include/table_filter_eval.hpp"
 #include "duckdb/common/exception.hpp"
 #include <iostream>
 #include <stdexcept>
@@ -272,6 +273,28 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
                                          const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
                                          const SerdNode *object_datatype, const SerdNode *object_lang) {
 	auto *self = static_cast<SerdBuffer *>(user_data);
+
+	// Filter pushdown: reject non-matching rows before any string is copied.
+	auto passesRaw = [&](int col, const SerdNode *node) {
+		auto *filter = self->_column_filters[col].get();
+		if (!filter) {
+			return true;
+		}
+		if (!node || !node->buf) {
+			return PassesFilter(filter, nullptr, 0, true);
+		}
+		if (self->_expand_prefixes && (node->type == SERD_CURIE || node->type == SERD_URI)) {
+			SerdNode expanded = serd_env_expand_node(self->_env.get(), node);
+			bool ok = PassesFilter(filter, (const char *)expanded.buf, expanded.n_bytes, !expanded.buf);
+			serd_node_free(&expanded);
+			return ok;
+		}
+		return PassesFilter(filter, (const char *)node->buf, node->n_bytes, false);
+	};
+	if (!passesRaw(0, graph) || !passesRaw(1, subject) || !passesRaw(2, predicate) || !passesRaw(3, object) ||
+	    !passesRaw(4, object_datatype) || !passesRaw(5, object_lang)) {
+		return SERD_SUCCESS;
+	}
 
 	// Safety check: If chunk is full, push to overflow and return
 	if (self->_current_count >= STANDARD_VECTOR_SIZE) {

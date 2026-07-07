@@ -1,0 +1,140 @@
+# name: test/sql/filter_pushdown.test
+# description: test row filter pushdown for read_rdf (subject/predicate/graph/object)
+# group: [sql]
+
+require rdf
+
+# Equality on subject
+query T
+SELECT object FROM read_rdf('test/rdf/tests.nt')
+WHERE subject = 'http://example.org/person/JohnDoe'
+  AND predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+# Equality on predicate alone (multiple subjects)
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt')
+WHERE predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+2
+
+# Equality filter that matches nothing
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt')
+WHERE subject = 'http://example.org/does-not-exist';
+----
+0
+
+# Equality on graph (TriG has a single non-empty graph containing all 9 triples;
+# NT/NQ triples have NULL graph)
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.trig')
+WHERE graph = 'read_rdf';
+----
+9
+
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.trig')
+WHERE graph = 'no-such-graph';
+----
+0
+
+# graph IS NULL / IS NOT NULL
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt') WHERE graph IS NULL;
+----
+9
+
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt') WHERE graph IS NOT NULL;
+----
+0
+
+# Prefix pushdown via LIKE 'prefix%' on subject (matches JohnDoe's 4 triples only)
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt')
+WHERE subject LIKE 'http://example.org/person%';
+----
+4
+
+# prefix() pushdown (rewritten from starts_with by the optimizer)
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt')
+WHERE starts_with(subject, 'http://example.org/person');
+----
+4
+
+# != on predicate
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt')
+WHERE predicate != 'http://xmlns.com/foaf/0.1/name';
+----
+7
+
+# AND across two different columns (subject + predicate), non-matching combination
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.nt')
+WHERE subject = 'http://example.org/person/JohnDoe'
+  AND predicate = 'http://purl.org/dc/elements/1.1/title';
+----
+0
+
+# Filter combined with projection pushdown
+query T
+SELECT object FROM read_rdf('test/rdf/tests.nt')
+WHERE subject LIKE '%jane%'
+  AND predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+Jane Smith
+
+# Turtle (unexpanded CURIE) equality still matches raw text
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl')
+WHERE subject = 'person/JohnDoe'
+  AND predicate = 'foaf:name';
+----
+John Doe
+
+# Turtle with prefix_expansion=true: filter must compare against the
+# *expanded* form, not the raw CURIE bytes
+query T
+SELECT object FROM read_rdf('test/rdf/tests.ttl', prefix_expansion = true)
+WHERE subject = 'http://example.org/person/JohnDoe'
+  AND predicate = 'http://xmlns.com/foaf/0.1/name';
+----
+John Doe
+
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/tests.ttl', prefix_expansion = true)
+WHERE subject = 'person/JohnDoe';
+----
+0
+
+# RDF/XML: equality filter on subject/predicate
+query T
+SELECT object FROM read_rdf('test/xmlrdf/example07.rdf')
+WHERE predicate = 'http://purl.org/dc/elements/1.1/title';
+----
+RDF/XML Syntax Specification (Revised)
+
+# Filename filter (synthetic column 6): non-matching shard is skipped entirely
+query IT
+SELECT COUNT(*), replace(filename,'\','/')
+FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true)
+WHERE filename LIKE '%shard_a.nt'
+GROUP BY filename;
+----
+3	test/rdf/shards/shard_a.nt
+
+query I
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true)
+WHERE filename = 'no/such/file.nt';
+----
+0
+
+# EXPLAIN: fully-pushed-down equality filter no longer appears as a Filter node
+query II
+EXPLAIN SELECT object FROM read_rdf('test/rdf/tests.nt') WHERE subject = 'http://example.org/person/JohnDoe';
+----
+physical_plan	<REGEX>:.*READ_RDF.*

@@ -14,6 +14,7 @@
 #include "include/profile_rdf.hpp"
 #include "include/pivot_rdf.hpp"
 #include "include/read_rdf_prefixes.hpp"
+#include "include/table_filter_eval.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -61,6 +62,7 @@ struct RDFReaderGlobalState : public GlobalTableFunctionState {
 struct RDFReaderLocalState : public LocalTableFunctionState {
 	std::unique_ptr<ITriplesBuffer> ib;
 	vector<column_t> column_ids;
+	optional_ptr<TableFilterSet> filters;
 	string current_file;
 };
 
@@ -181,6 +183,7 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
                                                          GlobalTableFunctionState *global_state) {
 	auto state = make_uniq<RDFReaderLocalState>();
 	state->column_ids = input.column_ids;
+	state->filters = input.filters;
 	return state;
 }
 
@@ -250,18 +253,42 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			state.ib.reset();
 		}
 
+		// The filename column (index 6) is synthetic - it isn't known to
+		// ITriplesBuffer, so a filter on it has to be enforced here, once per
+		// file. This also lets us skip parsing entire non-matching files.
+		// TableFilterSet is keyed by position within column_ids (see
+		// CreateTableFilterSet in plan_get.cpp), so find that position first.
+		const TableFilter *filename_filter = nullptr;
+		if (bind_data.include_filenames && state.filters) {
+			for (idx_t i = 0; i < state.column_ids.size(); i++) {
+				if (state.column_ids[i] == 6) {
+					auto it = state.filters->filters.find(i);
+					if (it != state.filters->filters.end()) {
+						filename_filter = it->second.get();
+					}
+					break;
+				}
+			}
+		}
+
 		// Atomically claim the next file index
 		idx_t file_idx;
-		{
-			std::lock_guard<std::mutex> lk(global_state.lock);
-			if (global_state.next_file >= global_state.file_count) {
-				return; // no more files; empty output signals done to DuckDB
+		string file_path;
+		while (true) {
+			{
+				std::lock_guard<std::mutex> lk(global_state.lock);
+				if (global_state.next_file >= global_state.file_count) {
+					return; // no more files; empty output signals done to DuckDB
+				}
+				file_idx = global_state.next_file++;
 			}
-			file_idx = global_state.next_file++;
+			file_path = bind_data.file_paths[file_idx];
+			if (!filename_filter || PassesFilter(filename_filter, file_path.data(), file_path.size(), false)) {
+				break;
+			}
 		}
 
 		// Open and start parsing the claimed file
-		const string &file_path = bind_data.file_paths[file_idx];
 		state.current_file = file_path;
 		try {
 			auto new_ib =
@@ -269,6 +296,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			new_ib->SetProgressCounter(&global_state.bytes_consumed);
 			new_ib->StartParse();
 			new_ib->SetColumnIds(state.column_ids);
+			new_ib->SetFilters(state.filters, state.column_ids);
 			state.ib = std::move(new_ib);
 		} catch (const std::runtime_error &re) {
 			throw IOException(re.what());
@@ -297,6 +325,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
 	tf.named_parameters[INCLUDE_FILENAMES] = LogicalType::BOOLEAN;
 	tf.projection_pushdown = true;
+	tf.filter_pushdown = true;
 	tf.cardinality = RDFReaderCardinality;
 	tf.table_scan_progress = RDFReaderProgress;
 

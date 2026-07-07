@@ -42,7 +42,7 @@ Currently all literals are output as strings. An improvement would be to convert
 12. **Numerous read path performance enhancements.** 
 1. *Intra-file parallelism* for line-based formats. Today one file = one thread, so read_rdf('huge.nt') is fully single-threaded. But .nt/.nq are one-statement-per-line formats — you can do exactly what DuckDB's CSV reader does: split the file into byte ranges, have each thread seek to the next newline and parse its range with its own serd reader. MaxThreads becomes file_size / range_size summed over files. Caveats: only for seekable, uncompressed inputs, and NTriples has no cross-statement state (no prefixes, though blank-node labels are file-scoped — fine, since labels are just emitted as strings). Turtle/TriG/RDF-XML are stateful and genuinely can't be split, so your serd intuition holds there — the practical advice for those formats remains "split into multiple files."
 2. *Tiny I/O buffer.* ✅ The serd stream page size is hard-coded to 4096 bytes (src/serd_buffer.cpp:101), meaning a FileHandle::Read call every 4 KB — expensive over httpfs especially. Bumping this to 256 KB–1 MB is a one-line change and probably the cheapest win available.
-3. *Filter pushdown.* filter_pushdown is unset, so WHERE predicate = '...' (extremely common in RDF workloads) materializes every triple into the string heap and filters afterward. Evaluating simple equality/prefix filters on subject/predicate/graph inside the statement callback — before AddString — would skip the copy for non-matching rows and shrink rows flowing upstream. Serd still parses everything, but materialization is often the bigger cost.
+3. *Filter pushdown.* ✅ filter_pushdown is unset, so WHERE predicate = '...' (extremely common in RDF workloads) materializes every triple into the string heap and filters afterward. Evaluating simple equality/prefix filters on subject/predicate/graph inside the statement callback — before AddString — would skip the copy for non-matching rows and shrink rows flowing upstream. Serd still parses everything, but materialization is often the bigger cost.
 4. *Repeated-string cost.* RDF is massively repetitive: typically a handful of distinct predicates, and graph is often constant per file, yet every occurrence gets a fresh heap copy. A small per-chunk cache (serd node bytes → already-added string_t, valid within a chunk) for the predicate/graph columns would eliminate most of those copies. Same idea applies to prefix_expansion=true, which calls serd_env_expand_node (an allocation) per node per triple with no memoization (src/serd_buffer.cpp:110-118) — caching CURIE→expanded-IRI would help a lot there. Relatedly, the filename column loop could use a ConstantVector instead of a flat per-row write (src/rdf_extension.cpp:164-177).
 5. *Missing planner/UX hooks.* ✅ No cardinality callback — a cheap estimate from total file bytes ÷ average bytes-per-triple (per format) would help join planning. No table_scan_progress — easy to implement from SeekPosition()/GetFileSize(), pure UX but users notice. No get_batch_index (matters if you do #1, and enables order preservation).
 6. *MultiFileReader framework.* Globbing is hand-rolled via fs.Glob and include_filenames is a custom parameter. Adopting DuckDB's MultiFileReader/MultiFileList would give you list-of-files arguments, lazy file-list expansion, and the standard filename virtual column for free — more of a feature/consistency win than raw speed.
@@ -62,4 +62,21 @@ Run Time (s): real 85.058 user 79.177983 sys 4.971778
 Improved buffer:
 ```
 Run Time (s): real 81.362 user 78.447340 sys 2.612139
+```
+Baseline for filter pushdown
+```
+memory D select count(*) from read_rdf('../geoNames/geonames.nt') 
+         where predicate = 'http://www.geonames.org/ontology#parentADM4'
+         ;
+┌──────────────┐
+│ count_star() │
+│    int64     │
+├──────────────┤
+│       495703 │
+└──────────────┘
+Run Time (s): real 90.805 user 176.509459 sys 4.014763
+```
+With pushdown
+```
+Run Time (s): real 82.206 user 79.360362 sys 2.483339
 ```
