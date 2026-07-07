@@ -1,6 +1,7 @@
 #include "include/xml_buffer.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/helper.hpp"
+#include <vector>
 
 XMLBuffer::XMLBuffer(std::string path, std::string base_uri, duckdb::FileSystem *fs, const bool strict_parsing,
                      const bool expand_prefixes, const ITriplesBuffer::FileType file_type)
@@ -45,14 +46,16 @@ void XMLBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		_current_count++;
 	}
 
-	char buffer[PARSING_CHUNK_SIZE];
 	while (_current_count < STANDARD_VECTOR_SIZE && !_eof) {
 		// Read up to PARSING_CHUNK_SIZE bytes via DuckDB FileHandle
-		int64_t res = _file_handle->Read(buffer, PARSING_CHUNK_SIZE);
-		if (res < PARSING_CHUNK_SIZE) {
+		int64_t res = _file_handle->Read(_read_buffer.data(), PARSING_CHUNK_SIZE);
+		if (res < (int64_t)PARSING_CHUNK_SIZE) {
 			_eof = true;
 		}
-		_parser.parseChunk(buffer, (int)res, _eof);
+		if (res > 0 && _progress_counter) {
+			_progress_counter->fetch_add((uint64_t)res, std::memory_order_relaxed);
+		}
+		_parser.parseChunk(_read_buffer.data(), (int)res, _eof);
 		// Re-throw any exception that was deferred from within a SAX callback.
 		if (_deferred_error) {
 			throw duckdb::SyntaxException(_deferred_error_message);

@@ -5,6 +5,7 @@
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/exception.hpp"
 #include <algorithm>
+#include <atomic>
 #include <queue>
 #include "string_util.hpp"
 /*
@@ -45,6 +46,10 @@ public:
 	}
 	uint64_t GetSkipCount() const {
 		return _skip_count;
+	}
+
+	void SetProgressCounter(std::atomic<uint64_t> *c) {
+		_progress_counter = c;
 	}
 
 	static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
@@ -99,6 +104,7 @@ protected:
 	bool _eof = false;
 	bool _strict_parsing = true;
 	bool _expand_prefixes = false;
+	std::atomic<uint64_t> *_progress_counter = nullptr;
 };
 
 #endif // I_TRIPLES_BUFFER_H

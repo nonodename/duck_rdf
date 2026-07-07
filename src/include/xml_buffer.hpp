@@ -5,6 +5,7 @@
 #include "duckdb.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "rdf_xml_parser.hpp"
+#include <vector>
 
 class XMLBuffer : public ITriplesBuffer {
 public:
@@ -18,7 +19,7 @@ public:
 	void StartParse();
 
 private:
-	constexpr static size_t PARSING_CHUNK_SIZE = 4096;
+	constexpr static size_t PARSING_CHUNK_SIZE = 1024 * 1024;
 	void writeToVector(duckdb::Vector &vec, idx_t row_idx, const std::string &field);
 	void statementCallback(const RdfStatement &stmt);
 	void namespaceCallback(const std::string &prefix, const std::string &uri);
@@ -31,6 +32,7 @@ private:
 	// the exception message here and re-throw it after xmlParseChunk() returns.
 	bool _deferred_error = false;
 	std::string _deferred_error_message;
+	std::vector<char> _read_buffer = std::vector<char>(PARSING_CHUNK_SIZE);
 };
 
 #endif // XML_BUFFER_H

@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <memory>
 
+static const size_t READ_BUFFER_SIZE = 1024 * 1024;
+
 static SerdSyntax MapSyntaxFromFileType(ITriplesBuffer::FileType file_type) {
 	switch (file_type) {
 	case ITriplesBuffer::TURTLE:
@@ -86,19 +88,22 @@ void SerdBuffer::StartParse() {
 
 	// Bridge from SerdSource to DuckDB FileHandle
 	auto duckdb_source = [](void *buf, size_t size, size_t nmemb, void *stream) -> size_t {
-		// stream is a duckdb::FileHandle*
-		auto fh = static_cast<duckdb::FileHandle *>(stream);
-		if (!fh)
+		// stream is a SerdBuffer*
+		auto self = static_cast<SerdBuffer *>(stream);
+		if (!self || !self->_file_handle)
 			return 0;
-		int64_t read = fh->Read(buf, (idx_t)nmemb);
+		int64_t read = self->_file_handle->Read(buf, (idx_t)nmemb);
+		if (read > 0 && self->_progress_counter) {
+			self->_progress_counter->fetch_add((uint64_t)read, std::memory_order_relaxed);
+		}
 		return (size_t)std::max<int64_t>(read, 0);
 	};
 	auto duckdb_error = [](void * /*stream*/) -> int {
 		return 0;
 	};
 
-	serd_reader_start_source_stream(_reader.get(), (SerdSource)duckdb_source, (SerdStreamErrorFunc)duckdb_error,
-	                                _file_handle.get(), (uint8_t *)fp, 4096U);
+	serd_reader_start_source_stream(_reader.get(), (SerdSource)duckdb_source, (SerdStreamErrorFunc)duckdb_error, this,
+	                                (uint8_t *)fp, READ_BUFFER_SIZE);
 }
 
 void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNode *node) {

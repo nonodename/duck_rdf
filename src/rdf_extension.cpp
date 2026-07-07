@@ -19,6 +19,7 @@
 #include "duckdb/function/table_function.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
+#include <atomic>
 #include <mutex>
 #include "include/string_util.hpp"
 
@@ -34,6 +35,8 @@ namespace duckdb {
 // Bind data: holds the expanded list of files (supports glob patterns)
 struct RDFReaderBindData : public TableFunctionData {
 	vector<string> file_paths;
+	vector<idx_t> file_sizes;
+	idx_t total_bytes = 0;
 	// UNKNOWN means detect per-file from extension; set explicitly if file_type param given
 	ITriplesBuffer::FileType file_type = ITriplesBuffer::UNKNOWN;
 	bool strict_parsing = true;
@@ -46,6 +49,8 @@ struct RDFReaderGlobalState : public GlobalTableFunctionState {
 	std::mutex lock;
 	idx_t next_file = 0;
 	idx_t file_count = 0;
+	std::atomic<uint64_t> bytes_consumed {0};
+	idx_t total_bytes = 0;
 
 	idx_t MaxThreads() const override {
 		return file_count;
@@ -58,6 +63,43 @@ struct RDFReaderLocalState : public LocalTableFunctionState {
 	vector<column_t> column_ids;
 	string current_file;
 };
+
+// Rough average bytes-per-triple by format, used only as a planner hint.
+static double AvgBytesPerTriple(ITriplesBuffer::FileType ft) {
+	switch (ft) {
+	case ITriplesBuffer::TURTLE:
+	case ITriplesBuffer::TRIG:
+		return 60.0;
+	case ITriplesBuffer::XML:
+		return 200.0;
+	case ITriplesBuffer::NQUADS:
+	case ITriplesBuffer::NTRIPLES:
+	default:
+		return 120.0;
+	}
+}
+
+static idx_t EstimateTriplesForFile(idx_t size, ITriplesBuffer::FileType ft, bool compressed) {
+	double bytes = (double)size;
+	if (compressed) {
+		bytes *= 5.0; // rough decompression multiplier
+	}
+	return (idx_t)(bytes / AvgBytesPerTriple(ft));
+}
+
+static unique_ptr<NodeStatistics> RDFReaderCardinality(ClientContext &context, const FunctionData *bind_data_p) {
+	auto &bind_data = (const RDFReaderBindData &)*bind_data_p;
+	idx_t estimated_triples = 0;
+	for (idx_t i = 0; i < bind_data.file_paths.size(); i++) {
+		const string &path = bind_data.file_paths[i];
+		ITriplesBuffer::FileType ft = bind_data.file_type == ITriplesBuffer::UNKNOWN
+		                                  ? ITriplesBuffer::DetectFileTypeFromPath(path)
+		                                  : bind_data.file_type;
+		bool compressed = ITriplesBuffer::IsCompressedPath(path);
+		estimated_triples += EstimateTriplesForFile(bind_data.file_sizes[i], ft, compressed);
+	}
+	return make_uniq<NodeStatistics>(estimated_triples);
+}
 
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
                                               vector<LogicalType> &return_types, vector<string> &names) {
@@ -72,6 +114,20 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	}
 	for (auto &info : glob_results) {
 		result->file_paths.push_back(std::move(info.path));
+	}
+
+	// Stat each matched file once, for cardinality/progress estimation.
+	result->file_sizes.reserve(result->file_paths.size());
+	for (auto &path : result->file_paths) {
+		idx_t size = 0;
+		try {
+			auto h = fs.OpenFile(path, FileFlags::FILE_FLAGS_READ);
+			size = (idx_t)fs.GetFileSize(*h);
+		} catch (std::exception &) {
+			size = 0;
+		}
+		result->file_sizes.push_back(size);
+		result->total_bytes += size;
 	}
 
 	// Optional explicit file type override — applied to all matched files
@@ -116,6 +172,7 @@ static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &c
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderGlobalState>();
 	state->file_count = bind_data.file_paths.size();
+	state->total_bytes = bind_data.total_bytes;
 	return state;
 }
 
@@ -209,6 +266,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 		try {
 			auto new_ib =
 			    OpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing, bind_data.expand_prefixes);
+			new_ib->SetProgressCounter(&global_state.bytes_consumed);
 			new_ib->StartParse();
 			new_ib->SetColumnIds(state.column_ids);
 			state.ib = std::move(new_ib);
@@ -216,6 +274,18 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			throw IOException(re.what());
 		}
 	}
+}
+
+static double RDFReaderProgress(ClientContext &context, const FunctionData *bind_data_p,
+                                const GlobalTableFunctionState *global_state_p) {
+	auto &global_state = (const RDFReaderGlobalState &)*global_state_p;
+	if (global_state.total_bytes == 0) {
+		return 100.0;
+	}
+	uint64_t consumed = global_state.bytes_consumed.load(std::memory_order_relaxed);
+	double pct =
+	    100.0 * (double)std::min<uint64_t>(consumed, global_state.total_bytes) / (double)global_state.total_bytes;
+	return std::min(100.0, std::max(0.0, pct));
 }
 
 static void LoadInternal(ExtensionLoader &loader) {
@@ -227,6 +297,8 @@ static void LoadInternal(ExtensionLoader &loader) {
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
 	tf.named_parameters[INCLUDE_FILENAMES] = LogicalType::BOOLEAN;
 	tf.projection_pushdown = true;
+	tf.cardinality = RDFReaderCardinality;
+	tf.table_scan_progress = RDFReaderProgress;
 
 	CreateTableFunctionInfo info(tf);
 	FunctionDescription desc;
