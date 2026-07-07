@@ -1,23 +1,26 @@
 {
-        "dependencies": [
-                {
-                        "name": "libxml2",
-                        "default-features": false,
-                        "platform": "!emscripten"
-                },
-                {
-                        "name": "curl",
-                        "default-features": false,
-                        "features": ["ssl"],
-                        "platform": "!emscripten"
-                }
-        ],
-        "vcpkg-configuration": {
-            "overlay-ports": [
-                    "./extension-ci-tools/vcpkg_ports"
-            ],
-            "overlay-triplets": [
-                    "./extension-ci-tools/toolchains"
-            ]
-        }
+  "dependencies": [
+    {
+      "name": "libxml2",
+      "default-features": false,
+      "platform": "!emscripten"
+    },
+    {
+      "name": "curl",
+      "default-features": false,
+      "features": [
+        "ssl"
+      ],
+      "platform": "!emscripten"
+    }
+  ],
+  "vcpkg-configuration": {
+    "overlay-ports": [
+      "./extension-ci-tools/vcpkg_ports"
+    ],
+    "overlay-triplets": [
+      "./extension-ci-tools/toolchains"
+    ]
+  },
+  "builtin-baseline": "cd61e1e26a038e82d6550a3ebbe0fbbfe7da78e3"
 }
