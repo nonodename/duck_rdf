@@ -43,6 +43,7 @@ set(EXTENSION_SOURCES
     src/rdf_extension.cpp
     src/r2rml_copy.cpp
     src/serd_buffer.cpp
+    src/serd_range_buffer.cpp
     src/rdf_profiler.cpp
     src/profile_rdf.cpp
     src/pivot_rdf.cpp

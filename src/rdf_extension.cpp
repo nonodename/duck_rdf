@@ -18,6 +18,7 @@
 #include "duckdb/function/table_function.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 #include "include/string_util.hpp"
@@ -28,6 +29,7 @@ using namespace std;
 #define PREFIX_EXPANSION "prefix_expansion"
 #define FILE_TYPE        "file_type"
 #define FILENAME_PARAM   "filename"
+#define PARALLEL_SCAN    "parallel_scan"
 
 namespace duckdb {
 
@@ -41,18 +43,37 @@ struct RDFReaderBindData : public TableFunctionData {
 	bool strict_parsing = true;
 	bool expand_prefixes = false;
 	bool include_filenames = false;
+	bool parallel_scan = true;
 };
 
-// Global state: shared across all threads, tracks which file to process next
+// A single byte range [start_offset, end_offset) of an eligible (NTriples/
+// NQuads, uncompressed, seekable) file, scanned independently by one thread.
+struct RDFRangeWorkItem {
+	idx_t file_idx;
+	idx_t start_offset;
+	idx_t end_offset;
+};
+
+// Target size for a single range's share of work. A file only gets split if
+// it produces at least two ranges at this size; otherwise it's scanned as a
+// single whole-file work item (see RDFReaderGlobalInit).
+static constexpr idx_t RDF_TARGET_RANGE_BYTES = 64ULL * 1024 * 1024;
+
+// Global state: shared across all threads, tracks which unit of work (whole
+// file or byte range) to claim next. Ranges are only produced for large,
+// uncompressed, seekable NTriples/NQuads files (see RDFReaderGlobalInit);
+// every other file is scanned via the classic whole-file path.
 struct RDFReaderGlobalState : public GlobalTableFunctionState {
 	std::mutex lock;
-	idx_t next_file = 0;
-	idx_t file_count = 0;
+	vector<idx_t> whole_files;
+	idx_t next_whole_file = 0;
+	vector<RDFRangeWorkItem> ranges;
+	idx_t next_range = 0;
 	std::atomic<uint64_t> bytes_consumed {0};
 	idx_t total_bytes = 0;
 
 	idx_t MaxThreads() const override {
-		return file_count;
+		return whole_files.size() + ranges.size();
 	}
 };
 
@@ -154,6 +175,11 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 		result->include_filenames = include_filenames_param->second.GetValue<bool>();
 	}
 
+	auto parallel_scan_param = input.named_parameters.find(PARALLEL_SCAN);
+	if (parallel_scan_param != input.named_parameters.end()) {
+		result->parallel_scan = parallel_scan_param->second.GetValue<bool>();
+	}
+
 	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
 	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
 	                LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR};
@@ -164,12 +190,57 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	return std::move(result);
 }
 
-// Creates the shared global state; called once before any threads start scanning
+// Creates the shared global state; called once before any threads start
+// scanning. Splits eligible large NTriples/NQuads files into byte-range work
+// items (parallel path); every other file becomes a whole-file work item
+// (classic path, unchanged behavior).
 static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &context, TableFunctionInitInput &input) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderGlobalState>();
-	state->file_count = bind_data.file_paths.size();
 	state->total_bytes = bind_data.total_bytes;
+	auto &fs = FileSystem::GetFileSystem(context);
+
+	for (idx_t i = 0; i < bind_data.file_paths.size(); i++) {
+		const string &path = bind_data.file_paths[i];
+		idx_t file_size = bind_data.file_sizes[i];
+		ITriplesBuffer::FileType ft = bind_data.file_type == ITriplesBuffer::UNKNOWN
+		                                  ? ITriplesBuffer::DetectFileTypeFromPath(path)
+		                                  : bind_data.file_type;
+
+		bool eligible = bind_data.parallel_scan && file_size > 0 &&
+		                (ft == ITriplesBuffer::NTRIPLES || ft == ITriplesBuffer::NQUADS) &&
+		                !ITriplesBuffer::IsCompressedPath(path);
+
+		idx_t num_ranges = eligible ? (file_size + RDF_TARGET_RANGE_BYTES - 1) / RDF_TARGET_RANGE_BYTES : 0;
+		if (num_ranges < 2) {
+			// Not worth splitting a single-range file; fall through to the
+			// classic whole-file path instead of emitting one degenerate range.
+			eligible = false;
+		}
+
+		if (eligible) {
+			try {
+				auto h = fs.OpenFile(path, FileFlags::FILE_FLAGS_READ);
+				if (!h->CanSeek()) {
+					eligible = false;
+				}
+			} catch (std::exception &) {
+				eligible = false;
+			}
+		}
+
+		if (eligible) {
+			idx_t range_size = (file_size + num_ranges - 1) / num_ranges;
+			idx_t start = 0;
+			for (idx_t r = 0; r < num_ranges; r++) {
+				idx_t end = (r + 1 == num_ranges) ? file_size : std::min(start + range_size, file_size);
+				state->ranges.push_back(RDFRangeWorkItem {i, start, end});
+				start = end;
+			}
+		} else {
+			state->whole_files.push_back(i);
+		}
+	}
 	return state;
 }
 
@@ -243,16 +314,25 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			}
 		}
 
-		// Atomically claim the next file index
+		// Atomically claim the next unit of work: byte ranges first, then
+		// whole files, once ranges are exhausted (order isn't load-bearing).
 		idx_t file_idx;
 		string file_path;
+		bool is_range = false;
+		RDFRangeWorkItem range_item {};
 		while (true) {
 			{
 				std::lock_guard<std::mutex> lk(global_state.lock);
-				if (global_state.next_file >= global_state.file_count) {
-					return; // no more files; empty output signals done to DuckDB
+				if (global_state.next_range < global_state.ranges.size()) {
+					range_item = global_state.ranges[global_state.next_range++];
+					file_idx = range_item.file_idx;
+					is_range = true;
+				} else if (global_state.next_whole_file < global_state.whole_files.size()) {
+					file_idx = global_state.whole_files[global_state.next_whole_file++];
+					is_range = false;
+				} else {
+					return; // no more work; empty output signals done to DuckDB
 				}
-				file_idx = global_state.next_file++;
 			}
 			file_path = bind_data.file_paths[file_idx];
 			if (!filename_filter || PassesFilter(filename_filter, file_path.data(), file_path.size(), false)) {
@@ -260,11 +340,18 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			}
 		}
 
-		// Open and start parsing the claimed file
+		// Open and start parsing the claimed file (or byte range of it)
 		state.current_file = file_path;
 		try {
-			auto new_ib = OpenTriplesFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
-			                              bind_data.expand_prefixes);
+			unique_ptr<ITriplesBuffer> new_ib;
+			if (is_range) {
+				new_ib = OpenTriplesFileRange(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
+				                              bind_data.expand_prefixes, range_item.start_offset, range_item.end_offset,
+				                              bind_data.file_sizes[file_idx]);
+			} else {
+				new_ib = OpenTriplesFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
+				                         bind_data.expand_prefixes);
+			}
 			new_ib->SetProgressCounter(&global_state.bytes_consumed);
 			new_ib->StartParse();
 			new_ib->SetColumnIds(state.column_ids);
@@ -296,6 +383,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
 	tf.named_parameters[FILENAME_PARAM] = LogicalType::BOOLEAN;
+	tf.named_parameters[PARALLEL_SCAN] = LogicalType::BOOLEAN;
 	tf.projection_pushdown = true;
 	tf.filter_pushdown = true;
 	tf.cardinality = RDFReaderCardinality;

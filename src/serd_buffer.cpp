@@ -107,6 +107,12 @@ void SerdBuffer::StartParse() {
 	                                (uint8_t *)fp, READ_BUFFER_SIZE);
 }
 
+bool SerdBuffer::AtStreamEnd() {
+	idx_t pos = _file_handle->SeekPosition();
+	int64_t sz = _fs->GetFileSize(*_file_handle);
+	return sz >= 0 && pos >= (idx_t)sz;
+}
+
 void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNode *node) {
 	if (!node || !node->buf) {
 		duckdb::FlatVector::SetNull(vec, row_idx, true);
@@ -178,9 +184,7 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 				_eof = true;
 			} else {
 				try {
-					idx_t pos = _file_handle->SeekPosition();
-					int64_t sz = _fs->GetFileSize(*_file_handle);
-					if (sz >= 0 && pos >= (idx_t)sz) {
+					if (AtStreamEnd()) {
 						_eof = true;
 					} else {
 						if (_has_error)

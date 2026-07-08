@@ -21,7 +21,7 @@ public:
 	~SerdBuffer();
 
 	void PopulateChunk(duckdb::DataChunk &output);
-	void StartParse();
+	virtual void StartParse();
 
 private:
 	// Helper to write to vector
@@ -35,10 +35,21 @@ private:
 	static SerdStatus BaseCallback(void *, const SerdNode *);
 	static SerdStatus PrefixCallback(void *, const SerdNode *, const SerdNode *);
 
-private:
+protected:
+	// Accessible to subclasses (e.g. SerdRangeBuffer) that need to install their
+	// own SerdSource stream via serd_reader_start_source_stream.
 	std::unique_ptr<SerdReader, decltype(&serd_reader_free)> _reader;
 	std::unique_ptr<SerdEnv, decltype(&serd_env_free)> _env;
 
+	// Called from PopulateChunk when SERD reports SERD_FAILURE on a seekable
+	// handle, to decide whether this is a legitimate end of the (sub-)stream
+	// rather than a real parse failure. Default (whole-file) semantics: we're
+	// at the end once the handle's seek position has reached the file's
+	// actual size. Range-bounded subclasses override this to compare against
+	// their own range end instead.
+	virtual bool AtStreamEnd();
+
+private:
 	bool _has_error = false;
 	std::string _error_message;
 	uint64_t target_rows;
