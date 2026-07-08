@@ -8,11 +8,11 @@ Table function. Reads one or more RDF files and returns their triples as rows.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `path` | VARCHAR | Yes | — | File path or glob pattern |
+| `path` | VARCHAR or VARCHAR[] | Yes | — | File path, glob pattern, or list of paths/glob patterns |
 | `strict_parsing` | BOOLEAN | No | `true` | When `false`, permits malformed URIs instead of raising an error |
 | `prefix_expansion` | BOOLEAN | No | `false` | Expand CURIE-form URIs to full URIs. Ignored for NTriples and NQuads |
 | `file_type` | VARCHAR | No | auto-detect | Override format detection. Values: `ttl`, `turtle`, `nq`, `nquads`, `nt`, `ntriples`, `trig`, `rdf`, `xml` |
-| `include_filenames` | BOOLEAN | No | `false` | When `true`, adds a 7th column `filename` containing the source file path for each triple |
+| `filename` | BOOLEAN | No | `false` | When `true`, adds a 7th column `filename` containing the source file path for each triple |
 
 **Returns**
 
@@ -24,7 +24,7 @@ Table function. Reads one or more RDF files and returns their triples as rows.
 | `object` | VARCHAR | No | Object value (URI, blank node, or literal) |
 | `object_datatype` | VARCHAR | Yes | XSD datatype URI for typed literals; otherwise `NULL` |
 | `object_lang` | VARCHAR | Yes | BCP 47 language tag for language-tagged literals; otherwise `NULL` |
-| `filename` | VARCHAR | Yes | Source file path; only present when `include_filenames = true` |
+| `filename` | VARCHAR | Yes | Source file path; only present when `filename = true` |
 
 **Supported formats**
 
@@ -47,6 +47,9 @@ SELECT subject, predicate, object FROM read_rdf('data.ttl');
 -- Read multiple files with a glob pattern
 SELECT COUNT(*) FROM read_rdf('shards/*.nt');
 
+-- Read an explicit list of files (also accepts glob patterns)
+SELECT COUNT(*) FROM read_rdf(['shards/a.nt', 'shards/b.nt']);
+
 -- Override format detection, disable strict parsing
 SELECT * FROM read_rdf('data/*.dat', file_type = 'ttl', strict_parsing = false);
 
@@ -54,11 +57,11 @@ SELECT * FROM read_rdf('data/*.dat', file_type = 'ttl', strict_parsing = false);
 SELECT * FROM read_rdf('data.ttl', prefix_expansion = true);
 
 -- Show which file each triple came from (useful with glob patterns)
-SELECT subject, filename FROM read_rdf('shards/*.nt', include_filenames = true);
+SELECT subject, filename FROM read_rdf('shards/*.nt', filename = true);
 
 -- Count triples per source file
 SELECT filename, COUNT(*) AS triple_count
-FROM read_rdf('data/*.nt', include_filenames = true)
+FROM read_rdf('data/*.nt', filename = true)
 GROUP BY filename
 ORDER BY filename;
 ```
@@ -75,10 +78,10 @@ Throws an error for NTriples, NQuads, and RDF/XML, as those formats do not conta
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `path` | VARCHAR | Yes | — | File path or glob pattern |
+| `path` | VARCHAR or VARCHAR[] | Yes | — | File path, glob pattern, or list of paths/glob patterns |
 | `strict_parsing` | BOOLEAN | No | `true` | When `false`, skips malformed content instead of raising an error |
 | `file_type` | VARCHAR | No | auto-detect | Override format detection. Values: `ttl`, `turtle`, `trig` |
-| `include_filenames` | BOOLEAN | No | `false` | When `true`, adds a 4th column `filename` containing the source file path |
+| `filename` | BOOLEAN | No | `false` | When `true`, adds a 4th column `filename` containing the source file path |
 
 **Returns**
 
@@ -87,7 +90,7 @@ Throws an error for NTriples, NQuads, and RDF/XML, as those formats do not conta
 | `prefix` | VARCHAR | Prefix name; `NULL` for `@base` declarations (which have no prefix name) |
 | `uri` | VARCHAR | Namespace URI |
 | `is_base` | BOOLEAN | `true` for `@base` declarations, `false` for `@prefix` declarations |
-| `filename` | VARCHAR | Source file path; only present when `include_filenames = true` |
+| `filename` | VARCHAR | Source file path; only present when `filename = true` |
 
 **Supported formats**
 
@@ -110,14 +113,18 @@ SELECT DISTINCT prefix, uri
 FROM read_rdf_prefixes('ontologies/*.ttl')
 ORDER BY prefix;
 
+-- Read an explicit list of files
+SELECT DISTINCT prefix, uri
+FROM read_rdf_prefixes(['a.ttl', 'b.ttl']);
+
 -- Show which file each prefix came from
 SELECT filename, prefix, uri
-FROM read_rdf_prefixes('ontologies/*.ttl', include_filenames = true)
+FROM read_rdf_prefixes('ontologies/*.ttl', filename = true)
 ORDER BY filename, prefix;
 
 -- Count prefix declarations per file across a glob
 SELECT filename, COUNT(*) AS prefix_count
-FROM read_rdf_prefixes('data/*.ttl', include_filenames = true)
+FROM read_rdf_prefixes('data/*.ttl', filename = true)
 GROUP BY filename
 ORDER BY prefix_count DESC;
 ```
@@ -132,7 +139,7 @@ Table function. Reads one or more RDF files and returns a statistical profile wi
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `path` | VARCHAR | Yes | — | File path or glob pattern |
+| `path` | VARCHAR or VARCHAR[] | Yes | — | File path, glob pattern, or list of paths/glob patterns |
 | `strict_parsing` | BOOLEAN | No | `true` | When `false`, skips malformed triples instead of raising an error |
 | `file_type` | VARCHAR | No | auto-detect | Override format detection. Same values as `read_rdf` |
 
@@ -181,6 +188,9 @@ WHERE predicate = 'http://schema.org/startDate';
 SELECT predicate, subject_count, graph_count
 FROM profile_rdf('shards/*.nt')
 ORDER BY subject_count DESC;
+
+-- Read an explicit list of files
+SELECT predicate, count FROM profile_rdf(['a.nt', 'b.nt']);
 ```
 
 ---
@@ -194,7 +204,7 @@ In principle this will work for arbitrary size RDF files (unlike doing a pivot i
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `path` | VARCHAR | Yes | — | File path or glob pattern |
+| `path` | VARCHAR or VARCHAR[] | Yes | — | File path, glob pattern, or list of paths/glob patterns |
 | `strict_parsing` | BOOLEAN | No | `true` | When `false`, skips malformed triples instead of raising an error |
 | `file_type` | VARCHAR | No | auto-detect | Override format detection. Same values as `read_rdf` |
 
@@ -221,6 +231,9 @@ In principle this will work for arbitrary size RDF files (unlike doing a pivot i
 ```sql
 -- Pivot everything in a trig file
 SELECT * FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=true);
+
+-- Read an explicit list of files
+SELECT * FROM pivot_rdf(['a.ttl', 'b.ttl']);
 ```
 **Limitations**
 Subjects that repeat across multiple files will appear as multiple rows in the resulting table. To do otherwise would greatly impact performance. In the same way, triples or quads that *exactly* duplicate within a file will be deduped but not across files.

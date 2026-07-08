@@ -114,3 +114,9 @@ void ProfileFileSerd(const std::string &file_path, duckdb::FileSystem &fs, ITrip
 void ProfileFileXML(const std::string &file_path, duckdb::FileSystem &fs, bool strict_parsing,
                     RDFProfileAccumulator &accumulator);
 #endif
+
+/// Profile a single file, dispatching to ProfileFileSerd or ProfileFileXML based
+/// on file_type (auto-detected from the path extension when UNKNOWN). Shared by
+/// profile_rdf and pivot_rdf, which both need to profile every matched file.
+void ProfileFile(const std::string &file_path, duckdb::FileSystem &fs, ITriplesBuffer::FileType file_type,
+                 bool strict_parsing, bool expand_prefixes, RDFProfileAccumulator &accumulator);

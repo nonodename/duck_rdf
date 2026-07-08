@@ -1,10 +1,8 @@
 #include "include/pivot_rdf.hpp"
 #include "include/rdf_profiler.hpp"
 #include "include/I_triples_buffer.hpp"
-#include "include/serd_buffer.hpp"
-#ifndef DUCK_RDF_NO_XML
-#include "include/xml_buffer.hpp"
-#endif
+#include "include/rdf_multi_file.hpp"
+#include "include/rdf_triples_factory.hpp"
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -283,31 +281,6 @@ struct PivotRDFLocalState : public LocalTableFunctionState {
 };
 
 // ============================================================
-// Open file
-// ============================================================
-
-static unique_ptr<ITriplesBuffer> PivotOpenFile(const string &file_path, ITriplesBuffer::FileType ft, FileSystem &fs,
-                                                bool strict_parsing, bool expand_prefixes) {
-	if (ft == ITriplesBuffer::UNKNOWN)
-		ft = ITriplesBuffer::DetectFileTypeFromPath(file_path);
-	switch (ft) {
-	case ITriplesBuffer::TURTLE:
-	case ITriplesBuffer::NQUADS:
-	case ITriplesBuffer::NTRIPLES:
-	case ITriplesBuffer::TRIG:
-		return make_uniq<SerdBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
-	case ITriplesBuffer::XML:
-#ifdef DUCK_RDF_NO_XML
-		throw IOException("RDF/XML parsing is not supported in this build");
-#else
-		return make_uniq<XMLBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
-#endif
-	default:
-		throw IOException("Cannot determine file type for: " + file_path);
-	}
-}
-
-// ============================================================
 // Bind
 // ============================================================
 
@@ -316,11 +289,8 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 	auto result = make_uniq<PivotRDFBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
-	string pattern = input.inputs[0].GetValue<string>();
-	auto glob_results = fs.Glob(pattern);
-	if (glob_results.empty())
-		throw IOException("No files found matching: " + pattern);
-	for (auto &info : glob_results)
+	auto resolved_files = ResolveRDFFiles(context, input, "pivot_rdf");
+	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
 	auto ft_it = input.named_parameters.find("file_type");
@@ -338,27 +308,8 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 	// Profile
 	RDFProfileAccumulator accumulator;
 	for (auto &file_path : result->file_paths) {
-		ITriplesBuffer::FileType ft = result->file_type;
-		if (ft == ITriplesBuffer::UNKNOWN)
-			ft = ITriplesBuffer::DetectFileTypeFromPath(file_path);
 		try {
-			switch (ft) {
-			case ITriplesBuffer::TURTLE:
-			case ITriplesBuffer::NTRIPLES:
-			case ITriplesBuffer::NQUADS:
-			case ITriplesBuffer::TRIG:
-				ProfileFileSerd(file_path, fs, ft, result->strict_parsing, result->expand_prefixes, accumulator);
-				break;
-			case ITriplesBuffer::XML:
-#ifdef DUCK_RDF_NO_XML
-				throw duckdb::NotImplementedException("RDF/XML parsing is not supported in this build");
-#else
-				ProfileFileXML(file_path, fs, result->strict_parsing, accumulator);
-#endif
-				break;
-			default:
-				throw IOException("Cannot determine file type for: " + file_path);
-			}
+			ProfileFile(file_path, fs, result->file_type, result->strict_parsing, result->expand_prefixes, accumulator);
 		} catch (const std::runtime_error &re) {
 			throw IOException(re.what());
 		}
@@ -523,8 +474,8 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 			}
 			const string &file_path = bind_data.file_paths[file_idx];
 			try {
-				auto new_ib = PivotOpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
-				                            bind_data.expand_prefixes);
+				auto new_ib = OpenTriplesFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
+				                              bind_data.expand_prefixes);
 				new_ib->StartParse();
 				vector<column_t> all_cols = {0, 1, 2, 3, 4, 5};
 				new_ib->SetColumnIds(all_cols);
@@ -651,13 +602,15 @@ void RegisterPivotRDF(ExtensionLoader &loader) {
 	tf.named_parameters["strict_parsing"] = LogicalType::BOOLEAN;
 	tf.named_parameters["prefix_expansion"] = LogicalType::BOOLEAN;
 
-	CreateTableFunctionInfo info(tf);
+	auto function_set = RegisterRDFFileListFunction(tf);
+	CreateTableFunctionInfo info(function_set);
 	FunctionDescription desc;
 	desc.description =
 	    "Read RDF triples and pivot them into a wide table where each distinct predicate becomes a column "
-	    "and subjects become row identifiers.";
+	    "and subjects become row identifiers. Glob patterns and lists of file paths are supported.";
 	desc.examples.push_back("SELECT * FROM pivot_rdf('data.ttl')");
 	desc.examples.push_back("SELECT * FROM pivot_rdf('data.nt', prefix_expansion=true)");
+	desc.examples.push_back("SELECT * FROM pivot_rdf(['a.ttl', 'b.ttl'])");
 	info.descriptions.push_back(desc);
 	loader.RegisterFunction(std::move(info));
 }

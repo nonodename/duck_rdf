@@ -4,7 +4,9 @@
 #include "duckdb.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/planner/table_filter.hpp"
 #include <algorithm>
+#include <atomic>
 #include <queue>
 #include "string_util.hpp"
 /*
@@ -43,8 +45,39 @@ public:
 				_output_slot[col_ids[i]] = (int8_t)i;
 		}
 	}
+
+	// Row filters pushed down from DuckDB for graph/subject/predicate/object/
+	// object_datatype/object_lang (columns 0-5). Only simple constant-comparison
+	// filters (and AND-combinations / IS [NOT] NULL of those) are honored; any
+	// other filter type is left for DuckDB to re-check downstream.
+	duckdb::optional_ptr<duckdb::TableFilter> _column_filters[6] = {};
+
+	// `filters` is keyed by *position within col_ids* (DuckDB re-keys
+	// TableFilterSet relative to the projection list before handing it to the
+	// table function - see CreateTableFilterSet in plan_get.cpp), so it must be
+	// translated back to absolute column indices via col_ids, same as
+	// SetColumnIds does above.
+	void SetFilters(duckdb::optional_ptr<duckdb::TableFilterSet> filters,
+	                const duckdb::vector<duckdb::column_t> &col_ids) {
+		if (!filters) {
+			return;
+		}
+		for (auto &entry : filters->filters) {
+			if (entry.first >= col_ids.size()) {
+				continue;
+			}
+			duckdb::column_t abs_col = col_ids[entry.first];
+			if (abs_col < 6) {
+				_column_filters[abs_col] = entry.second.get();
+			}
+		}
+	}
 	uint64_t GetSkipCount() const {
 		return _skip_count;
+	}
+
+	void SetProgressCounter(std::atomic<uint64_t> *c) {
+		_progress_counter = c;
 	}
 
 	static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
@@ -99,6 +132,7 @@ protected:
 	bool _eof = false;
 	bool _strict_parsing = true;
 	bool _expand_prefixes = false;
+	std::atomic<uint64_t> *_progress_counter = nullptr;
 };
 
 #endif // I_TRIPLES_BUFFER_H

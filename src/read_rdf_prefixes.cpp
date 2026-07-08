@@ -1,5 +1,6 @@
 #include "include/read_rdf_prefixes.hpp"
 #include "include/I_triples_buffer.hpp"
+#include "include/rdf_multi_file.hpp"
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -13,9 +14,9 @@
 #include <string>
 #include <vector>
 
-#define PREFIXES_STRICT_PARSING    "strict_parsing"
-#define PREFIXES_FILE_TYPE         "file_type"
-#define PREFIXES_INCLUDE_FILENAMES "include_filenames"
+#define PREFIXES_STRICT_PARSING "strict_parsing"
+#define PREFIXES_FILE_TYPE      "file_type"
+#define PREFIXES_FILENAME       "filename"
 
 using namespace std;
 
@@ -174,11 +175,8 @@ static unique_ptr<FunctionData> RDFPrefixesBind(ClientContext &context, TableFun
 	auto result = make_uniq<RDFPrefixesBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
-	string pattern = input.inputs[0].GetValue<string>();
-	auto glob_results = fs.Glob(pattern);
-	if (glob_results.empty())
-		throw IOException("No files found matching: " + pattern);
-	for (auto &info : glob_results)
+	auto resolved_files = ResolveRDFFiles(context, input, "read_rdf_prefixes");
+	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
 	auto ft_it = input.named_parameters.find(PREFIXES_FILE_TYPE);
@@ -208,7 +206,7 @@ static unique_ptr<FunctionData> RDFPrefixesBind(ClientContext &context, TableFun
 		}
 	}
 
-	auto fn_it = input.named_parameters.find(PREFIXES_INCLUDE_FILENAMES);
+	auto fn_it = input.named_parameters.find(PREFIXES_FILENAME);
 	if (fn_it != input.named_parameters.end())
 		result->include_filenames = fn_it->second.GetValue<bool>();
 
@@ -301,15 +299,18 @@ void RegisterReadRDFPrefixes(ExtensionLoader &loader) {
 	                 RDFPrefixesGlobalInit, RDFPrefixesLocalInit);
 	tf.named_parameters[PREFIXES_STRICT_PARSING] = LogicalType::BOOLEAN;
 	tf.named_parameters[PREFIXES_FILE_TYPE] = LogicalType::VARCHAR;
-	tf.named_parameters[PREFIXES_INCLUDE_FILENAMES] = LogicalType::BOOLEAN;
+	tf.named_parameters[PREFIXES_FILENAME] = LogicalType::BOOLEAN;
 
-	CreateTableFunctionInfo info(tf);
+	auto function_set = RegisterRDFFileListFunction(tf);
+	CreateTableFunctionInfo info(function_set);
 	FunctionDescription desc;
 	desc.description =
 	    "Read the namespace prefix declarations from one or more RDF files. Returns prefix (local name), "
-	    "uri (namespace URI), and is_base (true for @base declarations) columns.";
+	    "uri (namespace URI), and is_base (true for @base declarations) columns. Glob patterns and lists of "
+	    "file paths are supported.";
 	desc.examples.push_back("SELECT * FROM read_rdf_prefixes('data.ttl')");
 	desc.examples.push_back("SELECT prefix, uri FROM read_rdf_prefixes('*.ttl')");
+	desc.examples.push_back("SELECT * FROM read_rdf_prefixes(['a.ttl', 'b.ttl'])");
 	info.descriptions.push_back(desc);
 	loader.RegisterFunction(std::move(info));
 }

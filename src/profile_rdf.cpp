@@ -2,6 +2,7 @@
 #include "include/rdf_profiler.hpp"
 #include "include/I_triples_buffer.hpp"
 #include "include/string_util.hpp"
+#include "include/rdf_multi_file.hpp"
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -131,11 +132,8 @@ static unique_ptr<FunctionData> ProfileRDFBind(ClientContext &context, TableFunc
 	auto result = make_uniq<ProfileRDFBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
-	string pattern = input.inputs[0].GetValue<string>();
-	auto glob_results = fs.Glob(pattern);
-	if (glob_results.empty())
-		throw IOException("No files found matching: " + pattern);
-	for (auto &info : glob_results)
+	auto resolved_files = ResolveRDFFiles(context, input, "profile_rdf");
+	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
 	auto ft_it = input.named_parameters.find(PROFILE_FILE_TYPE);
@@ -171,28 +169,9 @@ static unique_ptr<GlobalTableFunctionState> ProfileRDFGlobalInit(ClientContext &
 	RDFProfileAccumulator accumulator;
 
 	for (auto &file_path : bind_data.file_paths) {
-		ITriplesBuffer::FileType ft = bind_data.file_type;
-		if (ft == ITriplesBuffer::UNKNOWN)
-			ft = ITriplesBuffer::DetectFileTypeFromPath(file_path);
-
 		try {
-			switch (ft) {
-			case ITriplesBuffer::TURTLE:
-			case ITriplesBuffer::NTRIPLES:
-			case ITriplesBuffer::NQUADS:
-			case ITriplesBuffer::TRIG:
-				ProfileFileSerd(file_path, fs, ft, bind_data.strict_parsing, true, accumulator);
-				break;
-			case ITriplesBuffer::XML:
-#ifdef DUCK_RDF_NO_XML
-				throw duckdb::NotImplementedException("RDF/XML parsing is not supported in this build");
-#else
-				ProfileFileXML(file_path, fs, bind_data.strict_parsing, accumulator);
-#endif
-				break;
-			default:
-				throw IOException("Cannot determine file type for: " + file_path);
-			}
+			ProfileFile(file_path, fs, bind_data.file_type, bind_data.strict_parsing, /*expand_prefixes=*/true,
+			            accumulator);
 		} catch (const std::runtime_error &re) {
 			throw IOException(re.what());
 		}
@@ -273,13 +252,15 @@ void RegisterProfileRDF(ExtensionLoader &loader) {
 	tf.named_parameters[PROFILE_FILE_TYPE] = LogicalType::VARCHAR;
 	tf.named_parameters[PROFILE_STRICT_PARSING] = LogicalType::BOOLEAN;
 
-	CreateTableFunctionInfo info(tf);
+	auto function_set = RegisterRDFFileListFunction(tf);
+	CreateTableFunctionInfo info(function_set);
 	FunctionDescription desc;
 	desc.description =
 	    "Profile one or more RDF files and return a predicate-level statistical summary including value counts, "
-	    "datatypes, and cardinalities.";
+	    "datatypes, and cardinalities. Glob patterns and lists of file paths are supported.";
 	desc.examples.push_back("SELECT * FROM profile_rdf('data.nt')");
 	desc.examples.push_back("SELECT * FROM profile_rdf('data/*.ttl', strict_parsing=false)");
+	desc.examples.push_back("SELECT * FROM profile_rdf(['a.nt', 'b.nt'])");
 	info.descriptions.push_back(desc);
 	loader.RegisterFunction(std::move(info));
 }

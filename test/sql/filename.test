@@ -1,5 +1,5 @@
-# name: test/sql/include_filenames.test
-# description: test include_filenames parameter in read_rdf extension
+# name: test/sql/filename.test
+# description: test filename parameter in read_rdf extension
 # group: [sql]
 
 require rdf
@@ -10,17 +10,17 @@ SELECT COUNT(*) FROM read_rdf('test/rdf/shards/shard_a.nt');
 ----
 3
 
-# include_filenames=false is a no-op — still 6 columns
+# filename=false is a no-op — still 6 columns
 query I
-SELECT COUNT(*) FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = false);
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/shard_a.nt', filename = false);
 ----
 3
 
-# include_filenames=true adds a 7th column with the source file path
+# filename=true adds a 7th column with the source file path
 # note use of replace to make tests work across windows and unix derived
 query IT
 SELECT COUNT(*), replace(filename,'\','/')
-FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true)
+FROM read_rdf('test/rdf/shards/shard_a.nt', filename = true)
 GROUP BY filename;
 ----
 3	test/rdf/shards/shard_a.nt
@@ -28,7 +28,7 @@ GROUP BY filename;
 # Glob: rows from both shards carry distinct filenames
 query IT
 SELECT COUNT(*), replace(filename,'\','/')
-FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true)
+FROM read_rdf('test/rdf/shards/*.nt', filename = true)
 GROUP BY filename
 ORDER BY filename;
 ----
@@ -38,22 +38,32 @@ ORDER BY filename;
 # Projection pushdown: select only filename column
 query T
 SELECT DISTINCT replace(filename,'\','/')
-FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true);
+FROM read_rdf('test/rdf/shards/shard_a.nt', filename = true);
 ----
 test/rdf/shards/shard_a.nt
 
 # Projection pushdown: subject + filename, skipping all intermediate columns
 query TT
 SELECT subject, replace(filename,'\','/')
-FROM read_rdf('test/rdf/shards/shard_a.nt', include_filenames = true)
+FROM read_rdf('test/rdf/shards/shard_a.nt', filename = true)
 ORDER BY subject;
 ----
 http://example.org/s1	test/rdf/shards/shard_a.nt
 http://example.org/s2	test/rdf/shards/shard_a.nt
 http://example.org/s3	test/rdf/shards/shard_a.nt
 
-# COUNT(*) with include_filenames=true: filename slot not projected, must not crash
+# COUNT(*) with filename=true: filename slot not projected, must not crash
 query I
-SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true);
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt', filename = true);
 ----
 5
+
+# LIST[VARCHAR]: filename column tracks the originating file per row
+query IT
+SELECT COUNT(*), replace(filename,'\','/')
+FROM read_rdf(['test/rdf/shards/shard_a.nt', 'test/rdf/shards/shard_b.nt'], filename = true)
+GROUP BY filename
+ORDER BY filename;
+----
+3	test/rdf/shards/shard_a.nt
+2	test/rdf/shards/shard_b.nt

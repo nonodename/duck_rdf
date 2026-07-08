@@ -15,7 +15,7 @@ require rdf
 statement error
 SELECT * from read_rdf('not_exist.nt');
 ----
-IO Error: No files found matching: not_exist.nt
+IO Error: No files found that match the pattern "not_exist.nt"
 
 # Load the RDF file and check triple count
 query I

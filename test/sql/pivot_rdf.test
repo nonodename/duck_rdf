@@ -9,7 +9,7 @@ require rdf
 statement error
 SELECT * FROM pivot_rdf('not_exist.nt');
 ----
-IO Error: No files found matching: not_exist.nt
+IO Error: No files found that match the pattern "not_exist.nt"
 
 # ── Schema shape ─────────────────────────────────────────────────────────────
 
@@ -153,6 +153,12 @@ SELECT COUNT(*) FROM pivot_rdf('test/rdf/tests.nt', strict_parsing=false);
 
 query I
 SELECT COUNT(*) > 0 FROM pivot_rdf('test/rdf/shards/*.nt');
+----
+true
+
+# LIST[VARCHAR] of explicit file paths
+query I
+SELECT COUNT(*) > 0 FROM pivot_rdf(['test/rdf/shards/shard_a.nt', 'test/rdf/shards/shard_b.nt']);
 ----
 true
 

@@ -1,0 +1,127 @@
+# name: test/sql/read_rdf_parallel_ranges.test
+# description: byte-range parallel scanning of large NTriples/NQuads files (parallel_scan)
+# group: [sql]
+
+require rdf
+
+# ── Setup: a large synthetic NTriples file, generated purely via SQL so this
+# test doesn't depend on any external fixture. ~3M lines / ~218MB, comfortably
+# more than double the 64MB per-range target, so it splits into several ranges.
+# QUOTE/DELIMITER are set to bytes that never appear in the generated content,
+# so the CSV writer emits each line completely unquoted/unescaped.
+statement ok
+COPY (
+    SELECT '<http://ex.org/s' || i || '> <http://ex.org/p' || (i % 50) || '> "object value number ' || i || '" .' AS line
+    FROM generate_series(1, 3000000) t(i)
+) TO '__TEST_DIR__/big.nt' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
+
+statement ok
+COPY (
+    SELECT '<http://ex.org/s' || i || '> <http://ex.org/p' || (i % 50) || '> "object value number ' || i ||
+           '" <http://ex.org/g' || (i % 10) || '> .' AS line
+    FROM generate_series(1, 2000000) t(i)
+) TO '__TEST_DIR__/big.nq' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
+
+# ── Core correctness-equivalence: parallel_scan=true (new byte-range path)
+# must produce identical results to parallel_scan=false (classic whole-file
+# path), across several thread counts, since SQLLogicTest can't assert
+# literal thread counts directly - result equivalence is the invariant.
+foreach threads 1 4 8
+
+statement ok
+PRAGMA threads=${threads};
+
+query IIII
+SELECT count(*), count(distinct subject), min(subject), max(subject)
+FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=true);
+----
+3000000	3000000	http://ex.org/s1	http://ex.org/s999999
+
+query IIII
+SELECT count(*), count(distinct subject), min(subject), max(subject)
+FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=false);
+----
+3000000	3000000	http://ex.org/s1	http://ex.org/s999999
+
+query IIII
+SELECT count(*), count(distinct graph), count(distinct subject), min(subject)
+FROM read_rdf('__TEST_DIR__/big.nq', parallel_scan=true);
+----
+2000000	10	2000000	http://ex.org/s1
+
+query IIII
+SELECT count(*), count(distinct graph), count(distinct subject), min(subject)
+FROM read_rdf('__TEST_DIR__/big.nq', parallel_scan=false);
+----
+2000000	10	2000000	http://ex.org/s1
+
+endloop
+
+statement ok
+PRAGMA threads=4;
+
+# ── Filter pushdown regression: the range path builds an independent
+# SerdRangeBuffer per range, each with its own filter/column-id state, so
+# pushdown must behave identically to the classic path.
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=true)
+WHERE predicate = 'http://ex.org/p19';
+----
+60000
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=false)
+WHERE predicate = 'http://ex.org/p19';
+----
+60000
+
+# ── Filename column: every range-worker over the same file must tag its rows
+# with that same file's path - no per-file uniqueness assumption should break.
+query I
+SELECT COUNT(DISTINCT filename) FROM read_rdf('__TEST_DIR__/big.nt', filename=true, parallel_scan=true);
+----
+1
+
+# ── Mixed glob: one large ranged .nt alongside a small classic-path .ttl in a
+# single scan - the two code paths must coexist correctly.
+query I
+SELECT COUNT(*) FROM read_rdf(['__TEST_DIR__/big.nt', 'test/rdf/tests.ttl']);
+----
+3000009
+
+# ── Small file (well under the 64MB target range size): num_ranges evaluates
+# to 0 or 1, so it must fall back to the classic whole-file path automatically.
+statement ok
+CREATE TABLE tiny_src(line VARCHAR);
+
+statement ok
+INSERT INTO tiny_src VALUES
+    ('<http://ex.org/s1> <http://ex.org/p1> "v1" .'),
+    ('<http://ex.org/s2> <http://ex.org/p2> "v2" .'),
+    ('<http://ex.org/s3> <http://ex.org/p3> "v3" .');
+
+statement ok
+COPY tiny_src TO '__TEST_DIR__/small.nt' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/small.nt', parallel_scan=true);
+----
+3
+
+# ── Empty file: must behave as today (0 rows, no crash), regardless of
+# parallel_scan.
+statement ok
+COPY (SELECT NULL::VARCHAR AS line WHERE false) TO '__TEST_DIR__/empty.nt' (FORMAT CSV, HEADER false);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/empty.nt', parallel_scan=true);
+----
+0
+
+# ── parallel_scan=false always restores exactly today's whole-file behavior,
+# even for an otherwise-eligible large file - this is the escape hatch used
+# throughout this test to force the classic path for direct comparison.
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=false);
+----
+3000000

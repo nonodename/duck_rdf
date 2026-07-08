@@ -43,10 +43,14 @@ set(EXTENSION_SOURCES
     src/rdf_extension.cpp
     src/r2rml_copy.cpp
     src/serd_buffer.cpp
+    src/serd_range_buffer.cpp
     src/rdf_profiler.cpp
     src/profile_rdf.cpp
     src/pivot_rdf.cpp
     src/read_rdf_prefixes.cpp
+    src/table_filter_eval.cpp
+    src/rdf_multi_file.cpp
+    src/rdf_triples_factory.cpp
 )
 
 # CURL and LibXml2 are not available in Emscripten/WASM builds:
