@@ -14,7 +14,7 @@ require rdf
 statement error
 SELECT * FROM read_rdf_prefixes('not_exist.ttl');
 ----
-IO Error: No files found matching: not_exist.ttl
+IO Error: No files found that match the pattern "not_exist.ttl"
 
 # tests.ttl has 3 @prefix declarations and 1 @base declaration = 4 rows
 query I
@@ -95,23 +95,29 @@ SELECT COUNT(*) FROM read_rdf_prefixes('test/rdf/tests.t*');
 ----
 9
 
-# include_filenames adds a filename column
+# filename adds a filename column
 query I
 SELECT COUNT(*) FROM (
-  SELECT * FROM read_rdf_prefixes('test/rdf/tests.ttl', include_filenames=true)
+  SELECT * FROM read_rdf_prefixes('test/rdf/tests.ttl', filename=true)
 ) WHERE filename = 'test/rdf/tests.ttl';
 ----
 4
 
-# include_filenames with glob: each row knows which file it came from
+# filename with glob: each row knows which file it came from
 query TI
 SELECT replace(filename,'\','/') as filename, COUNT(*) as cnt
-FROM read_rdf_prefixes('test/rdf/tests.t*', include_filenames=true)
+FROM read_rdf_prefixes('test/rdf/tests.t*', filename=true)
 GROUP BY filename
 ORDER BY filename;
 ----
 test/rdf/tests.trig	5
 test/rdf/tests.ttl	4
+
+# LIST[VARCHAR] of explicit file paths
+query I
+SELECT COUNT(*) FROM read_rdf_prefixes(['test/rdf/tests.ttl', 'test/rdf/tests.trig']);
+----
+9
 
 # file_type override: parse tests.ttl with explicit file_type=turtle
 query I

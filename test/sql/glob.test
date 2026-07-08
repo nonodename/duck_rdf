@@ -8,13 +8,13 @@ require rdf
 statement error
 SELECT COUNT(*) FROM read_rdf('test/rdf/shards/no_such_file*.nt');
 ----
-IO Error: No files found matching: test/rdf/shards/no_such_file*.nt
+IO Error: No files found that match the pattern "test/rdf/shards/no_such_file*.nt"
 
 # An exact path that does not exist should also raise the same error
 statement error
 SELECT COUNT(*) FROM read_rdf('test/rdf/shards/does_not_exist.nt');
 ----
-IO Error: No files found matching: test/rdf/shards/does_not_exist.nt
+IO Error: No files found that match the pattern "test/rdf/shards/does_not_exist.nt"
 
 # Exact path still works — glob returns the single file unchanged (regression)
 query I
@@ -48,5 +48,17 @@ http://example.org/s5	http://example.org/o5
 # shard_a and shard_b have .nt extensions, but we can force the parser explicitly
 query I
 SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt', file_type = 'ntriples');
+----
+5
+
+# LIST[VARCHAR] of explicit file paths
+query I
+SELECT COUNT(*) FROM read_rdf(['test/rdf/shards/shard_a.nt', 'test/rdf/shards/shard_b.nt']);
+----
+5
+
+# LIST[VARCHAR] with a single glob pattern
+query I
+SELECT COUNT(*) FROM read_rdf(['test/rdf/shards/*.nt']);
 ----
 5

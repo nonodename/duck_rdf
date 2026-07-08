@@ -2,10 +2,6 @@
 
 #include "rdf_extension.hpp"
 #include "duckdb.hpp"
-#include "include/serd_buffer.hpp"
-#ifndef DUCK_RDF_NO_XML
-#include "include/xml_buffer.hpp"
-#endif
 #include "include/I_triples_buffer.hpp"
 #ifndef DUCK_RDF_NO_SPARQL
 #include "include/sparql_reader.hpp"
@@ -15,6 +11,8 @@
 #include "include/pivot_rdf.hpp"
 #include "include/read_rdf_prefixes.hpp"
 #include "include/table_filter_eval.hpp"
+#include "include/rdf_multi_file.hpp"
+#include "include/rdf_triples_factory.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -26,10 +24,10 @@
 
 using namespace std;
 
-#define STRICT_PARSING    "strict_parsing"
-#define PREFIX_EXPANSION  "prefix_expansion"
-#define FILE_TYPE         "file_type"
-#define INCLUDE_FILENAMES "include_filenames"
+#define STRICT_PARSING   "strict_parsing"
+#define PREFIX_EXPANSION "prefix_expansion"
+#define FILE_TYPE        "file_type"
+#define FILENAME_PARAM   "filename"
 
 namespace duckdb {
 
@@ -108,13 +106,10 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	auto result = make_uniq<RDFReaderBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
-	// Expand the input (which may be a glob pattern) to a concrete list of files
-	string pattern = input.inputs[0].GetValue<string>();
-	auto glob_results = fs.Glob(pattern);
-	if (glob_results.empty()) {
-		throw IOException("No files found matching: " + pattern);
-	}
-	for (auto &info : glob_results) {
+	// Expand the input (a glob pattern or a LIST[VARCHAR] of paths/globs) to a
+	// concrete list of files
+	auto resolved_files = ResolveRDFFiles(context, input, "read_rdf");
+	for (auto &info : resolved_files) {
 		result->file_paths.push_back(std::move(info.path));
 	}
 
@@ -154,7 +149,7 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 		result->expand_prefixes = false;
 	}
 
-	auto include_filenames_param = input.named_parameters.find(INCLUDE_FILENAMES);
+	auto include_filenames_param = input.named_parameters.find(FILENAME_PARAM);
 	if (include_filenames_param != input.named_parameters.end()) {
 		result->include_filenames = include_filenames_param->second.GetValue<bool>();
 	}
@@ -185,29 +180,6 @@ static unique_ptr<LocalTableFunctionState> RDFReaderInit(ExecutionContext &conte
 	state->column_ids = input.column_ids;
 	state->filters = input.filters;
 	return state;
-}
-
-// Opens a single file and returns the appropriate parser buffer
-static unique_ptr<ITriplesBuffer> OpenFile(const string &file_path, ITriplesBuffer::FileType ft, FileSystem &fs,
-                                           bool strict_parsing, bool expand_prefixes) {
-	if (ft == ITriplesBuffer::UNKNOWN) {
-		ft = ITriplesBuffer::DetectFileTypeFromPath(file_path);
-	}
-	switch (ft) {
-	case ITriplesBuffer::TURTLE:
-	case ITriplesBuffer::NQUADS:
-	case ITriplesBuffer::NTRIPLES:
-	case ITriplesBuffer::TRIG:
-		return make_uniq<SerdBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
-	case ITriplesBuffer::XML:
-#ifdef DUCK_RDF_NO_XML
-		throw IOException("RDF/XML parsing is not supported in this build");
-#else
-		return make_uniq<XMLBuffer>(file_path, "", &fs, strict_parsing, expand_prefixes, ft);
-#endif
-	default:
-		throw IOException("Cannot determine file type for: " + file_path);
-	}
 }
 
 static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, DataChunk &output) {
@@ -291,8 +263,8 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 		// Open and start parsing the claimed file
 		state.current_file = file_path;
 		try {
-			auto new_ib =
-			    OpenFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing, bind_data.expand_prefixes);
+			auto new_ib = OpenTriplesFile(file_path, bind_data.file_type, fs, bind_data.strict_parsing,
+			                              bind_data.expand_prefixes);
 			new_ib->SetProgressCounter(&global_state.bytes_consumed);
 			new_ib->StartParse();
 			new_ib->SetColumnIds(state.column_ids);
@@ -323,19 +295,22 @@ static void LoadInternal(ExtensionLoader &loader) {
 	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
 	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
-	tf.named_parameters[INCLUDE_FILENAMES] = LogicalType::BOOLEAN;
+	tf.named_parameters[FILENAME_PARAM] = LogicalType::BOOLEAN;
 	tf.projection_pushdown = true;
 	tf.filter_pushdown = true;
 	tf.cardinality = RDFReaderCardinality;
 	tf.table_scan_progress = RDFReaderProgress;
 
-	CreateTableFunctionInfo info(tf);
+	auto function_set = RegisterRDFFileListFunction(tf);
+	CreateTableFunctionInfo info(function_set);
 	FunctionDescription desc;
 	desc.description =
 	    "Read RDF triples from one or more files (Turtle, NTriples, NQuads, TriG, or RDF/XML) into a table with "
-	    "columns graph, subject, predicate, object, object_datatype, and object_lang. Glob patterns are supported.";
+	    "columns graph, subject, predicate, object, object_datatype, and object_lang. Glob patterns and lists of "
+	    "file paths are supported.";
 	desc.examples.push_back("SELECT * FROM read_rdf('data.nt')");
 	desc.examples.push_back("SELECT subject, predicate, object FROM read_rdf('*.ttl')");
+	desc.examples.push_back("SELECT * FROM read_rdf(['a.nt', 'b.nt'])");
 	desc.examples.push_back("SELECT * FROM read_rdf('data.rdf', file_type='rdf', strict_parsing=false)");
 	info.descriptions.push_back(desc);
 	loader.RegisterFunction(std::move(info));

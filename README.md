@@ -32,7 +32,7 @@ The other three columns will be null if no value is provided in the underlying R
 An optional seventh columnn is available to return the filename that the triple was found in.
 
 
- `read_rdf()` takes a file path or glob pattern and returns a table. When a glob pattern matches multiple files, all matching files are read and their triples are combined:
+ `read_rdf()` takes a file path, glob pattern, or `LIST` of paths/globs and returns a table. When multiple files are matched, all of them are read and their triples are combined:
 ```
 D select subject, predicate from read_rdf('test/rdf/tests.nt');
 ┌───────────────────────────────────┬─────────────────────────────────────────────────┐
@@ -73,11 +73,11 @@ When using a glob pattern the `file_type` override is applied uniformly to every
 
 ### Filename column
 
-The parameter `include_filenames` a boolean defaults to `false`.When `true`, adds a 7th column `filename` containing the source file path for each triple
+The parameter `filename`, a boolean, defaults to `false`. When `true`, adds a 7th column `filename` containing the source file path for each triple.
 
 ### Glob / multiple files
 
-The path argument accepts glob patterns, allowing multiple RDF files to be read in a single call. All matched files are scanned in parallel and their triples are combined into one result set:
+The path argument accepts a glob pattern or a `LIST` of paths/glob patterns, allowing multiple RDF files to be read in a single call. All matched files are scanned in parallel and their triples are combined into one result set:
 
 ```sql
 -- Read all NTriples files in a directory
@@ -85,9 +85,12 @@ SELECT COUNT(*) FROM read_rdf('data/shards/*.nt');
 
 -- Mix with other parameters — file_type applies to every matched file
 SELECT * FROM read_rdf('data/shards/*.dat', file_type = 'ttl', strict_parsing = false);
+
+-- A LIST of explicit paths and/or glob patterns is also accepted
+SELECT COUNT(*) FROM read_rdf(['data/shards/a.nt', 'data/shards/b.nt']);
 ```
 
-If the pattern matches no files an `IO Error` is raised.
+If the pattern (or list) matches no files an `IO Error` is raised.
 
 ## Reading RDF Prefixes
 
@@ -109,7 +112,7 @@ SELECT prefix, uri, is_base FROM read_rdf_prefixes('test/rdf/tests.ttl');
 └────────┴───────────────────────────────┴─────────┘
 ```
 
-`read_rdf_prefixes()` accepts the same `strict_parsing`, `file_type`, and `include_filenames` parameters as `read_rdf()` and supports glob patterns:
+`read_rdf_prefixes()` accepts the same `strict_parsing`, `file_type`, and `filename` parameters as `read_rdf()` and supports glob patterns and `LIST` arguments:
 
 ```sql
 -- Collect all unique prefixes across a set of Turtle files
@@ -138,7 +141,7 @@ SELECT graph, subject, "http://example.org/hasEmoji" FROM pivot_rdf('test/rdf/te
 └──────────┴───────────────────────────────────┴─────────────────────────────┘
 ```
 
-`profile_rdf` accepts the same `strict_parsing` and `file_type` parameters as `read_rdf`, and supports glob patterns across all supported formats.
+`profile_rdf` accepts the same `strict_parsing` and `file_type` parameters as `read_rdf`, and supports glob patterns and `LIST` arguments across all supported formats.
 
 
 ## Querying SPARQL Endpoints

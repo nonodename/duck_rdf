@@ -8,7 +8,7 @@ require rdf
 statement error
 SELECT * FROM profile_rdf('not_exist.nt');
 ----
-IO Error: No files found matching: not_exist.nt
+IO Error: No files found that match the pattern "not_exist.nt"
 
 # tests.nt has 9 triples across 7 distinct predicates
 query I
@@ -153,6 +153,12 @@ SELECT COUNT(*) FROM profile_rdf('test/xmlrdf/example07.rdf');
 # Glob pattern — shards directory contains only well-formed NT files
 query I
 SELECT COUNT(*) > 0 FROM profile_rdf('test/rdf/shards/*.nt');
+----
+true
+
+# LIST[VARCHAR] of explicit file paths
+query I
+SELECT COUNT(*) > 0 FROM profile_rdf(['test/rdf/shards/shard_a.nt', 'test/rdf/shards/shard_b.nt']);
 ----
 true
 

@@ -334,3 +334,32 @@ void ProfileFileXML(const std::string &file_path, duckdb::FileSystem &fs, bool s
 	}
 }
 #endif // DUCK_RDF_NO_XML
+
+// ============================================================
+// Shared per-file dispatch
+// ============================================================
+
+void ProfileFile(const std::string &file_path, duckdb::FileSystem &fs, ITriplesBuffer::FileType file_type,
+                 bool strict_parsing, bool expand_prefixes, RDFProfileAccumulator &accumulator) {
+	ITriplesBuffer::FileType ft = file_type;
+	if (ft == ITriplesBuffer::UNKNOWN)
+		ft = ITriplesBuffer::DetectFileTypeFromPath(file_path);
+
+	switch (ft) {
+	case ITriplesBuffer::TURTLE:
+	case ITriplesBuffer::NTRIPLES:
+	case ITriplesBuffer::NQUADS:
+	case ITriplesBuffer::TRIG:
+		ProfileFileSerd(file_path, fs, ft, strict_parsing, expand_prefixes, accumulator);
+		break;
+	case ITriplesBuffer::XML:
+#ifdef DUCK_RDF_NO_XML
+		throw duckdb::NotImplementedException("RDF/XML parsing is not supported in this build");
+#else
+		ProfileFileXML(file_path, fs, strict_parsing, accumulator);
+#endif
+		break;
+	default:
+		throw duckdb::IOException("Cannot determine file type for: " + file_path);
+	}
+}

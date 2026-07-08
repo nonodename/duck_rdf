@@ -121,14 +121,14 @@ RDF/XML Syntax Specification (Revised)
 # Filename filter (synthetic column 6): non-matching shard is skipped entirely
 query IT
 SELECT COUNT(*), replace(filename,'\','/')
-FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true)
+FROM read_rdf('test/rdf/shards/*.nt', filename = true)
 WHERE filename LIKE '%shard_a.nt'
 GROUP BY filename;
 ----
 3	test/rdf/shards/shard_a.nt
 
 query I
-SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt', include_filenames = true)
+SELECT COUNT(*) FROM read_rdf('test/rdf/shards/*.nt', filename = true)
 WHERE filename = 'no/such/file.nt';
 ----
 0
