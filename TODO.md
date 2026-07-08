@@ -65,6 +65,10 @@ Improved buffer:
 ```
 Run Time (s): real 81.362 user 78.447340 sys 2.612139
 ```
+Multi-threaded .nt .nq parsing:
+```
+Run Time (s): real 10.905 user 89.142952 sys 4.594007
+```
 Baseline for filter pushdown
 ```
 memory D select count(*) from read_rdf('../geoNames/geonames.nt') 
@@ -78,7 +82,11 @@ memory D select count(*) from read_rdf('../geoNames/geonames.nt')
 └──────────────┘
 Run Time (s): real 90.805 user 176.509459 sys 4.014763
 ```
-With pushdown
+With predicate test pushdown
 ```
 Run Time (s): real 82.206 user 79.360362 sys 2.483339
+```
+With multi-threaded .nt .nq parsing:
+```
+Run Time (s): real 11.038 user 90.174406 sys 4.508942
 ```
