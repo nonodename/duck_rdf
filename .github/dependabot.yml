@@ -19,6 +19,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    allow:
+      - dependency-name: "*"
+        version-type: "version"
     groups:
       duckdb-ecosystem:
         patterns:
