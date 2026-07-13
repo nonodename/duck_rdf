@@ -206,7 +206,7 @@ TO 'output.nt'
 (FORMAT r2rml, mapping 'mapping.ttl');
 ```
 
-Expect this mode to be as performant as single threaded output can be as it follows the idioms for copy export. 
+This mode uses DuckDBs parallelism for ntriples so expect writes to be very fast.
 
 ### Full R2RML mode
 
@@ -216,7 +216,7 @@ Use this when your mapping has `rr:logicalTable` declarations that specify which
 COPY (SELECT 1) TO 'output.nt' (FORMAT r2rml, mapping 'mapping.ttl');
 ```
 
-To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. Output does stream so, in principle there should be no limit on output file size.
+To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. Output does stream so, in principle there should be no limit on output file size, however the write will be single threaded and not benefit from Duck's parallism.
 
 ### Options
 

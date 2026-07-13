@@ -352,6 +352,8 @@ TO 'output.nt'
 (FORMAT r2rml, mapping 'mapping.ttl');
 ```
 
+This mode benefits from DuckDB parellism. 
+
 **Full R2RML mode** — use when the mapping contains `rr:logicalTable` declarations. The extension ignores the `COPY` query and runs its own queries from the mapping. Pass a dummy `SELECT 1`:
 
 ```sql
@@ -359,6 +361,7 @@ COPY (SELECT 1)
 TO 'output.nt'
 (FORMAT r2rml, mapping 'mapping.ttl');
 ```
+This mode will be single threaded and less performant than the equivalent inside out.
 
 **Example**
 
