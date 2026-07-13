@@ -1,0 +1,75 @@
+# name: test/sql/write_rdf_parallel.test
+# description: validate PARALLEL_COPY_TO_FILE correctness across concurrent per-thread SerdWriters and buffered flushes
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# 200,000 rows spans multiple DuckDB row groups (default 122,880 rows each), so
+# with threads > 1 the table scan feeding the COPY genuinely dispatches concurrent
+# copy_to_sink calls across threads — each with its own SerdWriter and buffer,
+# per src/r2rml_copy.cpp's R2RMLWriteLocalState. The 80-byte filler pads rows so
+# the combined output comfortably exceeds BufferedSerdSink::FLUSH_THRESHOLD (8 MB),
+# forcing multiple flush-and-continue cycles per thread as well as in Combine.
+
+statement ok
+CREATE TABLE parallel_table AS
+    SELECT i AS id, 'payload_' || repeat('x', 80) || '_' || CAST(i AS VARCHAR) AS val
+    FROM generate_series(1, 200000) t(i);
+
+statement ok
+SET threads=4;
+
+statement ok
+COPY (SELECT id, val FROM parallel_table)
+TO '__TEST_DIR__/parallel_out.nt'
+(FORMAT r2rml, mapping 'test/r2rml/parallel_map.ttl', ignore_case true);
+
+statement ok
+RESET threads;
+
+# 200,000 rows x 2 triples (rdf:type + val) = 400,000 — exact count proves no
+# triples were dropped or duplicated by concurrent flushes.
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/parallel_out.nt');
+----
+400000
+
+# Every row produced a distinct subject — no thread clobbered another's output.
+query I
+SELECT COUNT(DISTINCT subject) FROM read_rdf('__TEST_DIR__/parallel_out.nt');
+----
+200000
+
+# First row (id=1)
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/parallel_out.nt')
+WHERE subject = 'http://example.com/prow/1';
+----
+2
+
+# Last row (id=200000)
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/parallel_out.nt')
+WHERE subject = 'http://example.com/prow/200000';
+----
+2
+
+# Row that likely lands mid-flush inside one thread's buffer. Check the literal
+# round-tripped intact (exact length + prefix/suffix) rather than hardcoding the
+# full 95-byte payload string.
+query III
+SELECT LENGTH(object), starts_with(object, 'payload_'), ends_with(object, '_123456')
+FROM read_rdf('__TEST_DIR__/parallel_out.nt')
+WHERE subject = 'http://example.com/prow/123456'
+  AND predicate = 'http://example.com/parallel#val';
+----
+95	true	true
+
+# rdf:type triple for the same row
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/parallel_out.nt')
+WHERE subject = 'http://example.com/prow/123456'
+  AND predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+http://example.com/parallel#Row

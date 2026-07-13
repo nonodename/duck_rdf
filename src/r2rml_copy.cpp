@@ -19,6 +19,7 @@
 #include "include/string_util.hpp"
 #include "yarrrml/YARRRMLParser.h"
 #include <map>
+#include <mutex>
 #include <unordered_map>
 
 using namespace std;
@@ -432,11 +433,31 @@ struct NullSQLConnection : public r2rml::SQLConnection {
 	}
 };
 
-// Serd write sink: streams output sequentially to a DuckDB FileHandle.
-static size_t serdFileHandleSink(const void *buf, size_t len, void *stream) {
-	static_cast<FileHandle *>(stream)->Write(const_cast<void *>(buf), static_cast<idx_t>(len));
-	return len;
-}
+// Serd write sink: accumulates output in memory so callers can batch it into
+// a single large FileHandle::Write() instead of one syscall per triple.
+struct BufferedSerdSink {
+	std::string buffer;
+	// 8 MB: large enough to amortise write() syscalls, small enough that
+	// (threads x FLUSH_THRESHOLD) stays a modest fraction of typical RAM.
+	static constexpr size_t FLUSH_THRESHOLD = 8 << 20;
+
+	static size_t SinkFunc(const void *buf, size_t len, void *stream) {
+		auto *self = static_cast<BufferedSerdSink *>(stream);
+		self->buffer.append(static_cast<const char *>(buf), len);
+		return len;
+	}
+
+	bool ShouldFlush() const {
+		return buffer.size() >= FLUSH_THRESHOLD;
+	}
+
+	void FlushTo(FileHandle &fh) {
+		if (!buffer.empty()) {
+			fh.Write(const_cast<char *>(buffer.data()), static_cast<idx_t>(buffer.size()));
+			buffer.clear();
+		}
+	}
+};
 
 struct R2RMLWriteBindData : public FunctionData {
 	std::string mapping_file_path;
@@ -471,10 +492,48 @@ struct R2RMLWriteBindData : public FunctionData {
 
 struct R2RMLWriteGlobalState : public GlobalFunctionData {
 	unique_ptr<FileHandle> file_handle;
-	SerdEnv *serd_env = nullptr;
-	SerdWriter *serd_writer = nullptr;
+	// Serializes file_handle->Write() calls across threads flushing concurrently.
+	std::mutex write_mutex;
+
+	// Used only by the single-threaded full-R2RML path (Finalize -> processDatabase).
+	// Inside-out mode writes through per-thread SerdEnv/SerdWriter in R2RMLWriteLocalState.
+	SerdEnv *finalize_serd_env = nullptr;
+	SerdWriter *finalize_serd_writer = nullptr;
+	BufferedSerdSink finalize_sink;
 
 	~R2RMLWriteGlobalState() {
+		if (finalize_serd_writer) {
+			serd_writer_free(finalize_serd_writer);
+			finalize_serd_writer = nullptr;
+		}
+		if (finalize_serd_env) {
+			serd_env_free(finalize_serd_env);
+			finalize_serd_env = nullptr;
+		}
+	}
+
+	void FlushBufferToFile(std::string &buf) {
+		if (buf.empty()) {
+			return;
+		}
+		std::lock_guard<std::mutex> lock(write_mutex);
+		file_handle->Write(const_cast<char *>(buf.data()), static_cast<idx_t>(buf.size()));
+		buf.clear();
+	}
+};
+
+struct R2RMLWriteLocalState : public LocalFunctionData {
+	BufferedSerdSink sink;
+	SerdEnv *serd_env = nullptr;
+	SerdWriter *serd_writer = nullptr;
+	// TriplesMap/TermMap objects hold mutable per-object scratch state (e.g.
+	// TemplateTermMap::expanded_, ColumnTermMap::cachedValue_) used to avoid
+	// allocating on every generateRDFTerm() call. That makes the mapping tree
+	// unsafe to share across threads, so each thread parses its own independent
+	// copy rather than reusing bind_data's shared mapping.
+	std::shared_ptr<r2rml::R2RMLMapping> mapping;
+
+	~R2RMLWriteLocalState() {
 		if (serd_writer) {
 			serd_writer_free(serd_writer);
 			serd_writer = nullptr;
@@ -485,8 +544,6 @@ struct R2RMLWriteGlobalState : public GlobalFunctionData {
 		}
 	}
 };
-
-struct R2RMLWriteLocalState : public LocalFunctionData {};
 
 static void R2RMLCopyOptions(ClientContext &, CopyOptionsInput &input) {
 	input.options[MAPPING_OPTION] = CopyOption(LogicalType::VARCHAR);
@@ -567,46 +624,88 @@ static unique_ptr<GlobalFunctionData> R2RMLCopyToInitializeGlobal(ClientContext 
 	auto &fs = FileSystem::GetFileSystem(context);
 	state->file_handle = fs.OpenFile(file_path, FileFlags::FILE_FLAGS_WRITE | FileFlags::FILE_FLAGS_FILE_CREATE_NEW);
 
-	state->serd_env = serd_env_new(nullptr);
-	if (!state->serd_env) {
+	state->finalize_serd_env = serd_env_new(nullptr);
+	if (!state->finalize_serd_env) {
 		throw InternalException("Failed to create Serd environment for RDF output.");
 	}
 
-	state->serd_writer = serd_writer_new(bind.output_syntax, (SerdStyle)0, state->serd_env, nullptr, serdFileHandleSink,
-	                                     state->file_handle.get());
-	if (!state->serd_writer) {
+	state->finalize_serd_writer = serd_writer_new(bind.output_syntax, (SerdStyle)0, state->finalize_serd_env, nullptr,
+	                                              BufferedSerdSink::SinkFunc, &state->finalize_sink);
+	if (!state->finalize_serd_writer) {
 		throw InternalException("Failed to create Serd writer for RDF output.");
 	}
 
 	return std::move(state);
 }
 
-static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext &, FunctionData &) {
-	return make_uniq<R2RMLWriteLocalState>();
+static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext &, FunctionData &bind_data) {
+	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
+	auto local = make_uniq<R2RMLWriteLocalState>();
+
+	// Only inside-out mode drives Sink from row data; full R2RML mode's Sink
+	// no-ops (Finalize does the work single-threaded), so skip the reparse there.
+	if (bind.inside_out_mode) {
+		try {
+			local->mapping = std::make_shared<r2rml::R2RMLMapping>(
+			    parseHelper(bind.mapping_file_path, bind.ignore_non_fatal_errors));
+		} catch (const std::runtime_error &e) {
+			throw InternalException("Failed to re-parse R2RML mapping for parallel write: %s", e.what());
+		}
+	}
+
+	// Each thread gets its own SerdEnv/SerdWriter: SerdWriter is not thread-safe,
+	// and PARALLEL_COPY_TO_FILE invokes Sink concurrently across threads.
+	local->serd_env = serd_env_new(nullptr);
+	if (!local->serd_env) {
+		throw InternalException("Failed to create per-thread Serd environment for RDF output.");
+	}
+	local->serd_writer = serd_writer_new(bind.output_syntax, (SerdStyle)0, local->serd_env, nullptr,
+	                                     BufferedSerdSink::SinkFunc, &local->sink);
+	if (!local->serd_writer) {
+		throw InternalException("Failed to create per-thread Serd writer for RDF output.");
+	}
+
+	return std::move(local);
 }
 
 static void R2RMLCopyToSink(ExecutionContext &, FunctionData &bind_data, GlobalFunctionData &gstate,
-                            LocalFunctionData &, DataChunk &input) {
+                            LocalFunctionData &lstate, DataChunk &input) {
 	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
 	if (!bind.inside_out_mode) {
 		return; // full R2RML mode: rows from COPY SELECT are ignored
 	}
 
 	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
+	auto &local = lstate.Cast<R2RMLWriteLocalState>();
 	NullSQLConnection null_conn;
 
 	// col_index was built once at bind time — reuse it across all chunks.
 	for (idx_t row = 0; row < input.size(); row++) {
 		DataChunkSQLRow sql_row(input, row, bind.col_index, bind.ignore_case);
-		for (const auto &tm : bind.mapping->triplesMaps) {
+		for (const auto &tm : local.mapping->triplesMaps) {
 			if (tm) {
-				tm->generateTriples(sql_row, *global.serd_writer, *bind.mapping, null_conn);
+				tm->generateTriples(sql_row, *local.serd_writer, *local.mapping, null_conn);
 			}
 		}
 	}
+
+	if (local.sink.ShouldFlush()) {
+		// Finish first so no partial statement (e.g. an open anonymous-node
+		// block) spans the flush boundary; writing can safely resume after.
+		serd_writer_finish(local.serd_writer);
+		global.FlushBufferToFile(local.sink.buffer);
+	}
 }
 
-static void R2RMLCopyToCombine(ExecutionContext &, FunctionData &, GlobalFunctionData &, LocalFunctionData &) {
+static void R2RMLCopyToCombine(ExecutionContext &, FunctionData &, GlobalFunctionData &gstate,
+                               LocalFunctionData &lstate) {
+	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
+	auto &local = lstate.Cast<R2RMLWriteLocalState>();
+
+	if (local.serd_writer) {
+		serd_writer_finish(local.serd_writer);
+	}
+	global.FlushBufferToFile(local.sink.buffer);
 }
 
 static void R2RMLCopyToFinalize(ClientContext &context, FunctionData &bind_data, GlobalFunctionData &gstate) {
@@ -617,17 +716,18 @@ static void R2RMLCopyToFinalize(ClientContext &context, FunctionData &bind_data,
 		// full R2RML mode: run the mapping's SQL queries against the live database
 		try {
 			ClientContextSQLConnection conn(context, bind.ignore_case);
-			bind.mapping->processDatabase(conn, *global.serd_writer);
+			bind.mapping->processDatabase(conn, *global.finalize_serd_writer);
 		} catch (const std::runtime_error &e) {
 			throw IOException(std::string("R2RML processing error: ") + e.what());
 		}
+		serd_writer_finish(global.finalize_serd_writer);
+		global.finalize_sink.FlushTo(*global.file_handle);
 	}
-
-	serd_writer_finish(global.serd_writer);
+	// inside-out mode: each thread's writer was already finished and flushed in Combine.
 }
 
 static CopyFunctionExecutionMode R2RMLCopyExecutionMode(bool, bool) {
-	return CopyFunctionExecutionMode::REGULAR_COPY_TO_FILE;
+	return CopyFunctionExecutionMode::PARALLEL_COPY_TO_FILE;
 }
 
 void RegisterR2RMLCopy(ExtensionLoader &loader) {
