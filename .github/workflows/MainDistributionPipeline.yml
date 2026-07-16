@@ -58,7 +58,7 @@ jobs:
           name: rdf-v1.5.4-extension-wasm_eh
           path: wasm-build/
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         name: Set up Node.js
         with:
           node-version: '20'
