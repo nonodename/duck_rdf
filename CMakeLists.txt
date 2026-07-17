@@ -11,11 +11,6 @@ set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 if (NOT EMSCRIPTEN)
     find_package(LibXml2 REQUIRED)
     find_package(CURL REQUIRED)
-else()
-    # TEMPORARY: verbose build output to inspect the actual side-module link
-    # command while diagnosing the YARRRMLParser vtable regression (see
-    # test/wasm-smoke-test). Remove once root-caused.
-    set(CMAKE_VERBOSE_MAKEFILE ON)
 endif()
 
 project(${TARGET_NAME} LANGUAGES C CXX)
@@ -135,33 +130,14 @@ if (NOT EMSCRIPTEN)
 endif()
 
 # Link internal libs; LibXml2 and CURL are excluded for WASM (no OS sockets, no WASM build of CURL)
-if (EMSCRIPTEN)
-    # sql2rdf >= v2.0.0 makes yarrrml::YARRRMLParser polymorphic (it now
-    # derives from r2rml::MappingParser). wasm-ld's SIDE_MODULE=2 link
-    # tolerates unresolved symbols instead of erroring, so if the static
-    # archive member that carries YARRRMLParser's vtable definition isn't
-    # otherwise pulled in, the vtable is silently left as an unresolved
-    # runtime import and `LOAD rdf` fails in the browser (the issue #39
-    # symptom; see test/wasm-smoke-test). Force the whole archive in so
-    # that object is always included.
-    target_link_libraries(${EXTENSION_NAME}
-            ${SERD_NAME}
-            "-Wl,--whole-archive" sql2rdf_yarrrml sql2rdf_r2rml "-Wl,--no-whole-archive"
-    )
-    target_link_libraries(${LOADABLE_EXTENSION_NAME}
-            ${SERD_NAME}
-            "-Wl,--whole-archive" sql2rdf_yarrrml sql2rdf_r2rml "-Wl,--no-whole-archive"
-    )
-else()
-    target_link_libraries(${EXTENSION_NAME}
-            ${SERD_NAME}
-            sql2rdf::yarrrml
-    )
-    target_link_libraries(${LOADABLE_EXTENSION_NAME}
-            ${SERD_NAME}
-            sql2rdf::yarrrml
-    )
-endif()
+target_link_libraries(${EXTENSION_NAME}
+        ${SERD_NAME}
+        sql2rdf::yarrrml
+)
+target_link_libraries(${LOADABLE_EXTENSION_NAME}
+        ${SERD_NAME}
+        sql2rdf::yarrrml
+)
 
 # Signal to C++ that XML and SPARQL features are disabled in WASM builds
 if (NOT EMSCRIPTEN)
