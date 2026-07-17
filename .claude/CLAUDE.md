@@ -157,7 +157,7 @@ Git submodules (branch `v1.5-variegata`, i.e. the DuckDB v1.5 line — see `docs
 
 CMake FetchContent (fetched at configure time, not checked into the repo; pins live in `CMakeLists.txt`):
 - `serd` v0.32.10 — RDF parsing/writing library (built as an internal static lib from an explicit source list; the target name must remain `serd` so sql2rdf reuses it)
-- `sql2rdf` v1.2.3 — R2RML mapping compiler/evaluator
+- `sql2rdf` v2.0.0 — R2RML mapping compiler/evaluator
 - `yaml-cpp` 0.9.0 — YARRRML parsing support
 
 vcpkg (`vcpkg.json`): `libxml2`, `curl` (with SSL) — both excluded on the `emscripten` platform.
