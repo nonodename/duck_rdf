@@ -15,6 +15,11 @@ if (EMSCRIPTEN)
         LOAD_TESTS
         LINKED_LIBS "$<TARGET_FILE:serd>;$<TARGET_FILE:sql2rdf_yarrrml>;$<TARGET_FILE:sql2rdf_r2rml>;$<TARGET_FILE:yaml-cpp>"
     )
+    # TEMPORARY diagnostic: confirm what actually landed in the variable the
+    # WASM side-module emcc link step reads (see extension_build_tools.cmake
+    # build_loadable_extension_directory / TO_BE_LINKED). Remove once
+    # root-caused.
+    message(STATUS "DIAG: DUCKDB_EXTENSION_RDF_LINKED_LIBS = '${DUCKDB_EXTENSION_RDF_LINKED_LIBS}'")
 else()
     duckdb_extension_load(rdf
         SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}
