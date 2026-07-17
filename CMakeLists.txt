@@ -94,7 +94,7 @@ target_include_directories(${SERD_NAME}
 FetchContent_Declare(
   sql2rdf
   GIT_REPOSITORY https://github.com/nonodename/sql2rdf.git
-  GIT_TAG v1.2.4
+  GIT_TAG v2.0.0
 )
 
 FetchContent_MakeAvailable(sql2rdf)
@@ -130,14 +130,33 @@ if (NOT EMSCRIPTEN)
 endif()
 
 # Link internal libs; LibXml2 and CURL are excluded for WASM (no OS sockets, no WASM build of CURL)
-target_link_libraries(${EXTENSION_NAME}
-        ${SERD_NAME}
-        sql2rdf::yarrrml
-)
-target_link_libraries(${LOADABLE_EXTENSION_NAME}
-        ${SERD_NAME}
-        sql2rdf::yarrrml
-)
+if (EMSCRIPTEN)
+    # sql2rdf >= v2.0.0 makes yarrrml::YARRRMLParser polymorphic (it now
+    # derives from r2rml::MappingParser). wasm-ld's SIDE_MODULE=2 link
+    # tolerates unresolved symbols instead of erroring, so if the static
+    # archive member that carries YARRRMLParser's vtable definition isn't
+    # otherwise pulled in, the vtable is silently left as an unresolved
+    # runtime import and `LOAD rdf` fails in the browser (the issue #39
+    # symptom; see test/wasm-smoke-test). Force the whole archive in so
+    # that object is always included.
+    target_link_libraries(${EXTENSION_NAME}
+            ${SERD_NAME}
+            "-Wl,--whole-archive" sql2rdf_yarrrml sql2rdf_r2rml "-Wl,--no-whole-archive"
+    )
+    target_link_libraries(${LOADABLE_EXTENSION_NAME}
+            ${SERD_NAME}
+            "-Wl,--whole-archive" sql2rdf_yarrrml sql2rdf_r2rml "-Wl,--no-whole-archive"
+    )
+else()
+    target_link_libraries(${EXTENSION_NAME}
+            ${SERD_NAME}
+            sql2rdf::yarrrml
+    )
+    target_link_libraries(${LOADABLE_EXTENSION_NAME}
+            ${SERD_NAME}
+            sql2rdf::yarrrml
+    )
+endif()
 
 # Signal to C++ that XML and SPARQL features are disabled in WASM builds
 if (NOT EMSCRIPTEN)
