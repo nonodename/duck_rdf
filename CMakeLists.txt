@@ -11,6 +11,11 @@ set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 if (NOT EMSCRIPTEN)
     find_package(LibXml2 REQUIRED)
     find_package(CURL REQUIRED)
+else()
+    # TEMPORARY: verbose build output to inspect the actual side-module link
+    # command while diagnosing the YARRRMLParser vtable regression (see
+    # test/wasm-smoke-test). Remove once root-caused.
+    set(CMAKE_VERBOSE_MAKEFILE ON)
 endif()
 
 project(${TARGET_NAME} LANGUAGES C CXX)
