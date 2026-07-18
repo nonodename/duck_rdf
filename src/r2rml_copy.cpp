@@ -308,6 +308,15 @@ public:
 		return chunk_.GetValue(it->second, row_).IsNull();
 	}
 
+	std::vector<std::string> columnNames() const override {
+		std::vector<std::string> names;
+		names.reserve(col_index_.size());
+		for (const auto &kv : col_index_) {
+			names.push_back(kv.first);
+		}
+		return names;
+	}
+
 	// Materialise into a MapSQLRow when a stable copy is needed.
 	std::unique_ptr<r2rml::SQLRow> clone() const override {
 		std::map<std::string, std::unique_ptr<r2rml::SQLValue>> cols;
