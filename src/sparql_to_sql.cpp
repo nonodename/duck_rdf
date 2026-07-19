@@ -18,52 +18,57 @@ static std::string DescribeParseError(const sparql::ParseError &e) {
 	       std::to_string(e.column()) + ", near '" + e.nearText() + "')";
 }
 
+std::string TranslateSparqlToSql(ClientContext &context, const std::string &sparql_text,
+                                 const std::string &mapping_path) {
+	auto &fs = FileSystem::GetFileSystem(context);
+	if (!fs.FileExists(mapping_path)) {
+		throw IOException("Mapping file not found: " + mapping_path);
+	}
+
+	r2rml::R2RMLMapping mapping;
+	try {
+		mapping = ParseR2RMLOrYarrrmlMapping(mapping_path);
+	} catch (const std::runtime_error &e) {
+		throw InvalidInputException("R2RML/YARRRML mapping parse error: %s", e.what());
+	}
+
+	if (!mapping.isValid()) {
+		throw InvalidInputException(
+		    "Mapping '%s' is not a valid full R2RML mapping. sparql_to_sql() translates a SPARQL query into "
+		    "a standalone SQL query, so every TriplesMap in the mapping must declare an rr:logicalTable (or "
+		    "YARRRML 'sources') naming the table/view to query. An inside-out-only mapping (one that "
+		    "can_call_inside_out() accepts but is_valid_r2rml() rejects) is not sufficient here.",
+		    mapping_path.c_str());
+	}
+
+	std::unique_ptr<sparql::ast::Query> query;
+	try {
+		sparql::Parser parser;
+		query = parser.parseString(sparql_text);
+	} catch (const sparql::ParseError &e) {
+		throw InvalidInputException(DescribeParseError(e));
+	} catch (const std::exception &e) {
+		throw InvalidInputException("SPARQL parse error: %s", e.what());
+	}
+
+	std::string sql;
+	try {
+		sparql2sql::DuckDbDialect dialect;
+		sql = sparql2sql::translateQuery(*query, mapping, dialect);
+	} catch (const std::exception &e) {
+		throw InvalidInputException("SPARQL-to-SQL translation error: %s", e.what());
+	}
+
+	return sql;
+}
+
 inline void SparqlToSql(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &sparql_vector = args.data[0];
 	auto &mapping_vector = args.data[1];
 	BinaryExecutor::Execute<string_t, string_t, string_t>(
 	    sparql_vector, mapping_vector, result, args.size(), [&](string_t sparql_text, string_t mapping_path_str) {
-		    std::string mapping_path = mapping_path_str.GetString();
-
-		    auto &fs = FileSystem::GetFileSystem(state.GetContext());
-		    if (!fs.FileExists(mapping_path)) {
-			    throw IOException("Mapping file not found: " + mapping_path);
-		    }
-
-		    r2rml::R2RMLMapping mapping;
-		    try {
-			    mapping = ParseR2RMLOrYarrrmlMapping(mapping_path);
-		    } catch (const std::runtime_error &e) {
-			    throw InvalidInputException("R2RML/YARRRML mapping parse error: %s", e.what());
-		    }
-
-		    if (!mapping.isValid()) {
-			    throw InvalidInputException(
-			        "Mapping '%s' is not a valid full R2RML mapping. sparql_to_sql() translates a SPARQL query into "
-			        "a standalone SQL query, so every TriplesMap in the mapping must declare an rr:logicalTable (or "
-			        "YARRRML 'sources') naming the table/view to query. An inside-out-only mapping (one that "
-			        "can_call_inside_out() accepts but is_valid_r2rml() rejects) is not sufficient here.",
-			        mapping_path.c_str());
-		    }
-
-		    std::unique_ptr<sparql::ast::Query> query;
-		    try {
-			    sparql::Parser parser;
-			    query = parser.parseString(sparql_text.GetString());
-		    } catch (const sparql::ParseError &e) {
-			    throw InvalidInputException(DescribeParseError(e));
-		    } catch (const std::exception &e) {
-			    throw InvalidInputException("SPARQL parse error: %s", e.what());
-		    }
-
-		    std::string sql;
-		    try {
-			    sparql2sql::DuckDbDialect dialect;
-			    sql = sparql2sql::translateQuery(*query, mapping, dialect);
-		    } catch (const std::exception &e) {
-			    throw InvalidInputException("SPARQL-to-SQL translation error: %s", e.what());
-		    }
-
+		    std::string sql =
+		        TranslateSparqlToSql(state.GetContext(), sparql_text.GetString(), mapping_path_str.GetString());
 		    return StringVector::AddString(result, sql);
 	    });
 }

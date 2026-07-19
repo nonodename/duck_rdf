@@ -371,6 +371,51 @@ SELECT sparql_to_sql(
 
 ---
 
+## `execute_sparql(sparql, mapping)`
+
+Table function. Translates a SPARQL `SELECT` or `ASK` query into SQL exactly like `sparql_to_sql` (same mapping, same translator), then runs that SQL directly instead of returning it as a string.
+
+Unlike calling `sparql_to_sql()` and pasting the result into a second query, `execute_sparql(...)` splices the translated SQL into *this* query's own plan before optimization — it uses DuckDB's `bind_replace` table function mechanism (the same one behind the built-in `query()` table function) to substitute a real subquery for the function call at bind time. Filters, projections, and joins written around the call are planned and optimized together with the translated SQL, exactly as if you had written the SQL yourself inline. There is no intermediate opaque "run this and stream the rows back" step.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `sparql` | VARCHAR | The SPARQL query text |
+| `mapping` | VARCHAR | Path to the R2RML or YARRML mapping file |
+
+**Returns**
+
+A table whose schema is whatever the translated SQL produces: one column per SPARQL SELECT variable (named `v_<variable>`), holding the VARCHAR lexical form of each bound RDF term — the same shape you'd get from running `sparql_to_sql`'s output SQL yourself.
+
+**Requirements**
+
+Identical to `sparql_to_sql` (they share the same translation code):
+
+- The mapping must be a **full R2RML mapping**: every `TriplesMap` needs an `rr:logicalTable` (or, for YARRRML, a `sources` entry) naming the table or view to query — the same requirement `is_valid_r2rml()` checks. An inside-out-only mapping is **not** sufficient here.
+- Only the `SELECT` and `ASK` SPARQL query forms are supported. `CONSTRUCT` and `DESCRIBE` raise an error naming the unsupported form.
+- `GRAPH`, `SERVICE`, most property paths, and a handful of `FILTER` builtins are not yet supported and raise a detailed error describing the unsupported construct.
+
+**Errors**
+
+Raises the exact same errors as `sparql_to_sql` (see its table above), since both go through the same translation helper.
+
+**Example**
+
+```sql
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'mapping.ttl'
+);
+
+-- Filters/joins around the call are planned together with the translated SQL
+SELECT t.v_name
+FROM execute_sparql('SELECT ?e ?name WHERE { ?e <http://example.com/ns#name> ?name }', 'mapping.ttl') AS t
+WHERE t.v_e = 'http://data.example.com/employee/7369';
+```
+
+---
+
 ## `COPY ... TO ... (FORMAT r2rml, ...)`
 
 Copy function. Writes RDF from a DuckDB query using an R2RML or YARRML mapping.

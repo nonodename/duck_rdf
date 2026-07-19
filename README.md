@@ -213,6 +213,27 @@ The mapping passed to `sparql_to_sql` must be a **full R2RML mapping** — every
 - Unlike `read_sparql`, `sparql_to_sql` has no libcurl/libxml2 dependency and **is available in the WebAssembly build**.
 - See [`docs/functions.md`](docs/functions.md#sparql_to_sqlsparql-mapping) for the full error-message reference.
 
+### Running it directly: `execute_sparql`
+
+`execute_sparql(sparql, mapping)` is a table function that translates and runs a SPARQL query in one step — no copy-pasting the `sparql_to_sql` output into a second query:
+
+```sql
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'mapping.ttl'
+);
+```
+
+It shares `sparql_to_sql`'s translation logic, so it has the same mapping requirements and raises the same errors. What makes it more than a convenience wrapper: it uses DuckDB's `bind_replace` table function mechanism (the same one behind DuckDB's own built-in `query()` table function) to splice the translated SQL into the *calling* query's plan **before optimization** — as a real subquery, not an opaque nested execution. Filters, projections, and joins written around the call get pushed into the same plan DuckDB would build had you pasted the SQL yourself:
+
+```sql
+SELECT t.v_name
+FROM execute_sparql('SELECT ?e ?name WHERE { ?e <http://example.com/ns#name> ?name }', 'mapping.ttl') AS t
+WHERE t.v_e = 'http://data.example.com/employee/7369';
+```
+
+Like `sparql_to_sql`, `execute_sparql` has no libcurl/libxml2 dependency and is available in the WebAssembly build.
+
 ## _Experimental_ RDF write support
 
 The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) or [YARRML](https://rml.io/yarrrml/) mapping file, DuckDB's `COPY TO` syntax and the [SQL2RDF++](https://github.com/nonodename/sql2rdf) library. Two modes are supported, and the correct one is chosen automatically based on the mapping.
