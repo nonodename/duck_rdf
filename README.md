@@ -26,6 +26,11 @@ LOAD rdf;
 ```
 That's it! The extension is now ready to use.
 
+## Quick start
+```
+-- Read multiple files with a glob pattern
+SELECT COUNT(*) FROM read_rdf('shards/*.nt');
+```
 Full documentation for all the functions can be found in [docs/functions.md](docs/functions.md).
 
 ## Building
