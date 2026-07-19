@@ -15,7 +15,7 @@ namespace duckdb {
 
 static std::string DescribeParseError(const sparql::ParseError &e) {
 	return "SPARQL parse error: " + e.message() + " (line " + std::to_string(e.line()) + ", column " +
-	      std::to_string(e.column()) + ", near '" + e.nearText() + "')";
+	       std::to_string(e.column()) + ", near '" + e.nearText() + "')";
 }
 
 inline void SparqlToSql(DataChunk &args, ExpressionState &state, Vector &result) {
