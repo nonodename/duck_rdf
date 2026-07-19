@@ -329,6 +329,48 @@ SELECT can_call_inside_out('mapping.ttl');
 
 ---
 
+## `sparql_to_sql(sparql, mapping)`
+
+Scalar function. Translates a SPARQL `SELECT` or `ASK` query into an equivalent SQL query, using an R2RML or YARRML mapping file "in reverse" (via the [SQL2RDF++](https://github.com/nonodename/sql2rdf) `sparql2sql` translator). The returned SQL is a standalone query — it can be executed directly against the mapped tables without going through `sparql_to_sql` again.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `sparql` | VARCHAR | The SPARQL query text |
+| `mapping` | VARCHAR | Path to the R2RML or YARRML mapping file |
+
+**Returns** VARCHAR — the translated SQL query, for the `duckdb` dialect (currently the only dialect supported).
+
+**Requirements**
+
+- The mapping must be a **full R2RML mapping**: every `TriplesMap` needs an `rr:logicalTable` (or, for YARRRML, a `sources` entry) naming the table or view to query. This is the same requirement `is_valid_r2rml()` checks (i.e. `is_valid_r2rml(mapping) = true`). An inside-out-only mapping — one with no `rr:logicalTable`, as used by `COPY ... FORMAT r2rml` inside-out mode and accepted by `can_call_inside_out()` — is **not** sufficient here, since there is no live SQL connection for `sparql_to_sql` to bounce rows through.
+- Only the `SELECT` and `ASK` SPARQL query forms are supported. `CONSTRUCT` and `DESCRIBE` raise an error naming the unsupported form.
+- `GRAPH`, `SERVICE`, most property paths, and a handful of `FILTER` builtins are not yet supported and raise a detailed error describing the unsupported construct.
+
+**Errors**
+
+On failure, `sparql_to_sql` raises an error whose message identifies which stage failed:
+
+| Prefix | Cause |
+|--------|-------|
+| (none — `IOException`) | The mapping file does not exist |
+| `R2RML/YARRRML mapping parse error: ...` | The mapping file is not syntactically valid |
+| `Mapping '...' is not a valid full R2RML mapping...` | The mapping parses but lacks `rr:logicalTable`/`sources` declarations |
+| `SPARQL parse error: ...` | The SPARQL query text has a syntax error (includes line/column/near-text detail) |
+| `SPARQL-to-SQL translation error: ...` | The query is syntactically valid SPARQL but uses a construct the translator can't express as SQL against this mapping (e.g. `CONSTRUCT`, `GRAPH`, an unsupported property path) |
+
+**Example**
+
+```sql
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'mapping.ttl'
+);
+```
+
+---
+
 ## `COPY ... TO ... (FORMAT r2rml, ...)`
 
 Copy function. Writes RDF from a DuckDB query using an R2RML or YARRML mapping.

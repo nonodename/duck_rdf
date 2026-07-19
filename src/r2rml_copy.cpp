@@ -55,7 +55,7 @@ static const std::string XSD_DATETIME_STAMP = std::string(XSD_NS) + "dateTimeSta
 
 namespace duckdb {
 
-static r2rml::R2RMLMapping parseHelper(const std::string &name, bool ignoreNonFatalErrors = true) {
+r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(const std::string &name, bool ignoreNonFatalErrors) {
 	r2rml::R2RMLMapping mapping;
 	if (yarrrml::YARRRMLParser::hasYarrrmlExtension(name)) {
 		yarrrml::YARRRMLParser parser;
@@ -74,7 +74,7 @@ inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &re
 		if (!fs.FileExists(name.GetString())) {
 			return false;
 		}
-		r2rml::R2RMLMapping mapping = parseHelper(name.GetString());
+		r2rml::R2RMLMapping mapping = ParseR2RMLOrYarrrmlMapping(name.GetString());
 		return mapping.isValidInsideOut();
 	});
 }
@@ -88,7 +88,7 @@ inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result
 		}
 		r2rml::R2RMLMapping mapping;
 		try {
-			mapping = parseHelper(name.GetString());
+			mapping = ParseR2RMLOrYarrrmlMapping(name.GetString());
 		} catch (const std::runtime_error &e) {
 			return false;
 		}
@@ -306,6 +306,15 @@ public:
 			return true;
 		}
 		return chunk_.GetValue(it->second, row_).IsNull();
+	}
+
+	std::vector<std::string> columnNames() const override {
+		std::vector<std::string> names;
+		names.reserve(col_index_.size());
+		for (const auto &kv : col_index_) {
+			names.push_back(kv.first);
+		}
+		return names;
 	}
 
 	// Materialise into a MapSQLRow when a stable copy is needed.
@@ -582,7 +591,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 
 	std::shared_ptr<r2rml::R2RMLMapping> mapping;
 	try {
-		mapping = std::make_shared<r2rml::R2RMLMapping>(parseHelper(mapping_path, ignore_nfe));
+		mapping = std::make_shared<r2rml::R2RMLMapping>(ParseR2RMLOrYarrrmlMapping(mapping_path, ignore_nfe));
 	} catch (const std::runtime_error &e) {
 		throw InvalidInputException("R2RML mapping parse error: %s", e.what());
 	}
@@ -647,7 +656,7 @@ static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext
 	if (bind.inside_out_mode) {
 		try {
 			local->mapping = std::make_shared<r2rml::R2RMLMapping>(
-			    parseHelper(bind.mapping_file_path, bind.ignore_non_fatal_errors));
+			    ParseR2RMLOrYarrrmlMapping(bind.mapping_file_path, bind.ignore_non_fatal_errors));
 		} catch (const std::runtime_error &e) {
 			throw InternalException("Failed to re-parse R2RML mapping for parallel write: %s", e.what());
 		}
