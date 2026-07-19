@@ -1,0 +1,94 @@
+# name: test/sql/sparql_to_sql.test
+# description: test sparql_to_sql SPARQL-to-SQL translation
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# Same table shape as write_rdf.test, mapped by test/r2rml/full_r2rml_lower.ttl
+# (rr:logicalTable [ rr:tableName "emp" ], lowercase column refs matching
+# DuckDB's unquoted-identifier folding).
+
+statement ok
+CREATE TABLE emp AS SELECT 7369 AS EMPNO, 'SMITH' AS ENAME, 10 AS DEPTNO;
+
+# ── Success: translate ───────────────────────────────────────────────────────
+
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || CAST(t1."empno" AS VARCHAR)) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3
+
+# Same query/mapping via YARRRML (.yml) — proves format-by-extension dispatch
+# produces the same translation as the R2RML Turtle mapping.
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.yml'
+);
+----
+SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || CAST(t1."empno" AS VARCHAR)) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3
+
+# ── Success: round-trip execute ──────────────────────────────────────────────
+# The exact SQL text produced above, pasted literally and executed against the
+# same emp table, must return the row the SPARQL query asked for. This is the
+# real correctness oracle: sparql_to_sql's job is to produce SQL that actually
+# runs and means the same thing as the SPARQL query.
+
+query TT
+SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || CAST(t1."empno" AS VARCHAR)) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3;
+----
+http://data.example.com/employee/7369	SMITH
+
+# ── Error cases ───────────────────────────────────────────────────────────────
+
+# mapping file not found
+statement error
+SELECT sparql_to_sql('SELECT ?e WHERE { ?e ?p ?o }', 'test/r2rml/nonexistent.ttl');
+----
+Mapping file not found
+
+# mapping is inside-out-only (no rr:logicalTable) - not enough for translation
+statement error
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/inside_out.ttl'
+);
+----
+not a valid full R2RML mapping
+
+# malformed SPARQL syntax
+statement error
+SELECT sparql_to_sql('SELECT ?e WHERE { ?e ?p ?o', 'test/r2rml/full_r2rml_lower.ttl');
+----
+SPARQL parse error
+
+# unsupported query form: CONSTRUCT
+statement error
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> CONSTRUCT { ?e ex:name ?name } WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+SPARQL-to-SQL translation error
+
+# unsupported construct: GRAPH pattern (R2RML mappings carry no named-graph info)
+statement error
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { GRAPH ?g { ?e ex:name ?name } }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+GRAPH patterns require named-graph support
+
+# unsupported construct: property path in predicate position
+statement error
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name+ ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+property paths are not supported
