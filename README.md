@@ -1,3 +1,5 @@
+# A DuckDB extension to work with RDF
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![GitHub Release](https://img.shields.io/github/v/release/nonodename/duck_rdf)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nonodename/duck_rdf/.github%2Fworkflows%2FMainDistributionPipeline.yml)
@@ -5,9 +7,9 @@
 [![Community downloads per week](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fcommunity-extensions.duckdb.org%2Fdownloads-last-week.json&query=%24.rdf&label=downloads%2Fweek&color=brightgreen)](https://duckdb.org/community_extensions/download_metrics)
 
 ![Duck RDF Logo](docs/logo.svg)
-# A DuckDB extension to work with RDF
+
 Read, write and manipulate RDF within DuckDB. This extension has three broad capabilities
-* reading/profiling RDF from standard serializations, [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), [TriG](http://www.w3.org/TR/trig/), and [RDF/XML](https://www.w3.org/TR/rdf12-xml/) into a standard columnar schema or pivoted based on observed predicates.
+* reading/profiling RDF from standard serializations: [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), [TriG](http://www.w3.org/TR/trig/), and [RDF/XML](https://www.w3.org/TR/rdf12-xml/) into a standard columnar schema or pivoted based on observed predicates.
 * writing using [R2RML](https://www.w3.org/TR/r2rml/) or [YARRML](https://rml.io/yarrrml/) mappings
 * querying either remote sources or using a subset of [SPARQL](https://www.w3.org/TR/sparql11-query/) and the R2RML/Yarrrml mappings in reverse
 
@@ -30,8 +32,24 @@ That's it! The extension is now ready to use.
 ```
 -- Read multiple files with a glob pattern
 SELECT COUNT(*) FROM read_rdf('shards/*.nt');
+
+-- Execute a Sparql query over DuckDB tables using an R2RML mapping
+memory D CREATE TABLE emp AS SELECT 7369 AS EMPNO, 'SMITH' AS ENAME, 10 AS DEPTNO;
+memory D SELECT * FROM execute_sparql(
+             'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+             'test/r2rml/full_r2rml_lower.ttl'
+         );
+┌───────────────────────────────────────┬─────────┐
+│                  v_e                  │ v_name  │
+│                varchar                │ varchar │
+├───────────────────────────────────────┼─────────┤
+│ http://data.example.com/employee/7369 │ SMITH   │
+└───────────────────────────────────────┴─────────┘
 ```
+Sparql support is _very experimental_ but quite interesting as it uses Duck's query optimizer. Please contribute issues with full steps to reproduce if you find cases that should work but don't. Sparql parsing and conversion to SQL is via the [sql2rdf](https://github.com/nonodename/sql2rdf) library.
+
 Full documentation for all the functions can be found in [docs/functions.md](docs/functions.md).
+
 
 ## Building
 ### Managing dependencies
