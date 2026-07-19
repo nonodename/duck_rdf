@@ -190,6 +190,29 @@ SELECT * FROM read_sparql(
 - Both HTTP and HTTPS endpoints are supported.
 - `read_sparql` is not available in the WebAssembly build (requires libcurl).
 
+## SPARQL-to-SQL translation
+
+`sparql_to_sql(sparql, mapping)` translates a SPARQL `SELECT`/`ASK` query into an equivalent standalone SQL query, using an R2RML or YARRML mapping file "in reverse" via the [SQL2RDF++](https://github.com/nonodename/sql2rdf) `sparql2sql` translator. This is the opposite direction from `read_sparql`: instead of sending SPARQL to a remote endpoint, it compiles SPARQL into SQL you run yourself against the mapped DuckDB tables.
+
+```sql
+-- Same mapping/table shape as the R2RML write example below
+CREATE TABLE emp AS SELECT 7369 AS empno, 'SMITH' AS ename, 10 AS deptno;
+
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'mapping.ttl'
+) AS sql;
+```
+
+The mapping passed to `sparql_to_sql` must be a **full R2RML mapping** — every `TriplesMap` needs an `rr:logicalTable` (or YARRRML `sources`) naming the table/view to query, i.e. `is_valid_r2rml(mapping)` must be `true`. Inside-out-only mappings (`can_call_inside_out(mapping) = true` but `is_valid_r2rml(mapping) = false`) aren't accepted, since there's no live SQL connection for the translator to bounce rows through.
+
+**Notes:**
+- Only the `duckdb` SQL dialect is currently supported.
+- Only `SELECT` and `ASK` SPARQL query forms are supported; `CONSTRUCT`/`DESCRIBE` raise an error.
+- `GRAPH`, `SERVICE`, most property paths, and some `FILTER` builtins aren't supported yet and raise a detailed error naming the unsupported construct.
+- Unlike `read_sparql`, `sparql_to_sql` has no libcurl/libxml2 dependency and **is available in the WebAssembly build**.
+- See [`docs/functions.md`](docs/functions.md#sparql_to_sqlsparql-mapping) for the full error-message reference.
+
 ## _Experimental_ RDF write support
 
 The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) or [YARRML](https://rml.io/yarrrml/) mapping file, DuckDB's `COPY TO` syntax and the [SQL2RDF++](https://github.com/nonodename/sql2rdf) library. Two modes are supported, and the correct one is chosen automatically based on the mapping.

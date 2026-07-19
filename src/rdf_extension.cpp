@@ -7,6 +7,7 @@
 #include "include/sparql_reader.hpp"
 #endif
 #include "include/r2rml_copy.hpp"
+#include "include/sparql_to_sql.hpp"
 #include "include/profile_rdf.hpp"
 #include "include/pivot_rdf.hpp"
 #include "include/read_rdf_prefixes.hpp"
@@ -404,6 +405,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	loader.RegisterFunction(std::move(info));
 
 	RegisterR2RMLCopy(loader);
+	RegisterSparqlToSql(loader);
 #ifndef DUCK_RDF_NO_SPARQL
 	RegisterSPARQLReader(loader);
 #endif

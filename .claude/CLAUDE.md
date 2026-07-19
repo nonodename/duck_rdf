@@ -15,6 +15,7 @@ A DuckDB extension (extension name: `rdf`) for reading and writing RDF data dire
 | `read_sparql(endpoint, query)` | table function | Runs a SPARQL SELECT against a remote HTTP(S) endpoint (native builds only) |
 | `is_valid_r2rml(path)` | scalar function | Validates an R2RML/YARRRML mapping file |
 | `can_call_inside_out(path)` | scalar function | True if a mapping can be used in inside-out COPY mode |
+| `sparql_to_sql(sparql, mapping)` | scalar function | Translates a SPARQL SELECT/ASK query into an equivalent SQL query against a full R2RML/YARRRML mapping |
 | `COPY ... TO ... (FORMAT r2rml, mapping '...')` | copy function | Writes query results to RDF via an R2RML or YARRRML mapping |
 
 All four file-reading table functions accept a single path, a glob pattern, or a `LIST(VARCHAR)` of paths/globs, and transparently read `.gz` / `.zst` compressed files (decompression is auto-detected via DuckDB's FileSystem).
@@ -141,6 +142,10 @@ Copy options: `mapping` (required), `rdf_format` (`ntriples` default, `turtle`, 
 
 `src/sparql_reader.cpp` uses CURL for HTTP GET, parses the SPARQL results CSV, and caches the full result set at bind (plan) time — large results are held in memory. Columns are VARCHAR, named after the SPARQL SELECT variables. Anonymous endpoints only. Not compiled for Emscripten targets (gated by `DUCK_RDF_NO_SPARQL`).
 
+### SPARQL-to-SQL Translation
+
+`src/sparql_to_sql.cpp` registers the `sparql_to_sql(sparql, mapping)` scalar function, using the `sql2rdf` library's `sparql2sql` module (SPARQL 1.1 parser + R2RML-mapping-in-reverse translator) to compile a SPARQL SELECT/ASK query into a standalone SQL query for the `duckdb` dialect (`sparql2sql::DuckDbDialect`, the only dialect the library currently implements). The mapping is parsed with `ParseR2RMLOrYarrrmlMapping` (declared in `src/include/r2rml_copy.hpp`, shared with `r2rml_copy.cpp`) and must be a *full* R2RML mapping (`mapping.isValid()`, i.e. every `TriplesMap` has an `rr:logicalTable`/YARRRML `sources`) — inside-out-only mappings are rejected, since there is no live SQL connection here to bounce rows through the way `COPY ... FORMAT r2rml` does. Errors from each stage (missing/unparsable mapping file, a mapping missing logical tables, SPARQL syntax errors via `sparql::ParseError`, unsupported constructs via `sparql2sql::TranslationError`) are rethrown as DuckDB exceptions with a stage-identifying prefix. Unlike `read_sparql`/RDF-XML, this has no curl/libxml2 dependency (`sql2rdf::sparql2sql` only depends on `sql2rdf_r2rml` and the freestanding `sql2rdf_sparql` grammar parser), so it is registered unconditionally and works in WASM builds too.
+
 ### Prefix Introspection
 
 `src/read_rdf_prefixes.cpp` implements `read_rdf_prefixes`, returning `prefix`, `uri`, `is_base` (+ optional `filename`) rows from Turtle/TriG files. It errors for NTriples/NQuads/RDF-XML, which have no prefix declarations.
@@ -157,7 +162,7 @@ Git submodules (branch `v1.5-variegata`, i.e. the DuckDB v1.5 line — see `docs
 
 CMake FetchContent (fetched at configure time, not checked into the repo; pins live in `CMakeLists.txt`):
 - `serd` v0.32.10 — RDF parsing/writing library (built as an internal static lib from an explicit source list; the target name must remain `serd` so sql2rdf reuses it)
-- `sql2rdf` v2.0.0 — R2RML mapping compiler/evaluator
+- `sql2rdf` v2.1.0 — R2RML mapping compiler/evaluator, plus the `sparql2sql` SPARQL-to-SQL translator
 - `yaml-cpp` 0.9.0 — YARRRML parsing support
 
 vcpkg (`vcpkg.json`): `libxml2`, `curl` (with SSL) — both excluded on the `emscripten` platform.
@@ -179,6 +184,6 @@ SELECT COUNT(*) FROM read_rdf('path/to/file.nt');
 ```
 
 Conventions:
-- Every feature area has its own `.test` file (e.g. `filter_pushdown.test`, `projection_pushdown.test`, `read_rdf_parallel_ranges.test`, `gz_compression.test`, `zst_compression.test`, `pivot_rdf.test`, `write_rdf.test`). Add new tests alongside the feature they cover.
+- Every feature area has its own `.test` file (e.g. `filter_pushdown.test`, `projection_pushdown.test`, `read_rdf_parallel_ranges.test`, `gz_compression.test`, `zst_compression.test`, `pivot_rdf.test`, `write_rdf.test`, `sparql_to_sql.test`). Add new tests alongside the feature they cover.
 - The `read_sparql` tests (`test/sql/read_sparql*.test`) require internet access and may be skipped in CI.
 - The WASM smoke test (`test/wasm-smoke-test/`) is a separate Node.js harness, not run by `make test`.

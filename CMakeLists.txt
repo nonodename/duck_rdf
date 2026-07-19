@@ -42,6 +42,7 @@ FetchContent_MakeAvailable(serd)
 set(EXTENSION_SOURCES
     src/rdf_extension.cpp
     src/r2rml_copy.cpp
+    src/sparql_to_sql.cpp
     src/serd_buffer.cpp
     src/serd_range_buffer.cpp
     src/rdf_profiler.cpp
@@ -129,14 +130,18 @@ if (NOT EMSCRIPTEN)
     target_include_directories(${LOADABLE_EXTENSION_NAME} PRIVATE ${LIBXML2_INCLUDE_DIR})
 endif()
 
-# Link internal libs; LibXml2 and CURL are excluded for WASM (no OS sockets, no WASM build of CURL)
+# Link internal libs; LibXml2 and CURL are excluded for WASM (no OS sockets, no WASM build of CURL).
+# sql2rdf::sparql2sql (SPARQL-to-SQL translation) has no curl/libxml2/DuckDB dependency of its own,
+# so unlike LibXml2/CURL below it is linked unconditionally, including for WASM.
 target_link_libraries(${EXTENSION_NAME}
         ${SERD_NAME}
         sql2rdf::yarrrml
+        sql2rdf::sparql2sql
 )
 target_link_libraries(${LOADABLE_EXTENSION_NAME}
         ${SERD_NAME}
         sql2rdf::yarrrml
+        sql2rdf::sparql2sql
 )
 
 # Signal to C++ that XML and SPARQL features are disabled in WASM builds
@@ -156,7 +161,7 @@ if (WIN32)
 endif()
 
 install(
-    TARGETS sql2rdf_r2rml sql2rdf_yarrrml yaml-cpp ${SERD_NAME}
+    TARGETS sql2rdf_r2rml sql2rdf_yarrrml sql2rdf_sparql sql2rdf_sparql2sql yaml-cpp ${SERD_NAME}
     EXPORT "${DUCKDB_EXPORT_SET}"
     ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"  # .a file on Unix, .lib on Windows
 )
