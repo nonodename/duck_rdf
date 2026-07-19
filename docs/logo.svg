@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="300mm"
-   height="300mm"
-   viewBox="0 0 300 300"
+   width="231.86795mm"
+   height="189.7148mm"
+   viewBox="0 0 231.86795 189.7148"
    version="1.1"
    id="svg1"
    inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
@@ -29,8 +29,8 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      inkscape:zoom="0.73"
-     inkscape:cx="487.67123"
-     inkscape:cy="523.28767"
+     inkscape:cx="349.31507"
+     inkscape:cy="326.0274"
      inkscape:window-width="1746"
      inkscape:window-height="1201"
      inkscape:window-x="755"
@@ -48,7 +48,7 @@
   <g
      id="g11"
      inkscape:label="subjectDuck"
-     transform="translate(-26.458333,43.855594)">
+     transform="translate(-62.988759,-8.3110742)">
     <path
        style="fill:#ffd42a;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
        d="m 161.05072,158.22711 c 0,0 3.64426,-2.32126 3.8694,-4.81061 0.22514,-2.48935 -4.18313,-5.64723 -4.18313,-5.64723 0,0 4.83592,-2.80944 10.66699,2.61446 2.90287,4.37812 -1.77783,8.99374 -1.77783,8.99374 0,0 2.55675,-0.17341 4.18314,-2.61446 2.9859,1.95119 -3.86941,5.01976 -3.86941,5.01976 0,0 2.80956,-0.80481 4.39229,0.10457 -5.38421,3.90994 -9.37355,3.0895 -8.99373,2.82363 z"
@@ -209,7 +209,7 @@
   <g
      id="g30"
      inkscape:label="predicateDuck"
-     transform="translate(42.768266,-15.585045)">
+     transform="translate(6.23784,-67.751713)">
     <path
        style="fill:#ffd42a;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
        d="m 161.05072,158.22711 c 0,0 3.64426,-2.32126 3.8694,-4.81061 0.22514,-2.48935 -4.18313,-5.64723 -4.18313,-5.64723 0,0 4.83592,-2.80944 10.66699,2.61446 2.90287,4.37812 -1.77783,8.99374 -1.77783,8.99374 0,0 2.55675,-0.17341 4.18314,-2.61446 2.9859,1.95119 -3.86941,5.01976 -3.86941,5.01976 0,0 2.80956,-0.80481 4.39229,0.10457 -5.38421,3.90994 -9.37355,3.0895 -8.99373,2.82363 z"
@@ -371,7 +371,7 @@
   <g
      id="g50"
      inkscape:label="objectDuck"
-     transform="translate(93.147827,46.030251)">
+     transform="translate(56.617401,-6.1364172)">
     <path
        style="fill:#ffd42a;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-linecap:round;stroke-dasharray:none;stroke-opacity:1"
        d="m 161.05072,158.22711 c 0,0 3.64426,-2.32126 3.8694,-4.81061 0.22514,-2.48935 -4.18313,-5.64723 -4.18313,-5.64723 0,0 4.83592,-2.80944 10.66699,2.61446 2.90287,4.37812 -1.77783,8.99374 -1.77783,8.99374 0,0 2.55675,-0.17341 4.18314,-2.61446 2.9859,1.95119 -3.86941,5.01976 -3.86941,5.01976 0,0 2.80956,-0.80481 4.39229,0.10457 -5.38421,3.90994 -9.37355,3.0895 -8.99373,2.82363 z"
@@ -542,7 +542,26 @@
             <dc:title>Nonodename</dc:title>
           </cc:Agent>
         </dc:creator>
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/by-nc-sa/4.0/" />
       </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/by-nc-sa/4.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Notice" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Attribution" />
+        <cc:prohibits
+           rdf:resource="http://creativecommons.org/ns#CommercialUse" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
+      </cc:License>
     </rdf:RDF>
   </metadata>
 </svg>
