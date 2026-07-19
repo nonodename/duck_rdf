@@ -16,6 +16,7 @@ A DuckDB extension (extension name: `rdf`) for reading and writing RDF data dire
 | `is_valid_r2rml(path)` | scalar function | Validates an R2RML/YARRRML mapping file |
 | `can_call_inside_out(path)` | scalar function | True if a mapping can be used in inside-out COPY mode |
 | `sparql_to_sql(sparql, mapping)` | scalar function | Translates a SPARQL SELECT/ASK query into an equivalent SQL query against a full R2RML/YARRRML mapping |
+| `execute_sparql(sparql, mapping)` | table function | Translates a SPARQL SELECT/ASK query like `sparql_to_sql`, then runs it, spliced into the calling query's own plan |
 | `COPY ... TO ... (FORMAT r2rml, mapping '...')` | copy function | Writes query results to RDF via an R2RML or YARRRML mapping |
 
 All four file-reading table functions accept a single path, a glob pattern, or a `LIST(VARCHAR)` of paths/globs, and transparently read `.gz` / `.zst` compressed files (decompression is auto-detected via DuckDB's FileSystem).
@@ -146,6 +147,10 @@ Copy options: `mapping` (required), `rdf_format` (`ntriples` default, `turtle`, 
 
 `src/sparql_to_sql.cpp` registers the `sparql_to_sql(sparql, mapping)` scalar function, using the `sql2rdf` library's `sparql2sql` module (SPARQL 1.1 parser + R2RML-mapping-in-reverse translator) to compile a SPARQL SELECT/ASK query into a standalone SQL query for the `duckdb` dialect (`sparql2sql::DuckDbDialect`, the only dialect the library currently implements). The mapping is parsed with `ParseR2RMLOrYarrrmlMapping` (declared in `src/include/r2rml_copy.hpp`, shared with `r2rml_copy.cpp`) and must be a *full* R2RML mapping (`mapping.isValid()`, i.e. every `TriplesMap` has an `rr:logicalTable`/YARRRML `sources`) — inside-out-only mappings are rejected, since there is no live SQL connection here to bounce rows through the way `COPY ... FORMAT r2rml` does. Errors from each stage (missing/unparsable mapping file, a mapping missing logical tables, SPARQL syntax errors via `sparql::ParseError`, unsupported constructs via `sparql2sql::TranslationError`) are rethrown as DuckDB exceptions with a stage-identifying prefix. Unlike `read_sparql`/RDF-XML, this has no curl/libxml2 dependency (`sql2rdf::sparql2sql` only depends on `sql2rdf_r2rml` and the freestanding `sql2rdf_sparql` grammar parser), so it is registered unconditionally and works in WASM builds too.
 
+The translation pipeline itself (mapping load/validate → SPARQL parse → `translateQuery`) is factored out as `TranslateSparqlToSql` (declared in `src/include/sparql_to_sql.hpp`) so it's shared byte-for-byte between `sparql_to_sql` and `src/execute_sparql.cpp`'s `execute_sparql(sparql, mapping)` table function — both raise identical errors.
+
+`execute_sparql` does *not* implement a normal `Bind`/`Scan` table function. Instead it sets `TableFunction::bind_replace`, a DuckDB mechanism that lets a table function's bind step return a `unique_ptr<TableRef>` in place of bind data — DuckDB's binder (`bind_table_function.cpp`) then recurses `Bind()` on that `TableRef` using the *same* `Binder`/`bind_context` building the outer query, exactly as if it were a hand-written subquery. `execute_sparql`'s `bind_replace` parses the SQL returned by `TranslateSparqlToSql` with `Parser::ParseQuery` and wraps it in a `SubqueryRef`. This is the identical technique DuckDB's own built-in `query(sql)` table function uses (`duckdb/src/function/table/query_function.cpp`) — it's what gives `execute_sparql(...)` genuine single-query-plan treatment (filter/projection pushdown, join reordering, cardinality estimation on the real underlying plan) instead of running the translated SQL as an opaque nested execution the way `ClientContextSQLConnection` does for full-R2RML `COPY` (see below). Column-alias handling (`AS t(a, b)`) is done by the binder before it calls into `Bind()`, so no extra code is needed for it. `bind_replace`-only table functions register with `nullptr` for both the `function`/`bind` constructor arguments.
+
 ### Prefix Introspection
 
 `src/read_rdf_prefixes.cpp` implements `read_rdf_prefixes`, returning `prefix`, `uri`, `is_base` (+ optional `filename`) rows from Turtle/TriG files. It errors for NTriples/NQuads/RDF-XML, which have no prefix declarations.
@@ -184,6 +189,6 @@ SELECT COUNT(*) FROM read_rdf('path/to/file.nt');
 ```
 
 Conventions:
-- Every feature area has its own `.test` file (e.g. `filter_pushdown.test`, `projection_pushdown.test`, `read_rdf_parallel_ranges.test`, `gz_compression.test`, `zst_compression.test`, `pivot_rdf.test`, `write_rdf.test`, `sparql_to_sql.test`). Add new tests alongside the feature they cover.
+- Every feature area has its own `.test` file (e.g. `filter_pushdown.test`, `projection_pushdown.test`, `read_rdf_parallel_ranges.test`, `gz_compression.test`, `zst_compression.test`, `pivot_rdf.test`, `write_rdf.test`, `sparql_to_sql.test`, `execute_sparql.test`). Add new tests alongside the feature they cover.
 - The `read_sparql` tests (`test/sql/read_sparql*.test`) require internet access and may be skipped in CI.
 - The WASM smoke test (`test/wasm-smoke-test/`) is a separate Node.js harness, not run by `make test`.

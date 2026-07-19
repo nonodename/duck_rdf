@@ -1,4 +1,4 @@
-# Function Reference
+# Reading RDF
 
 ## `read_rdf(path, [options])`
 
@@ -65,7 +65,23 @@ FROM read_rdf('data/*.nt', filename = true)
 GROUP BY filename
 ORDER BY filename;
 ```
-
+```
+D select subject, predicate from read_rdf('test/rdf/tests.nt');
+┌───────────────────────────────────┬─────────────────────────────────────────────────┐
+│              subject              │                    predicate                    │
+│              varchar              │                     varchar                     │
+├───────────────────────────────────┼─────────────────────────────────────────────────┤
+│ http://example.org/person/JohnDoe │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │
+│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/name                  │
+│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/age                   │
+│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/knows                 │
+│ jane                              │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │
+│ jane                              │ http://xmlns.com/foaf/0.1/name                  │
+│ http://example.org/book/123       │ http://purl.org/dc/elements/1.1/title           │
+│ http://example.org/book/123       │ http://purl.org/dc/elements/1.1/creator         │
+│ http://unicode.org/duck           │ http://example.org/hasEmoji                     │
+└───────────────────────────────────┴─────────────────────────────────────────────────┘
+```
 ---
 
 ## `read_rdf_prefixes(path, [options])`
@@ -128,7 +144,19 @@ FROM read_rdf_prefixes('data/*.ttl', filename = true)
 GROUP BY filename
 ORDER BY prefix_count DESC;
 ```
+```sql
+SELECT prefix, uri, is_base FROM read_rdf_prefixes('test/rdf/tests.ttl');
 
+┌────────┬───────────────────────────────┬─────────┐
+│ prefix │              uri              │ is_base │
+│varchar │            varchar            │ boolean │
+├────────┼───────────────────────────────┼─────────┤
+│ foaf   │ http://xmlns.com/foaf/0.1/    │ false   │
+│ dc     │ http://purl.org/dc/elements/… │ false   │
+│        │ http://example.org/           │ true    │
+│ uni    │ http://unicode.org/           │ false   │
+└────────┴───────────────────────────────┴─────────┘
+```
 ---
 
 ## `profile_rdf(path, [options])`
@@ -235,9 +263,26 @@ SELECT * FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=true);
 -- Read an explicit list of files
 SELECT * FROM pivot_rdf(['a.ttl', 'b.ttl']);
 ```
+```sql
+SELECT graph, subject, "http://example.org/hasEmoji" FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=true);
+```
+
+```
+┌──────────┬───────────────────────────────────┬─────────────────────────────┐
+│  graph   │              subject              │ http://example.org/hasEmoji │
+│ varchar  │              varchar              │           varchar           │
+├──────────┼───────────────────────────────────┼─────────────────────────────┤
+│ read_rdf │ http://example.org/book/123       │ NULL                        │
+│ read_rdf │ http://unicode.org/duck           │ 🦆                          │
+│ read_rdf │ jane                              │ NULL                        │
+│ read_rdf │ http://example.org/person/JohnDoe │ NULL                        │
+└──────────┴───────────────────────────────────┴─────────────────────────────┘
+```
+
 **Limitations**
 Subjects that repeat across multiple files will appear as multiple rows in the resulting table. To do otherwise would greatly impact performance. In the same way, triples or quads that *exactly* duplicate within a file will be deduped but not across files.
 ---
+# Querying RDF
 
 ## `read_sparql(endpoint, query)`
 
@@ -286,7 +331,22 @@ SELECT COUNT(*) FROM read_sparql(
   'SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 100'
 );
 ```
+```sql
+-- Count number of humans in wikidata
+SELECT * FROM read_sparql(
+             'https://query.wikidata.org/sparql',
+             'SELECT (COUNT(*) AS ?count) WHERE {   ?item wdt:P31 wd:Q5 .}'
+         );
+```
 
+```
+┌──────────┐
+│  count   │
+│ varchar  │
+├──────────┤
+│ 13074374 │
+└──────────┘
+``` 
 ---
 
 ## `is_valid_r2rml(path)`
@@ -363,14 +423,65 @@ On failure, `sparql_to_sql` raises an error whose message identifies which stage
 **Example**
 
 ```sql
+-- Same mapping/table shape as the R2RML write example below
+CREATE TABLE emp AS SELECT 7369 AS empno, 'SMITH' AS ename, 10 AS deptno;
+
 SELECT sparql_to_sql(
     'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
     'mapping.ttl'
+) AS sql;
+```
+---
+# Querying RDF
+
+## `execute_sparql(sparql, mapping)`
+
+Table function. Translates a SPARQL `SELECT` or `ASK` query into SQL exactly like `sparql_to_sql` (same mapping, same translator), then runs that SQL directly instead of returning it as a string.
+
+Unlike calling `sparql_to_sql()` and pasting the result into a second query, `execute_sparql(...)` splices the translated SQL into *this* query's own plan before optimization — it uses DuckDB's `bind_replace` table function mechanism (the same one behind the built-in `query()` table function) to substitute a real subquery for the function call at bind time. Filters, projections, and joins written around the call are planned and optimized together with the translated SQL, exactly as if you had written the SQL yourself inline. There is no intermediate opaque "run this and stream the rows back" step.
+
+Like `sparql_to_sql`, `execute_sparql` has no libcurl/libxml2 dependency and is available in the WebAssembly build.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `sparql` | VARCHAR | The SPARQL query text |
+| `mapping` | VARCHAR | Path to the R2RML or YARRML mapping file |
+
+**Returns**
+
+A table whose schema is whatever the translated SQL produces: one column per SPARQL SELECT variable (named `v_<variable>`), holding the VARCHAR lexical form of each bound RDF term — the same shape you'd get from running `sparql_to_sql`'s output SQL yourself.
+
+**Requirements**
+
+Identical to `sparql_to_sql` (they share the same translation code):
+
+- The mapping must be a **full R2RML mapping**: every `TriplesMap` needs an `rr:logicalTable` (or, for YARRRML, a `sources` entry) naming the table or view to query — the same requirement `is_valid_r2rml()` checks. An inside-out-only mapping is **not** sufficient here.
+- Only the `SELECT` and `ASK` SPARQL query forms are supported. `CONSTRUCT` and `DESCRIBE` raise an error naming the unsupported form.
+- `GRAPH`, `SERVICE`, most property paths, and a handful of `FILTER` builtins are not yet supported and raise a detailed error describing the unsupported construct.
+
+**Errors**
+
+Raises the exact same errors as `sparql_to_sql` (see its table above), since both go through the same translation helper.
+
+**Example**
+
+```sql
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'mapping.ttl'
 );
+
+-- Filters/joins around the call are planned together with the translated SQL
+SELECT t.v_name
+FROM execute_sparql('SELECT ?e ?name WHERE { ?e <http://example.com/ns#name> ?name }', 'mapping.ttl') AS t
+WHERE t.v_e = 'http://data.example.com/employee/7369';
 ```
 
 ---
 
+# Writing RDF
 ## `COPY ... TO ... (FORMAT r2rml, ...)`
 
 Copy function. Writes RDF from a DuckDB query using an R2RML or YARRML mapping.
@@ -394,23 +505,29 @@ TO 'output.nt'
 (FORMAT r2rml, mapping 'mapping.ttl');
 ```
 
-This mode benefits from DuckDB parellism. 
+This mode benefits from DuckDB parellism and will have substantial performance gains for large volumes of nTriples (which can be written by multiple threads).
 
 **Full R2RML mode** — use when the mapping contains `rr:logicalTable` declarations. The extension ignores the `COPY` query and runs its own queries from the mapping. Pass a dummy `SELECT 1`:
 
 ```sql
-COPY (SELECT 1)
-TO 'output.nt'
-(FORMAT r2rml, mapping 'mapping.ttl');
-```
-This mode will be single threaded and less performant than the equivalent inside out.
-
-**Example**
-
-```sql
+-- Create some data
 CREATE TABLE emp AS SELECT 7369 AS empno, 'SMITH' AS ename, 10 AS deptno;
 
+-- Write as NTriples using an inside-out mapping
 COPY (SELECT empno, ename, deptno FROM emp)
 TO 'employees.nt'
-(FORMAT r2rml, mapping 'mapping.ttl', rdf_format 'turtle');
+(FORMAT r2rml, mapping 'mapping.ttl');
+
+-- Read it back
+SELECT subject, predicate, object FROM read_rdf('employees.nt');
+```
+
+```
+┌───────────────────────────────────────┬─────────────────────────────────────────────────┬───────────────────────────────────────┐
+│ subject                               │ predicate                                       │ object                                │
+├───────────────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────┤
+│ http://data.example.com/employee/7369 │ http://example.com/ns#department                │ http://data.example.com/department/10 │
+│ http://data.example.com/employee/7369 │ http://example.com/ns#name                      │ SMITH                                 │
+│ http://data.example.com/employee/7369 │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │ http://example.com/ns#Employee        │
+└───────────────────────────────────────┴─────────────────────────────────────────────────┴───────────────────────────────────────┘
 ```

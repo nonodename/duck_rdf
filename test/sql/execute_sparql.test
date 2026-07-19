@@ -1,0 +1,136 @@
+# name: test/sql/execute_sparql.test
+# description: test execute_sparql dynamic SPARQL-to-SQL execution
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# Same table shape as sparql_to_sql.test, mapped by test/r2rml/full_r2rml_lower.ttl
+# (rr:logicalTable [ rr:tableName "emp" ], lowercase column refs matching
+# DuckDB's unquoted-identifier folding).
+
+statement ok
+CREATE TABLE emp AS SELECT 7369 AS EMPNO, 'SMITH' AS ENAME, 10 AS DEPTNO;
+
+# ── Success: execute directly ────────────────────────────────────────────────
+# Same query/mapping as sparql_to_sql.test's round-trip test, but run directly
+# through execute_sparql instead of pasting the generated SQL by hand.
+
+query TT
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+http://data.example.com/employee/7369	SMITH
+
+# Same query/mapping via YARRRML (.yml) — proves format-by-extension dispatch
+# produces the same result via this path too.
+query TT
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.yml'
+);
+----
+http://data.example.com/employee/7369	SMITH
+
+# ── Success: composes as a real subquery ─────────────────────────────────────
+# Column names are the SPARQL variable names, prefixed v_ by the translator.
+
+query T
+SELECT v_name FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+) WHERE v_e = 'http://data.example.com/employee/7369';
+----
+SMITH
+
+# Column-name aliasing (AS t(id, name)) is handled by DuckDB's binder before
+# bind_replace's TableRef is bound, so it works transparently.
+query T
+SELECT t.name FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+) AS t(id, name);
+----
+SMITH
+
+# Joins with another table: proves execute_sparql(...) behaves as a genuine
+# subquery in the surrounding plan, not an opaque scan.
+statement ok
+CREATE TABLE dept AS SELECT 10 AS DEPTNO, 'ACCOUNTING' AS DNAME;
+
+query T
+SELECT dept.dname
+FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+) AS t(id, name)
+JOIN dept ON dept.deptno = 10;
+----
+ACCOUNTING
+
+# ── Plan-merging proof ───────────────────────────────────────────────────────
+# execute_sparql's bind_replace splices the translated SQL in as a subquery
+# before optimization, so the physical plan scans "emp" directly - there is no
+# separate execute_sparql table-function-scan node in the plan at all.
+
+query II
+EXPLAIN SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+physical_plan	<REGEX>:.*emp.*
+
+# ── Error cases ───────────────────────────────────────────────────────────────
+# Identical to sparql_to_sql.test's error cases: execute_sparql shares the
+# TranslateSparqlToSql helper, so the same errors are raised the same way.
+
+# mapping file not found
+statement error
+SELECT * FROM execute_sparql('SELECT ?e WHERE { ?e ?p ?o }', 'test/r2rml/nonexistent.ttl');
+----
+Mapping file not found
+
+# mapping is inside-out-only (no rr:logicalTable) - not enough for translation
+statement error
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/inside_out.ttl'
+);
+----
+not a valid full R2RML mapping
+
+# malformed SPARQL syntax
+statement error
+SELECT * FROM execute_sparql('SELECT ?e WHERE { ?e ?p ?o', 'test/r2rml/full_r2rml_lower.ttl');
+----
+SPARQL parse error
+
+# unsupported query form: CONSTRUCT
+statement error
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> CONSTRUCT { ?e ex:name ?name } WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+SPARQL-to-SQL translation error
+
+# unsupported construct: GRAPH pattern (R2RML mappings carry no named-graph info)
+statement error
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { GRAPH ?g { ?e ex:name ?name } }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+GRAPH patterns require named-graph support
+
+# unsupported construct: property path in predicate position
+statement error
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name+ ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+property paths are not supported

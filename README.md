@@ -1,10 +1,21 @@
-# A DuckDB extension to read and write RDF
+# A DuckDB extension to work with RDF
 
-This extension, Rdf, allow you to read & write RDF files directly in to/out of DuckDB. The [SERD](https://drobilla.gitlab.io/serd/doc/singlehtml/) libray is used for this, meaning the extension can parse/write [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), and [TriG](http://www.w3.org/TR/trig/). An experimental parser is also provideded to read RDF/XML serialization. This is used when the file extension is `.rdf` or `.xml`. No XML write is supported. No one needs that.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![GitHub Release](https://img.shields.io/github/v/release/nonodename/duck_rdf)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nonodename/duck_rdf/.github%2Fworkflows%2FMainDistributionPipeline.yml)
+[![DuckDB](https://img.shields.io/static/v1?label=duckdb&message=v1.5.4%2B&color=blue)](https://github.com/duckdb/duckdb/releases)
+[![Community downloads per week](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fcommunity-extensions.duckdb.org%2Fdownloads-last-week.json&query=%24.rdf&label=downloads%2Fweek&color=brightgreen)](https://duckdb.org/community_extensions/download_metrics)
 
-> **WebAssembly (duckdb-wasm) support:** The WASM build supports Turtle, NTriples, NQuads, and TriG on local files. RDF/XML parsing and `read_sparql()` (which requires OS-level networking via libcurl) are not available in WASM. Attempting to use them will raise a clear error.
+![Duck RDF Logo](docs/logo.svg)
 
-Gzip and Zst compression is supported (for example `.nt.gz`) but note that zst compression requires the parquet library to be installed and loaded to add that support.
+Read, write and manipulate RDF within DuckDB. This extension has three broad capabilities
+* reading/profiling RDF from standard serializations: [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), [TriG](http://www.w3.org/TR/trig/), and [RDF/XML](https://www.w3.org/TR/rdf12-xml/) into a standard columnar schema or pivoted based on observed predicates.
+* writing using [R2RML](https://www.w3.org/TR/r2rml/) or [YARRML](https://rml.io/yarrrml/) mappings
+* querying either remote sources or using a subset of [SPARQL](https://www.w3.org/TR/sparql11-query/) and the R2RML/Yarrrml mappings in reverse
+
+The extension works across all platforms that DuckDB supports however, note that RDF/XML parsing and `read_sparql()` (which requires OS-level networking via libcurl) are not available in WASM. 
+
+Gzip and Zst compression are supported for reads (for example `.nt.gz`). Zst compression requires the parquet library to be installed and loaded prior to invocation.
 
 ## Installation
 
@@ -17,280 +28,34 @@ LOAD rdf;
 ```
 That's it! The extension is now ready to use.
 
-## Reading RDF
-
-Six columns are returned for RDF. Three are always not null:
-* subject
-* predicate
-* object
-
-The other three columns will be null if no value is provided in the underlying RDF file:
-* graph
-* language_tag
-* datatype
-
-An optional seventh columnn is available to return the filename that the triple was found in.
-
-
- `read_rdf()` takes a file path, glob pattern, or `LIST` of paths/globs and returns a table. When multiple files are matched, all of them are read and their triples are combined:
+## Quick start
 ```
-D select subject, predicate from read_rdf('test/rdf/tests.nt');
-┌───────────────────────────────────┬─────────────────────────────────────────────────┐
-│              subject              │                    predicate                    │
-│              varchar              │                     varchar                     │
-├───────────────────────────────────┼─────────────────────────────────────────────────┤
-│ http://example.org/person/JohnDoe │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │
-│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/name                  │
-│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/age                   │
-│ http://example.org/person/JohnDoe │ http://xmlns.com/foaf/0.1/knows                 │
-│ jane                              │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │
-│ jane                              │ http://xmlns.com/foaf/0.1/name                  │
-│ http://example.org/book/123       │ http://purl.org/dc/elements/1.1/title           │
-│ http://example.org/book/123       │ http://purl.org/dc/elements/1.1/creator         │
-│ http://unicode.org/duck           │ http://example.org/hasEmoji                     │
-└───────────────────────────────────┴─────────────────────────────────────────────────┘
-```
-### Optional Parameters
+-- Read multiple files with a glob pattern
+SELECT COUNT(*) FROM read_rdf('shards/*.nt');
 
-#### Strict Parsing
-
-The optional parameter `strict_parsing`, defaults to true and exposes the underlying strict parsing feature of the serd RDF parsing library. When false it permits malformed URIs. To disable strict parsing, pass `strict_parsing = false`.
-
-#### Prefix Expansion
-
-The optional parameter `prefix_expansion` defaults to false and exposes the underlying serd `serd_env_expand_node` function to expand [CURIE](https://en.wikipedia.org/wiki/CURIE) form URIs to fully defined URIs. This is applied to all columns and is ignored when parsing ntriples and nquads.
-
-#### File Type override
-
-The optional parameter `file_type` can be used to override the detected file type of the file. The following values are recognized:
- * Turtle: `ttl`, `turtle`
- * NQuads: `nq`, `nquads`
- * NTriples: `nt`, `ntriples`
- * Trig: `trig`
- * RDF/XML `rdf`, `xml`
-
-When using a glob pattern the `file_type` override is applied uniformly to every matched file.
-
-### Filename column
-
-The parameter `filename`, a boolean, defaults to `false`. When `true`, adds a 7th column `filename` containing the source file path for each triple.
-
-### Glob / multiple files
-
-The path argument accepts a glob pattern or a `LIST` of paths/glob patterns, allowing multiple RDF files to be read in a single call. All matched files are scanned in parallel and their triples are combined into one result set:
-
-```sql
--- Read all NTriples files in a directory
-SELECT COUNT(*) FROM read_rdf('data/shards/*.nt');
-
--- Mix with other parameters — file_type applies to every matched file
-SELECT * FROM read_rdf('data/shards/*.dat', file_type = 'ttl', strict_parsing = false);
-
--- A LIST of explicit paths and/or glob patterns is also accepted
-SELECT COUNT(*) FROM read_rdf(['data/shards/a.nt', 'data/shards/b.nt']);
-```
-
-If the pattern (or list) matches no files an `IO Error` is raised.
-
-## Reading RDF Prefixes
-
-`read_rdf_prefixes()` returns the `@prefix` and `@base` declarations from Turtle or TriG files. It is useful for namespace introspection, documentation, and building CURIE-aware tooling. NTriples, RDF/XML & NQuads are not supported (they have no prefix declarations) and will raise an error.
-
-```sql
-SELECT prefix, uri, is_base FROM read_rdf_prefixes('test/rdf/tests.ttl');
-```
-
-```
-┌────────┬───────────────────────────────┬─────────┐
-│ prefix │              uri              │ is_base │
-│varchar │            varchar            │ boolean │
-├────────┼───────────────────────────────┼─────────┤
-│ foaf   │ http://xmlns.com/foaf/0.1/    │ false   │
-│ dc     │ http://purl.org/dc/elements/… │ false   │
-│        │ http://example.org/           │ true    │
-│ uni    │ http://unicode.org/           │ false   │
-└────────┴───────────────────────────────┴─────────┘
-```
-
-`read_rdf_prefixes()` accepts the same `strict_parsing`, `file_type`, and `filename` parameters as `read_rdf()` and supports glob patterns and `LIST` arguments:
-
-```sql
--- Collect all unique prefixes across a set of Turtle files
-SELECT DISTINCT prefix, uri
-FROM read_rdf_prefixes('ontologies/*.ttl')
-ORDER BY prefix;
-```
-
-## Pivoting RDF
-
-`pivot_rdf()` takes the same path/glob argument as `read_rdf()` and returns a pivoted table, one column per predicate, at least one row per subject. (To operate on arbitrary file sizes subjects _may_ be repeated if encountered out of sequence). While a pivot is possible in the SQL domain, it is subject to memory limits which this function aims to avoid by doing two passes on the RDF.
-
-```sql
-SELECT graph, subject, "http://example.org/hasEmoji" FROM pivot_rdf('test/rdf/tests.trig', prefix_expansion=true);
-```
-
-```
-┌──────────┬───────────────────────────────────┬─────────────────────────────┐
-│  graph   │              subject              │ http://example.org/hasEmoji │
-│ varchar  │              varchar              │           varchar           │
-├──────────┼───────────────────────────────────┼─────────────────────────────┤
-│ read_rdf │ http://example.org/book/123       │ NULL                        │
-│ read_rdf │ http://unicode.org/duck           │ 🦆                          │
-│ read_rdf │ jane                              │ NULL                        │
-│ read_rdf │ http://example.org/person/JohnDoe │ NULL                        │
-└──────────┴───────────────────────────────────┴─────────────────────────────┘
-```
-
-`profile_rdf` accepts the same `strict_parsing` and `file_type` parameters as `read_rdf`, and supports glob patterns and `LIST` arguments across all supported formats.
-
-
-## Querying SPARQL Endpoints
-
-The experimental `read_sparql(endpoint, query)` sends a SPARQL SELECT query to a remote endpoint and returns the result set as a DuckDB table. Column names are derived from the SPARQL variable names; all columns are VARCHAR. Unbound variables are returned as empty strings.
-
-Only non authenticated SPARQL end points are supported at this time, but a future version could use  `ATTACH` and secrets to bind more complex end points.
-
-```sql
--- Simple value lookup — returns one row with column "x"
-SELECT x FROM read_sparql(
-    'https://query.wikidata.org/sparql',
-    'SELECT ?x WHERE { VALUES ?x { "hello" } }'
-);
-```
-
-```
-┌─────────┐
-│    x    │
-│ varchar │
-├─────────┤
-│ hello   │
-└─────────┘
-```
-
-```sql
--- Count number of humans in wikidata
-SELECT * FROM read_sparql(
-             'https://query.wikidata.org/sparql',
-             'SELECT (COUNT(*) AS ?count) WHERE {   ?item wdt:P31 wd:Q5 .}'
+-- Execute a Sparql query over DuckDB tables using an R2RML mapping
+memory D CREATE TABLE emp AS SELECT 7369 AS EMPNO, 'SMITH' AS ENAME, 10 AS DEPTNO;
+memory D SELECT * FROM execute_sparql(
+             'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+             'test/r2rml/full_r2rml_lower.ttl'
          );
+┌───────────────────────────────────────┬─────────┐
+│                  v_e                  │ v_name  │
+│                varchar                │ varchar │
+├───────────────────────────────────────┼─────────┤
+│ http://data.example.com/employee/7369 │ SMITH   │
+└───────────────────────────────────────┴─────────┘
 ```
+Sparql support is _very experimental_ but quite interesting as it uses Duck's query optimizer. Please contribute issues with full steps to reproduce if you find cases that should work but don't. Sparql parsing and conversion to SQL is via the [sql2rdf](https://github.com/nonodename/sql2rdf) library.
 
-```
-┌──────────┐
-│  count   │
-│ varchar  │
-├──────────┤
-│ 13074374 │
-└──────────┘
-``` 
+Full documentation for all the functions can be found in [docs/functions.md](docs/functions.md).
 
-**Notes:**
-- Only anonymous (unauthenticated) endpoints are supported.
-- The entire result set is fetched at query-planning time; very large result sets will consume significant memory.
-- Both HTTP and HTTPS endpoints are supported.
-- `read_sparql` is not available in the WebAssembly build (requires libcurl).
-
-## SPARQL-to-SQL translation
-
-`sparql_to_sql(sparql, mapping)` translates a SPARQL `SELECT`/`ASK` query into an equivalent standalone SQL query, using an R2RML or YARRML mapping file "in reverse" via the [SQL2RDF++](https://github.com/nonodename/sql2rdf) `sparql2sql` translator. This is the opposite direction from `read_sparql`: instead of sending SPARQL to a remote endpoint, it compiles SPARQL into SQL you run yourself against the mapped DuckDB tables.
-
-```sql
--- Same mapping/table shape as the R2RML write example below
-CREATE TABLE emp AS SELECT 7369 AS empno, 'SMITH' AS ename, 10 AS deptno;
-
-SELECT sparql_to_sql(
-    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
-    'mapping.ttl'
-) AS sql;
-```
-
-The mapping passed to `sparql_to_sql` must be a **full R2RML mapping** — every `TriplesMap` needs an `rr:logicalTable` (or YARRRML `sources`) naming the table/view to query, i.e. `is_valid_r2rml(mapping)` must be `true`. Inside-out-only mappings (`can_call_inside_out(mapping) = true` but `is_valid_r2rml(mapping) = false`) aren't accepted, since there's no live SQL connection for the translator to bounce rows through.
-
-**Notes:**
-- Only the `duckdb` SQL dialect is currently supported.
-- Only `SELECT` and `ASK` SPARQL query forms are supported; `CONSTRUCT`/`DESCRIBE` raise an error.
-- `GRAPH`, `SERVICE`, most property paths, and some `FILTER` builtins aren't supported yet and raise a detailed error naming the unsupported construct.
-- Unlike `read_sparql`, `sparql_to_sql` has no libcurl/libxml2 dependency and **is available in the WebAssembly build**.
-- See [`docs/functions.md`](docs/functions.md#sparql_to_sqlsparql-mapping) for the full error-message reference.
-
-## _Experimental_ RDF write support
-
-The extension can also write RDF from DuckDB data using an [R2RML](https://www.w3.org/TR/r2rml/) or [YARRML](https://rml.io/yarrrml/) mapping file, DuckDB's `COPY TO` syntax and the [SQL2RDF++](https://github.com/nonodename/sql2rdf) library. Two modes are supported, and the correct one is chosen automatically based on the mapping.
-
-This write support is **experimental**! It passes the tests but the author doesn't have any production scaled out workload to try this on. If you use it and find issues, please get in touch and contribute issues using [contributing](CONTRIBUTING.md) guidance.
-
-### Inside-out mode
-
-Use this when your R2RML mapping has **no** `rr:logicalTable` declarations (i.e. `can_call_inside_out()` returns `true`). DuckDB drives the SQL query and passes each result row to the extension, which maps them to RDF triples using the mapping:
-
-```sql
-COPY (SELECT empno, ename, deptno FROM emp)
-TO 'output.nt'
-(FORMAT r2rml, mapping 'mapping.ttl');
-```
-
-This mode uses DuckDBs parallelism for ntriples so expect writes to be very fast.
-
-### Full R2RML mode
-
-Use this when your mapping has `rr:logicalTable` declarations that specify which tables to query. The extension ignores the SQL in the `COPY` statement and runs the mapping's own queries against the live DuckDB instance. Pass a dummy `SELECT 1` to satisfy DuckDB's `COPY` syntax:
-
-```sql
-COPY (SELECT 1) TO 'output.nt' (FORMAT r2rml, mapping 'mapping.ttl');
-```
-
-To be clear, this is a bit of a hack. But it works, under the covers it's a bit ugly. Output does stream so, in principle there should be no limit on output file size, however the write will be single threaded and not benefit from Duck's parallism.
-
-### Options
-
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `mapping` | Yes | — | Path to the R2RML mapping file (`.ttl`) |
-| `rdf_format` | No | `ntriples` | Output RDF serialization: `ntriples`, `turtle`, or `nquads` |
-| `ignore_non_fatal_errors` | No | `true` | When `true`, logical parse errors (e.g. unresolved `rr:parentTriplesMap`, unrecognised logical-table type) are collected silently. When `false`, the first such error raises an exception. |
-| `ignore_case` | No | `false` | When `true`, all column and table names are lowercased before matching. Use when your R2RML mapping uses lowercase names — DuckDB folds unquoted identifiers to lowercase, so this is the recommended setting for new mappings. |
-
-### Example
-
-```sql
--- Create some data
-CREATE TABLE emp AS SELECT 7369 AS empno, 'SMITH' AS ename, 10 AS deptno;
-
--- Write as NTriples using an inside-out mapping
-COPY (SELECT empno, ename, deptno FROM emp)
-TO 'employees.nt'
-(FORMAT r2rml, mapping 'mapping.ttl');
-
--- Read it back
-SELECT subject, predicate, object FROM read_rdf('employees.nt');
-```
-
-```
-┌───────────────────────────────────────┬─────────────────────────────────────────────────┬───────────────────────────────────────┐
-│ subject                               │ predicate                                       │ object                                │
-├───────────────────────────────────────┼─────────────────────────────────────────────────┼───────────────────────────────────────┤
-│ http://data.example.com/employee/7369 │ http://example.com/ns#department                │ http://data.example.com/department/10 │
-│ http://data.example.com/employee/7369 │ http://example.com/ns#name                      │ SMITH                                 │
-│ http://data.example.com/employee/7369 │ http://www.w3.org/1999/02/22-rdf-syntax-ns#type │ http://example.com/ns#Employee        │
-└───────────────────────────────────────┴─────────────────────────────────────────────────┴───────────────────────────────────────┘
-```
-
-### R2RML validation helpers
-
-Two scalar functions are available to validate R2RML mapping files:
-
-```sql
--- Returns true if the file is a valid R2RML mapping
-SELECT is_valid_r2rml('mapping.ttl');
-
--- Returns true if the mapping is valid for inside-out mode (no rr:logicalTable etc.) 
--- note we break the YARRML spec a little here by not requiring tables
-SELECT can_call_inside_out('mapping.yml');
-```
 
 ## Building
 ### Managing dependencies
-DuckDB extensions uses VCPKG for dependency management. Enabling VCPKG is very simple: follow the installation instructions or just run the following:
+Where possible VCPKG is used for dependencies. However, libraries like serd are not available on VCPKG, so for these, CMake FetchContent is used instead (e.g. you need an Internet connection at build time.)
+
+Enabling VCPKG is very simple: follow the installation instructions or just run the following:
 
 ```sh
 cd <your-working-dir-not-the-plugin-repo>
@@ -328,6 +93,9 @@ The main binaries that will be built are:
 - `duckdb` is the binary for the duckdb shell with the extension code automatically loaded.
 - `unittest` is the test runner of duckdb. Again, the extension is already linked into the binary.
 - `rdf.duckdb_extension` is the loadable binary as it would be distributed.
+## Cleanliness
+
+Use `make format` to format all code to the DuckDB standards, `make tidy-check` to lint.
 
 ## Running the extension
 To run the extension code, simply start the shell with `./build/release/duckdb`.

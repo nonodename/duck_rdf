@@ -99,3 +99,15 @@ query I
 SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'sparql_to_sql' LIMIT 1;
 ----
 true
+
+# ── execute_sparql ────────────────────────────────────────────────────────────
+
+query I
+SELECT description IS NOT NULL FROM duckdb_functions() WHERE function_name = 'execute_sparql' LIMIT 1;
+----
+true
+
+query I
+SELECT len(examples) > 0 FROM duckdb_functions() WHERE function_name = 'execute_sparql' LIMIT 1;
+----
+true
