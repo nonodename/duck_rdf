@@ -1,5 +1,11 @@
-# A DuckDB extension to work with RDF
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![GitHub Release](https://img.shields.io/github/v/release/nonodename/duck_rdf)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nonodename/duck_rdf/.github%2Fworkflows%2FMainDistributionPipeline.yml)
+[![DuckDB](https://img.shields.io/static/v1?label=duckdb&message=v1.5.4%2B&color=blue)](https://github.com/duckdb/duckdb/releases)
+[![Community downloads per week](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fcommunity-extensions.duckdb.org%2Fdownloads-last-week.json&query=%24.rdf&label=downloads%2Fweek&color=brightgreen)](https://duckdb.org/community_extensions/download_metrics)
 
+![Duck RDF Logo](docs/logo.svg)
+# A DuckDB extension to work with RDF
 Read, write and manipulate RDF within DuckDB. This extension has three broad capabilities
 * reading/profiling RDF from standard serializations, [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), [TriG](http://www.w3.org/TR/trig/), and [RDF/XML](https://www.w3.org/TR/rdf12-xml/) into a standard columnar schema or pivoted based on observed predicates.
 * writing using [R2RML](https://www.w3.org/TR/r2rml/) or [YARRML](https://rml.io/yarrrml/) mappings
