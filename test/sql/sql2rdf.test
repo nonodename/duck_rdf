@@ -7,10 +7,10 @@ require rdf
 ### Basic validation
 
 # File doesn't exist
-query T
+statement error
 select is_valid_r2rml('bogus_filename that doesn''t exist');
 ----
-false
+IO Error: Mapping file not found: bogus_filename that doesn't exist
 
 # File exists but is invalid 
 query T
@@ -35,6 +35,13 @@ query T
 select is_valid_r2rml('test/r2rml/example4.yml');
 ----
 true
+
+# File doesn't exist
+statement error
+select can_call_inside_out('bogus_filename that doesn''t exist');
+----
+IO Error: Mapping file not found: bogus_filename that doesn't exist
+
 
 # Valid R2RML invalid inside out
 query T

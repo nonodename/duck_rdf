@@ -73,7 +73,7 @@ inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &re
 	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
 		auto &fs = FileSystem::GetFileSystem(state.GetContext());
 		if (!fs.FileExists(name.GetString())) {
-			return false;
+			throw IOException("Mapping file not found: " + name.GetString());
 		}
 		r2rml::R2RMLMapping mapping = ParseR2RMLOrYarrrmlMapping(name.GetString());
 		return mapping.isValidInsideOut();
@@ -85,7 +85,7 @@ inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result
 	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
 		auto &fs = FileSystem::GetFileSystem(state.GetContext());
 		if (!fs.FileExists(name.GetString())) {
-			return false;
+			throw IOException("Mapping file not found: " + name.GetString());
 		}
 		r2rml::R2RMLMapping mapping;
 		try {
