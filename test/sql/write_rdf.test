@@ -120,6 +120,21 @@ WHERE subject = 'http://data.example.com/employee/7369'
 ----
 SMITH
 
+# A non-trivial (multi-row) COPY source query is still fully ignored in full R2RML
+# mode -- output must be identical to the SELECT 1 case above. The extension logs a
+# WARNING (via duckdb_logs) noting the ignored rows, but SQLLogicTest cannot assert
+# on logger output (see the analogous comment in test/sql/strict_parsing.test), so
+# this case only verifies that behavior is unaffected.
+
+statement ok
+COPY (SELECT * FROM range(5)) TO '__TEST_DIR__/full_out_nontrivial.nt'
+(FORMAT r2rml, mapping 'test/r2rml/full_r2rml_lower.ttl', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_out_nontrivial.nt');
+----
+3
+
 # ── rdf_format option ─────────────────────────────────────────────────────────
 # Turtle output is valid; verify the file can be read back with read_rdf.
 

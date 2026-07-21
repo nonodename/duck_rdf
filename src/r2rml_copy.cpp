@@ -5,6 +5,7 @@
 #include "duckdb/parser/parsed_data/copy_info.hpp"
 #include "duckdb/main/connection.hpp"
 #include "duckdb/common/file_system.hpp"
+#include <atomic>
 #include <cmath>
 #include <serd/serd.h>
 #include <r2rml/R2RMLMapping.h>
@@ -510,6 +511,11 @@ struct R2RMLWriteGlobalState : public GlobalFunctionData {
 	SerdWriter *finalize_serd_writer = nullptr;
 	BufferedSerdSink finalize_sink;
 
+	// Total rows the COPY's own SELECT source produced, counted in Sink regardless of
+	// mode. In full-R2RML mode those rows are otherwise discarded (see R2RMLCopyToSink);
+	// Finalize uses this to warn if the source query was not the trivial `SELECT 1`.
+	std::atomic<uint64_t> total_source_rows {0};
+
 	~R2RMLWriteGlobalState() {
 		if (finalize_serd_writer) {
 			serd_writer_free(finalize_serd_writer);
@@ -680,11 +686,12 @@ static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext
 static void R2RMLCopyToSink(ExecutionContext &, FunctionData &bind_data, GlobalFunctionData &gstate,
                             LocalFunctionData &lstate, DataChunk &input) {
 	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
+	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
+	global.total_source_rows.fetch_add(input.size(), std::memory_order_relaxed);
 	if (!bind.inside_out_mode) {
 		return; // full R2RML mode: rows from COPY SELECT are ignored
 	}
 
-	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
 	auto &local = lstate.Cast<R2RMLWriteLocalState>();
 	NullSQLConnection null_conn;
 
@@ -731,6 +738,16 @@ static void R2RMLCopyToFinalize(ClientContext &context, FunctionData &bind_data,
 		}
 		serd_writer_finish(global.finalize_serd_writer);
 		global.finalize_sink.FlushTo(*global.file_handle);
+
+		auto source_rows = global.total_source_rows.load();
+		if (source_rows > 1) {
+			Logger::Get(context).WriteLog(
+			    "r2rml", LogLevel::LOG_WARNING,
+			    "COPY source query produced %llu row(s), but this R2RML mapping runs in full mode and ignores "
+			    "them entirely (it queries its own rr:logicalTable/sources instead). Use `COPY (SELECT 1) TO "
+			    "...` by convention, or use a mapping without rr:logicalTable to run in inside-out mode.",
+			    (unsigned long long)source_rows);
+		}
 	}
 	// inside-out mode: each thread's writer was already finished and flushed in Combine.
 }
