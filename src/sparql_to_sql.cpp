@@ -44,7 +44,7 @@ static std::unique_ptr<sparql2sql::TypeCatalog> BuildTypeCatalog(ClientContext &
 	} catch (...) {
 		return nullptr;
 	}
-	return catalog;
+	return std::move(catalog);
 }
 
 std::string TranslateSparqlToSql(ClientContext &context, const std::string &sparql_text,
