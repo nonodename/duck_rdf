@@ -3,12 +3,14 @@
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
+#include "duckdb/main/connection.hpp"
 #include <r2rml/R2RMLMapping.h>
 #include <sparql-parser/ParseError.h>
 #include <sparql-parser/Parser.h>
 #include <sparql2sql/DuckDbDialect.h>
 #include <sparql2sql/Translator.h>
 #include <sparql2sql/TranslationError.h>
+#include <sparql2sql/TypeCatalog.h>
 #include <memory>
 
 namespace duckdb {
@@ -16,6 +18,33 @@ namespace duckdb {
 static std::string DescribeParseError(const sparql::ParseError &e) {
 	return "SPARQL parse error: " + e.message() + " (line " + std::to_string(e.line()) + ", column " +
 	       std::to_string(e.column()) + ", near '" + e.nearText() + "')";
+}
+
+// Best-effort column-type catalog for translateQuery()'s native-join-key
+// optimization: an equi-join between two base columns of comparable declared
+// type is emitted uncast instead of the always-correct-but-slower VARCHAR-cast
+// form. R2RML/YARRRML mappings carry no SQL type info of their own, so this is
+// read from the live DuckDB catalog via a fresh Connection (same pattern as
+// ClientContextSQLConnection::execute() in r2rml_copy.cpp). Any failure here
+// must never break translation - fall back to nullptr (today's behavior).
+static std::unique_ptr<sparql2sql::TypeCatalog> BuildTypeCatalog(ClientContext &context) {
+	auto catalog = make_uniq<sparql2sql::TypeCatalog>();
+	try {
+		Connection conn(*context.db);
+		auto result = conn.Query("SELECT table_name, column_name, data_type FROM information_schema.columns");
+		if (!result || result->HasError()) {
+			return nullptr;
+		}
+		for (idx_t i = 0; i < result->RowCount(); i++) {
+			auto table = result->GetValue(0, i).ToString();
+			auto column = result->GetValue(1, i).ToString();
+			auto data_type = result->GetValue(2, i).ToString();
+			catalog->columnTypes[table][column] = data_type;
+		}
+	} catch (...) {
+		return nullptr;
+	}
+	return std::move(catalog);
 }
 
 std::string TranslateSparqlToSql(ClientContext &context, const std::string &sparql_text,
@@ -54,7 +83,8 @@ std::string TranslateSparqlToSql(ClientContext &context, const std::string &spar
 	std::string sql;
 	try {
 		sparql2sql::DuckDbDialect dialect;
-		sql = sparql2sql::translateQuery(*query, mapping, dialect);
+		auto catalog = BuildTypeCatalog(context);
+		sql = sparql2sql::translateQuery(*query, mapping, dialect, catalog.get());
 	} catch (const std::exception &e) {
 		throw InvalidInputException("SPARQL-to-SQL translation error: %s", e.what());
 	}

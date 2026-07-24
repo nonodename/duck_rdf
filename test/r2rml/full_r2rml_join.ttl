@@ -1,0 +1,40 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Full R2RML mapping (every TriplesMap has an rr:logicalTable) exposing each
+# table's "deptno" as a plain rr:column value (not part of a subject
+# template) under its own unambiguous predicate, so a SPARQL query joining
+# emp and dept on a shared ?deptno variable produces a single flat SQL
+# equi-join between two PureColumn-provenance base columns - the scenario
+# sparql2sql's TypeCatalog native-join-key optimization targets. Lowercase
+# table/column refs match DuckDB's unquoted-identifier folding.
+
+<#EmployeeMap>
+    rr:logicalTable [ rr:tableName "emp" ] ;
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{empno}" ;
+        rr:class ex:Employee ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ename" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:empDeptno ;
+        rr:objectMap [ rr:column "deptno" ] ;
+    ] .
+
+<#DeptMap>
+    rr:logicalTable [ rr:tableName "dept" ] ;
+    rr:subjectMap [
+        rr:template "http://data.example.com/department/{deptno}" ;
+        rr:class ex:Department ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:deptDeptno ;
+        rr:objectMap [ rr:column "deptno" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:deptName ;
+        rr:objectMap [ rr:column "dname" ] ;
+    ] .
