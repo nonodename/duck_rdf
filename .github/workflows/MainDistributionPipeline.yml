@@ -31,16 +31,16 @@ jobs:
       # ci-tools @v1.5.3 carries the vcvars-path fix (extension-ci-tools#370) so
       # MSVC activates on the VS 2026 runner. duckdb v1.5-variegata carries the
       # fmt fix (duckdb#23238); switch to v1.5.4 once it is tagged.
-      duckdb_version: v1.5.4
-      ci_tools_version: v1.5.4
+      duckdb_version: v1.5.5
+      ci_tools_version: v1.5.5
       extension_name: rdf
 
   format-check:
     name: Format Check
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_code_quality.yml@v1.5.5
     with:
-      duckdb_version: v1.5.4
-      ci_tools_version: v1.5.4
+      duckdb_version: v1.5.5
+      ci_tools_version: v1.5.5
       extension_name: rdf
       format_checks: 'format'
   
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/download-artifact@v8
         name: Download WASM extension artifact
         with:
-          name: rdf-v1.5.4-extension-wasm_eh
+          name: rdf-v1.5.5-extension-wasm_eh
           path: wasm-build/
 
       - uses: actions/setup-node@v7
@@ -95,7 +95,7 @@ jobs:
         name: Checkout Extension CI tools
         with:
           path: 'extension-ci-tools'
-          ref: v1.5.4
+          ref: v1.5.5
           repository: duckdb/extension-ci-tools
 
       - name: Install
