@@ -37,7 +37,7 @@ jobs:
 
   format-check:
     name: Format Check
-    uses: duckdb/extension-ci-tools/.github/workflows/_extension_code_quality.yml@v1.5.4
+    uses: duckdb/extension-ci-tools/.github/workflows/_extension_code_quality.yml@v1.5.5
     with:
       duckdb_version: v1.5.4
       ci_tools_version: v1.5.4
