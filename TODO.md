@@ -23,7 +23,7 @@ The scan always writes all 6 columns regardless of what the query selects. DuckD
 6. **Streaming output for full R2RML mode** ✅
 The README itself notes this: ClientContextSQLConnection::execute() materializes the entire result set into a vector<MapSQLRow> before any RDF is written. For large tables this is a significant memory spike. A streaming cursor approach — fetching one chunk at a time and flushing to the Serd writer — would fix this.
 
-7. **Parallel write / sharded output**
+7. **Parallel write / sharded output** ✅
 R2RMLCopyExecutionMode returns REGULAR_COPY_TO_FILE (single-threaded). For inside-out mode, writing to multiple output shards in parallel (like DuckDB's Parquet writer does) could significantly improve throughput on large datasets.
 
 ### Correctness / UX

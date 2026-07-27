@@ -46,10 +46,9 @@ memory D SELECT * FROM execute_sparql(
 │ http://data.example.com/employee/7369 │ SMITH   │
 └───────────────────────────────────────┴─────────┘
 ```
-Sparql support is _very experimental_ but quite interesting as it uses Duck's query optimizer. Please contribute issues with full steps to reproduce if you find cases that should work but don't. Sparql parsing and conversion to SQL is via the [sql2rdf](https://github.com/nonodename/sql2rdf) library.
+Sparql support is _very experimental_ but quite interesting as it uses Duck's query optimizer. Please contribute issues with full steps to reproduce if you find cases that should work but don't. Sparql parsing and conversion to SQL is via the [sql2rdf](https://github.com/nonodename/sql2rdf) library, more information on the subset supported can be found in [docs/sparql.md](docs/sparql.md).
 
 Full documentation for all the functions can be found in [docs/functions.md](docs/functions.md).
-
 
 ## Building
 ### Managing dependencies
