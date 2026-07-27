@@ -5,7 +5,7 @@ include(FetchContent)
 # ------------------------------------------------------------
 set(TARGET_NAME rdf)
 set(SERD_NAME serd)
-set(EXTENSION_NAME         ${TARGET_NAME}_extension)
+set(EXTENSION_NAME ${TARGET_NAME}_extension)
 set(LOADABLE_EXTENSION_NAME ${TARGET_NAME}_loadable_extension)
 
 if (NOT EMSCRIPTEN)
@@ -38,29 +38,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(serd)
 
-
-set(EXTENSION_SOURCES
-    src/rdf_extension.cpp
-    src/r2rml_copy.cpp
-    src/sparql_to_sql.cpp
-    src/execute_sparql.cpp
-    src/serd_buffer.cpp
-    src/serd_range_buffer.cpp
-    src/rdf_profiler.cpp
-    src/profile_rdf.cpp
-    src/pivot_rdf.cpp
-    src/read_rdf_prefixes.cpp
-    src/table_filter_eval.cpp
-    src/rdf_multi_file.cpp
-    src/rdf_triples_factory.cpp
-)
+file(GLOB EXTENSION_SOURCES "src/*.cpp")
 
 # CURL and LibXml2 are not available in Emscripten/WASM builds:
 # - CURL requires OS sockets which do not exist in WASM
 # - LibXml2 is excluded to keep the WASM module minimal
 # These source files are compiled only for native targets.
-if (NOT EMSCRIPTEN)
-    list(APPEND EXTENSION_SOURCES
+if (EMSCRIPTEN)
+    list(REMOVE_ITEM EXTENSION_SOURCES
         src/rdf_xml_parser.cpp
         src/xml_buffer.cpp
         src/sparql_reader.cpp
@@ -70,19 +55,8 @@ endif()
 # ------------------------------------------------------------
 # SERD — internal static library
 # ------------------------------------------------------------
-add_library(${SERD_NAME} STATIC
-    ${serd_SOURCE_DIR}/src/base64.c
-    ${serd_SOURCE_DIR}/src/byte_source.c
-    ${serd_SOURCE_DIR}/src/env.c
-    ${serd_SOURCE_DIR}/src/n3.c
-    ${serd_SOURCE_DIR}/src/node.c
-    ${serd_SOURCE_DIR}/src/read_utf8.c
-    ${serd_SOURCE_DIR}/src/reader.c
-    ${serd_SOURCE_DIR}/src/string.c
-    ${serd_SOURCE_DIR}/src/system.c
-    ${serd_SOURCE_DIR}/src/uri.c
-    ${serd_SOURCE_DIR}/src/writer.c
-)
+file(GLOB SERD_C_SOURCES "${serd_SOURCE_DIR}/src/*.c")
+add_library(${SERD_NAME} STATIC ${SERD_C_SOURCES})
 
 target_include_directories(${SERD_NAME}
     PRIVATE
