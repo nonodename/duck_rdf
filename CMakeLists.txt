@@ -46,9 +46,9 @@ file(GLOB EXTENSION_SOURCES "src/*.cpp")
 # These source files are compiled only for native targets.
 if (EMSCRIPTEN)
     list(REMOVE_ITEM EXTENSION_SOURCES
-        src/rdf_xml_parser.cpp
-        src/xml_buffer.cpp
-        src/sparql_reader.cpp
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/rdf_xml_parser.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/xml_buffer.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/sparql_reader.cpp"
     )
 endif()
 
