@@ -133,4 +133,4 @@ SELECT * FROM execute_sparql(
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-property paths are not supported
+Invalid Input Error: SPARQL-to-SQL translation error: unsupported: the one-or-more property path operator (`+`) is not supported - unlike the other path operators it is not expressible as a fixed relational algebra expression, needing recursive SQL
