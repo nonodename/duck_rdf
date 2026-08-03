@@ -81,11 +81,11 @@ Translation covers a large, useful subset of SPARQL 1.1 — but it is a *transla
 
 **Federated query.** `SERVICE` is rejected outright; there is no notion of a second, remote endpoint here.
 
-**Property paths.** Only the simplest predicate-position forms work: a constant IRI, `a`, or a bare variable. Every path operator — sequence (`/`), alternative (`|`), `*`, `+`, `?`, inverse (`^`), and negated property sets — is rejected.
+**Property paths.**  These path operators: sequence (`/`), alternative (`|`), `?`, inverse (`^`), and negated property sets — are accepted. `*`, `+` are rejected.
 
 **Term-kind and datatype awareness.** Because every variable is a plain `VARCHAR` lexical form with no separate type/datatype/language channel, the following all throw rather than approximate: `isIRI()`, `isBLANK()`, `isLITERAL()`, `datatype()`, `lang()`, `langMatches()`, `STRLANG()`, `STRDT()`, `IRI()`/`URI()`, `BNODE()`. `sameTerm()` *is* supported, but only as plain string equality — not full term/datatype/language matching.
 
-**Ordering and MIN/MAX are lexicographic, not numeric.** `ORDER BY` and the `MIN()`/`MAX()` aggregates compare the underlying VARCHAR lexically, even when the value looks numeric, because there is no static per-variable type inference across a triple pattern's (potentially UNION-combined) candidate relations. Numeric `FILTER` comparisons and arithmetic do get a `TRY_CAST(... AS DOUBLE)` at the point of use, with a VARCHAR-comparison fallback when a value isn't numeric-castable — so `FILTER(?name < "M")` still works as intended, but `ORDER BY ?age` sorts `"10"` before `"9"`.
+**Ordering and MIN/MAX are lexicographic, not numeric.** `ORDER BY` and the `MIN()`/`MAX()` aggregates compare the underlying VARCHAR lexically, even when the value looks numeric, because there is no static per-variable type inference across a triple pattern's (potentially UNION-combined) candidate relations. Numeric `FILTER` comparisons and arithmetic do get a `TRY_CAST(... AS DOUBLE)` at the point of use, with a VARCHAR-comparison fallback when a value isn't numeric-castable — so `FILTER(?name < "M")` still works as intended, but `ORDER BY ?age` sorts `"10"` before `"9"`. However, simple type casts are permited, for example `FILTER(xsd:integer(?prec) > 2)`.
 
 **Deferred builtin functions.** `ENCODE_FOR_URI()`; the date/time accessors `YEAR()`/`MONTH()`/`DAY()`/`HOURS()`/`MINUTES()`/`SECONDS()`/`TIMEZONE()`/`TZ()`; the non-deterministic functions `NOW()`/`RAND()`/`UUID()`/`STRUUID()`; `SHA384()`/`SHA512()` (DuckDB has no built-in scalar function for either); and any call to a custom, non-builtin (IRI-named) function all throw.
 
