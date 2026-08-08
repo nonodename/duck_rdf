@@ -2,7 +2,7 @@
 
 `rdf` does not embed a SPARQL execution engine. Instead, `sparql_to_sql(sparql, mapping)` and `execute_sparql(sparql, mapping)` **translate** a SPARQL `SELECT`/`ASK` query into an equivalent SQL query, using an R2RML or YARRRML mapping "in reverse" — as a description of which SQL tables and columns each triple pattern corresponds to. `execute_sparql` then runs that SQL spliced directly into the calling query's plan; `sparql_to_sql` just returns the generated SQL text as a string, for inspection or for embedding elsewhere.
 
-This document describes exactly what subset of SPARQL 1.1 that translation supports.
+This document describes the subset of SPARQL 1.1 that translation supports. For full details, consult the underlying translation library, the badly named [sql2rdf](https://github.com/nonodename/sql2rdf/).
 
 ## Rationale
 
@@ -10,7 +10,7 @@ Most SPARQL-over-relational-data tools (e.g. Ontop, D2RQ) run a separate SPARQL 
 
 This extension takes a different approach: it compiles SPARQL algebra directly into a single relational-algebra IR and renders **one** DuckDB SQL query, using the R2RML/YARRRML mapping only as a schema — a description of how triples correspond to tables and columns. `execute_sparql`'s `bind_replace` mechanism (the same technique DuckDB's own built-in `query()` table function uses) then hands that generated SQL to DuckDB's binder as if it were a hand-written subquery, so it participates in the *same* plan as everything around it: filters and joins written outside `execute_sparql(...)` get pushed into it, DuckDB's own cardinality estimation and join ordering apply, and there is no second execution engine or result-materialization boundary in between.
 
-The cost of this approach is that every SPARQL variable becomes a plain SQL `VARCHAR` holding an RDF term's lexical string form — there is no live notion of "this is an IRI" vs "this is a `xsd:integer` literal" vs "this is a blank node" once translation is done. That one simplification is what makes the translation tractable as a single relational query, but it also means term-kind/datatype/language-aware SPARQL builtins (`isIRI()`, `datatype()`, `lang()`, ...) have nothing to operate on and are rejected rather than silently approximated. The [Known Limitations](#known-limitations) section below is a direct consequence of that design choice.
+Another way to think of it: this extension translates SPARQL to SQL using rules based mapping and optimization. Duck then does cost based optimization on the resulting SQL.
 
 ## A Quick Worked Example
 
@@ -81,23 +81,11 @@ Translation covers a large, useful subset of SPARQL 1.1 — but it is a *transla
 
 **Federated query.** `SERVICE` is rejected outright; there is no notion of a second, remote endpoint here.
 
-**Property paths.**  These path operators: sequence (`/`), alternative (`|`), `?`, inverse (`^`), and negated property sets — are accepted. `*`, `+` are rejected.
-
-**Term-kind and datatype awareness.** Because every variable is a plain `VARCHAR` lexical form with no separate type/datatype/language channel, the following all throw rather than approximate: `isIRI()`, `isBLANK()`, `isLITERAL()`, `datatype()`, `lang()`, `langMatches()`, `STRLANG()`, `STRDT()`, `IRI()`/`URI()`, `BNODE()`. `sameTerm()` *is* supported, but only as plain string equality — not full term/datatype/language matching.
-
-**Ordering and MIN/MAX are lexicographic, not numeric.** `ORDER BY` and the `MIN()`/`MAX()` aggregates compare the underlying VARCHAR lexically, even when the value looks numeric, because there is no static per-variable type inference across a triple pattern's (potentially UNION-combined) candidate relations. Numeric `FILTER` comparisons and arithmetic do get a `TRY_CAST(... AS DOUBLE)` at the point of use, with a VARCHAR-comparison fallback when a value isn't numeric-castable — so `FILTER(?name < "M")` still works as intended, but `ORDER BY ?age` sorts `"10"` before `"9"`. However, simple type casts are permited, for example `FILTER(xsd:integer(?prec) > 2)`.
-
 **Deferred builtin functions.** `ENCODE_FOR_URI()`; the date/time accessors `YEAR()`/`MONTH()`/`DAY()`/`HOURS()`/`MINUTES()`/`SECONDS()`/`TIMEZONE()`/`TZ()`; the non-deterministic functions `NOW()`/`RAND()`/`UUID()`/`STRUUID()`; `SHA384()`/`SHA512()` (DuckDB has no built-in scalar function for either); and any call to a custom, non-builtin (IRI-named) function all throw.
 
 **Out-of-scope variables.** A variable referenced in `FILTER`/`BIND`/`ORDER BY`/`HAVING` that isn't otherwise bound in scope throws at translation time, rather than being treated as unbound per SPARQL's usual semantics.
 
-**`rr:template` reconstruction assumes unreserved characters.** Forward R2RML generation percent-encodes substituted column values into a template; the reverse direction used here (matching a triple pattern's IRI back against a template to recover the column value) does not undo percent-encoding. This is correct as long as the columns referenced by a template only ever contain RFC 3986 "unreserved" characters (letters, digits, `-`, `.`, `_`, `~`).
-
 **Conservative optionality.** A `BIND`'s new variable is always marked "optional" if anything it references is optional, and every variable introduced by a subquery (`{ SELECT ... }`) is always marked "optional" in the enclosing pattern. This never produces wrong results, but can make the generated SQL more defensive (more `LEFT JOIN`/NULL-handling) than strictly necessary.
-
-**Dialect.** Only the `duckdb` SQL dialect exists; there's no parameter to target anything else.
-
-What *is* well-supported and exercised by this extension's test suite: `SELECT`/`ASK`, basic graph patterns (including `a`/`rdf:type`), `OPTIONAL`, `UNION`, `MINUS`, `FILTER` (with `REGEX`, `STRSTARTS`, `STRENDS`, `CONTAINS`, `STRBEFORE`, `STRAFTER`, `REPLACE`, `CONCAT`, `STRLEN`, `SUBSTR`, `UCASE`, `LCASE`, `ABS`, `CEIL`, `FLOOR`, `ROUND`, `COALESCE`, `IF`, `isNUMERIC`, `bound()`, `MD5`, `SHA1`, `SHA256`), `BIND`, `VALUES`, subqueries, `GROUP BY`/`HAVING`/aggregates (`COUNT`, `SUM`, `MIN`, `MAX`, `AVG`, `SAMPLE`, `GROUP_CONCAT`), `ORDER BY`, `LIMIT`/`OFFSET`, `DISTINCT`/`REDUCED`, and joins expressed via `rr:refObjectMap`/`rr:joinCondition` or an `rr:sqlQuery` (R2RML view) logical table. Both R2RML Turtle and YARRRML mappings translate identically — the mapping format only affects how the schema is described, not what SPARQL the translator accepts.
 
 ## Worked Examples
 

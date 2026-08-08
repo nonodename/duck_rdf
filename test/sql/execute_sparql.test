@@ -126,11 +126,11 @@ SELECT * FROM execute_sparql(
 ----
 GRAPH patterns require named-graph support
 
-# unsupported construct: property path in predicate position
-statement error
+# Property paths now permitted
+query TT
 SELECT * FROM execute_sparql(
     'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name+ ?name }',
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-Invalid Input Error: SPARQL-to-SQL translation error: unsupported: the one-or-more property path operator (`+`) is not supported - unlike the other path operators it is not expressible as a fixed relational algebra expression, needing recursive SQL
+http://data.example.com/employee/7369	SMITH

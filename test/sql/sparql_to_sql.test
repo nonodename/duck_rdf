@@ -20,7 +20,7 @@ SELECT sparql_to_sql(
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || CAST(t1."empno" AS VARCHAR)) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3
+SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3
 
 # Same query/mapping via YARRRML (.yml) — proves format-by-extension dispatch
 # produces the same translation as the R2RML Turtle mapping.
@@ -30,7 +30,7 @@ SELECT sparql_to_sql(
     'test/r2rml/full_r2rml_lower.yml'
 );
 ----
-SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || CAST(t1."empno" AS VARCHAR)) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3
+SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3
 
 # ── Success: round-trip execute ──────────────────────────────────────────────
 # The exact SQL text produced above, pasted literally and executed against the
@@ -84,11 +84,11 @@ SELECT sparql_to_sql(
 ----
 GRAPH patterns require named-graph support
 
-# unsupported construct: property path in predicate position
-statement error
+# property path in predicate position
+query T
 SELECT sparql_to_sql(
     'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name+ ?name }',
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-Invalid Input Error: SPARQL-to-SQL translation error: unsupported: the one-or-more property path operator (`+`) is not supported - unlike the other path operators it is not expressible as a fixed relational algebra expression, needing recursive SQL
+WITH RECURSIVE cte1 AS (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_%p1", CAST(t1."ename" AS VARCHAR) AS "v_%p2" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)), cte2 AS (SELECT t3."v_%p1" AS "cte_from", t3."v_%p2" AS "cte_to" FROM cte1 AS t3 UNION SELECT t5."cte_from", t4."v_%p2" FROM cte2 AS t5 JOIN cte1 AS t4 ON t5."cte_to" = t4."v_%p1") SELECT (t7."v_e") AS "v_e", (t7."v_name") AS "v_name" FROM (SELECT t6."cte_from" AS "v_e", t6."cte_to" AS "v_name" FROM cte2 AS t6) AS t7
