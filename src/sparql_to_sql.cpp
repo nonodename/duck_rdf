@@ -47,11 +47,13 @@ static std::unique_ptr<sparql2sql::TypeCatalog> BuildTypeCatalog(ClientContext &
 	return std::move(catalog);
 }
 
-std::string TranslateSparqlToSql(ClientContext &context, const std::string &sparql_text,
+std::string TranslateSparqlToSql(ClientContext *context, const std::string &sparql_text,
                                  const std::string &mapping_path) {
-	auto &fs = FileSystem::GetFileSystem(context);
-	if (!fs.FileExists(mapping_path)) {
-		throw IOException("Mapping file not found: " + mapping_path);
+	if (context) {
+		auto &fs = FileSystem::GetFileSystem(*context);
+		if (!fs.FileExists(mapping_path)) {
+			throw IOException("Mapping file not found: " + mapping_path);
+		}
 	}
 
 	r2rml::R2RMLMapping mapping;
@@ -83,7 +85,7 @@ std::string TranslateSparqlToSql(ClientContext &context, const std::string &spar
 	std::string sql;
 	try {
 		sparql2sql::DuckDbDialect dialect;
-		auto catalog = BuildTypeCatalog(context);
+		auto catalog = context ? BuildTypeCatalog(*context) : nullptr;
 		sql = sparql2sql::translateQuery(*query, mapping, dialect, catalog.get());
 	} catch (const std::exception &e) {
 		throw InvalidInputException("SPARQL-to-SQL translation error: %s", e.what());
@@ -98,7 +100,7 @@ inline void SparqlToSql(DataChunk &args, ExpressionState &state, Vector &result)
 	BinaryExecutor::Execute<string_t, string_t, string_t>(
 	    sparql_vector, mapping_vector, result, args.size(), [&](string_t sparql_text, string_t mapping_path_str) {
 		    std::string sql =
-		        TranslateSparqlToSql(state.GetContext(), sparql_text.GetString(), mapping_path_str.GetString());
+		        TranslateSparqlToSql(&state.GetContext(), sparql_text.GetString(), mapping_path_str.GetString());
 		    return StringVector::AddString(result, sql);
 	    });
 }
