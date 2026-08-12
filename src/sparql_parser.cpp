@@ -48,7 +48,7 @@ static std::string StripTrailingSemicolon(const std::string &query) {
 }
 
 static ParserOverrideResult SparqlParserOverride(ParserExtensionInfo *info, const string &query,
-                                                  ParserOptions &options) {
+                                                 ParserOptions &options) {
 	auto &state = *static_cast<SparqlParserState *>(info);
 
 	bool enabled;
@@ -121,7 +121,7 @@ static void SparqlParserToggleFunc(ClientContext &, TableFunctionInput &input, D
 }
 
 static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, TableFunctionBindInput &input,
-                                                        vector<LogicalType> &return_types, vector<string> &names) {
+                                                       vector<LogicalType> &return_types, vector<string> &names) {
 	auto mapping_path = input.inputs[0].GetValue<string>();
 
 	auto &fs = FileSystem::GetFileSystem(context);
@@ -161,7 +161,7 @@ static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, T
 }
 
 static unique_ptr<FunctionData> DisableSparqlParserBind(ClientContext &context, TableFunctionBindInput &input,
-                                                         vector<LogicalType> &return_types, vector<string> &names) {
+                                                        vector<LogicalType> &return_types, vector<string> &names) {
 	auto &state = *static_cast<SparqlParserState *>(input.info.get());
 	{
 		std::lock_guard<std::mutex> lock(state.mutex);
