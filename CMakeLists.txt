@@ -70,10 +70,21 @@ target_include_directories(${SERD_NAME}
 FetchContent_Declare(
   sql2rdf
   GIT_REPOSITORY https://github.com/nonodename/sql2rdf.git
-  GIT_TAG v2.1.5
+  GIT_TAG v2.1.6
 )
 
 FetchContent_MakeAvailable(sql2rdf)
+
+# sql2rdf::TypeCatalogLoader (sql2rdf::loadTypeCatalog) fills a
+# sparql2sql::TypeCatalog from a live r2rml::SQLConnection, including
+# rr:sqlQuery view result columns (described, not executed) - the mapping-aware
+# half of sparql_to_sql.cpp's type catalog. It has no DuckDB dependency of its
+# own (only r2rml::SQLConnection, an abstract interface we already implement),
+# but sql2rdf's own build only compiles it into its CLI-only sql2rdf_duckdb
+# target, so it's added directly to our own sources here instead of linking
+# that target (which would drag in sql2rdf's CLI/find_package(DuckDB) needs).
+list(APPEND EXTENSION_SOURCES "${sql2rdf_SOURCE_DIR}/src/TypeCatalogLoader.cpp")
+
 # ------------------------------------------------------------
 # DuckDB extension: static + loadable
 # ------------------------------------------------------------
@@ -93,11 +104,13 @@ target_include_directories(${EXTENSION_NAME}
     PRIVATE
         src/include
         ${serd_SOURCE_DIR}/include
+        ${sql2rdf_SOURCE_DIR}/src
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
         ${serd_SOURCE_DIR}/include
+        ${sql2rdf_SOURCE_DIR}/src
 )
 
 if (NOT EMSCRIPTEN)

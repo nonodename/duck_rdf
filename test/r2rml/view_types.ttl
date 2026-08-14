@@ -1,0 +1,32 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Type-catalog fixture: ex:label is produced by BOTH a plain table (emp.ename,
+# typed via information_schema) and an rr:sqlQuery view (dept.dname, which
+# appears in no information_schema at all). ex:namelen comes from a computed
+# view column with no base-table equivalent whatsoever. No rr:datatype is
+# declared anywhere - every datatype here must come from describing the view.
+
+<#EmployeeLabel>
+    rr:logicalTable [ rr:tableName "emp" ] ;
+    rr:subjectMap [ rr:template "http://data.example.com/employee/{empno}" ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:label ;
+        rr:objectMap [ rr:column "ename" ] ;
+    ] .
+
+<#DepartmentLabel>
+    rr:logicalTable [ rr:sqlQuery "SELECT deptno, dname FROM dept" ] ;
+    rr:subjectMap [ rr:template "http://data.example.com/department/{deptno}" ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:label ;
+        rr:objectMap [ rr:column "dname" ] ;
+    ] .
+
+<#EmployeeNameLength>
+    rr:logicalTable [ rr:sqlQuery "SELECT empno, LENGTH(ename) AS namelen FROM emp" ] ;
+    rr:subjectMap [ rr:template "http://data.example.com/employee/{empno}" ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:namelen ;
+        rr:objectMap [ rr:column "namelen" ] ;
+    ] .

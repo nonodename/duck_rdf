@@ -92,3 +92,34 @@ SELECT sparql_to_sql(
 );
 ----
 WITH RECURSIVE cte1 AS (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_%p1", CAST(t1."ename" AS VARCHAR) AS "v_%p2" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)), cte2 AS (SELECT t3."v_%p1" AS "cte_from", t3."v_%p2" AS "cte_to" FROM cte1 AS t3 UNION SELECT t5."cte_from", t4."v_%p2" FROM cte2 AS t5 JOIN cte1 AS t4 ON t5."cte_to" = t4."v_%p1") SELECT (t7."v_e") AS "v_e", (t7."v_name") AS "v_name" FROM (SELECT t6."cte_from" AS "v_e", t6."cte_to" AS "v_name" FROM cte2 AS t6) AS t7
+
+# ── Type catalog from rr:sqlQuery views ────────────────────────────────────────
+# test/r2rml/view_types.ttl maps ex:label from BOTH emp.ename (a plain table,
+# typed via information_schema) and an rr:sqlQuery view over dept (which
+# appears in no information_schema at all), and ex:namelen from a *computed*
+# view column (LENGTH(...)) with no base-table equivalent whatsoever. Neither
+# datatype is declared via rr:datatype, so DATATYPE() can only answer if the
+# type catalog describes the views' result columns, not just the base tables
+# - which is exactly what sql2rdf::loadTypeCatalog adds on top of the plain
+# information_schema sweep.
+
+statement ok
+CREATE TABLE dept AS SELECT 10 AS DEPTNO, 'ACCOUNTING' AS DNAME;
+
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> '
+    'SELECT ?l WHERE { ?s ex:label ?l . FILTER(datatype(?l) = xsd:string) }',
+    'test/r2rml/view_types.ttl'
+) LIKE '%XMLSchema#string%';
+----
+true
+
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> '
+    'SELECT ?n WHERE { ?s ex:namelen ?n . FILTER(datatype(?n) = xsd:integer) }',
+    'test/r2rml/view_types.ttl'
+) LIKE '%XMLSchema#integer%';
+----
+true

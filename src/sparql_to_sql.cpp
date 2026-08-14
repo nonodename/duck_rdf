@@ -11,6 +11,7 @@
 #include <sparql2sql/Translator.h>
 #include <sparql2sql/TranslationError.h>
 #include <sparql2sql/TypeCatalog.h>
+#include <TypeCatalogLoader.h>
 #include <memory>
 
 namespace duckdb {
@@ -21,26 +22,21 @@ static std::string DescribeParseError(const sparql::ParseError &e) {
 }
 
 // Best-effort column-type catalog for translateQuery()'s native-join-key
-// optimization: an equi-join between two base columns of comparable declared
+// optimization (an equi-join between two base columns of comparable declared
 // type is emitted uncast instead of the always-correct-but-slower VARCHAR-cast
-// form. R2RML/YARRRML mappings carry no SQL type info of their own, so this is
-// read from the live DuckDB catalog via a fresh Connection (same pattern as
-// ClientContextSQLConnection::execute() in r2rml_copy.cpp). Any failure here
-// must never break translation - fall back to nullptr (today's behavior).
-static std::unique_ptr<sparql2sql::TypeCatalog> BuildTypeCatalog(ClientContext &context) {
+// form) and for R2RML Section 10.2's natural-datatype inference on bare
+// rr:column literals. R2RML/YARRRML mappings carry no SQL type info of their
+// own, so sql2rdf::loadTypeCatalog reads it from two sources: every base
+// table's columns via information_schema, and each rr:sqlQuery logical
+// table's result columns via DESCRIBE (mapping may be nullptr to skip the
+// latter). Any failure here must never break translation - fall back to
+// nullptr (today's behavior).
+static std::unique_ptr<sparql2sql::TypeCatalog> BuildTypeCatalog(ClientContext &context,
+                                                                 const r2rml::R2RMLMapping *mapping) {
 	auto catalog = make_uniq<sparql2sql::TypeCatalog>();
 	try {
-		Connection conn(*context.db);
-		auto result = conn.Query("SELECT table_name, column_name, data_type FROM information_schema.columns");
-		if (!result || result->HasError()) {
-			return nullptr;
-		}
-		for (idx_t i = 0; i < result->RowCount(); i++) {
-			auto table = result->GetValue(0, i).ToString();
-			auto column = result->GetValue(1, i).ToString();
-			auto data_type = result->GetValue(2, i).ToString();
-			catalog->columnTypes[table][column] = data_type;
-		}
+		ClientContextSQLConnection conn(context, /*ignore_case=*/false);
+		sql2rdf::loadTypeCatalog(conn, mapping, *catalog);
 	} catch (...) {
 		return nullptr;
 	}
@@ -85,7 +81,7 @@ std::string TranslateSparqlToSql(ClientContext *context, const std::string &spar
 	std::string sql;
 	try {
 		sparql2sql::DuckDbDialect dialect;
-		auto catalog = context ? BuildTypeCatalog(*context) : nullptr;
+		auto catalog = context ? BuildTypeCatalog(*context, &mapping) : nullptr;
 		sql = sparql2sql::translateQuery(*query, mapping, dialect, catalog.get());
 	} catch (const std::exception &e) {
 		throw InvalidInputException("SPARQL-to-SQL translation error: %s", e.what());

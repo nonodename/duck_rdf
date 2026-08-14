@@ -401,38 +401,22 @@ private:
 	}
 };
 
-// SQLConnection backed by the live DuckDB instance via a fresh Connection.
-// Used for full R2RML mode where processDatabase() runs the mapping's SQL queries.
-class ClientContextSQLConnection : public r2rml::SQLConnection {
-public:
-	ClientContextSQLConnection(ClientContext &ctx, bool ignore_case) : context_(ctx), ignore_case_(ignore_case) {
+std::unique_ptr<r2rml::SQLResultSet> ClientContextSQLConnection::execute(const std::string &sql) {
+	Connection conn(*context_.db);
+	// When ignore_case is set, lowercase the SQL so that table names from
+	// rr:tableName (e.g. "EMP") match DuckDB's lowercase-folded identifiers.
+	std::string exec_sql = sql;
+	if (ignore_case_) {
+		exec_sql = stringtoLower(exec_sql);
 	}
-
-	std::unique_ptr<r2rml::SQLResultSet> execute(const std::string &sql) override {
-		Connection conn(*context_.db);
-		// When ignore_case is set, lowercase the SQL so that table names from
-		// rr:tableName (e.g. "EMP") match DuckDB's lowercase-folded identifiers.
-		std::string exec_sql = sql;
-		if (ignore_case_) {
-			exec_sql = stringtoLower(exec_sql);
-		}
-		auto result = conn.Query(exec_sql);
-		if (result->HasError()) {
-			throw InternalException("R2RML query error: " + result->GetError());
-		}
-		// conn.Query() returns a MaterializedQueryResult whose chunks are owned
-		// by the result object; the Connection can safely go out of scope here.
-		return unique_ptr<r2rml::SQLResultSet>(new StreamingSQLResultSet(std::move(result), ignore_case_));
+	auto result = conn.Query(exec_sql);
+	if (result->HasError()) {
+		throw InternalException("R2RML query error: " + result->GetError());
 	}
-
-	std::string getDefaultSchema() override {
-		return "main";
-	}
-
-private:
-	ClientContext &context_;
-	bool ignore_case_;
-};
+	// conn.Query() returns a MaterializedQueryResult whose chunks are owned
+	// by the result object; the Connection can safely go out of scope here.
+	return unique_ptr<r2rml::SQLResultSet>(new StreamingSQLResultSet(std::move(result), ignore_case_));
+}
 
 // Stub connection for inside-out mode.  isValidInsideOut() guarantees that no
 // referencing object maps are present, so execute() should never be called.
