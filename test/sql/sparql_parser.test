@@ -1,0 +1,92 @@
+# name: test/sql/sparql_parser.test
+# description: test enable_sparql_parser()/disable_sparql_parser() and raw SPARQL statements
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# Same table shape/mapping as sparql_to_sql.test and execute_sparql.test.
+
+statement ok
+CREATE TABLE emp AS SELECT 7369 AS EMPNO, 'SMITH' AS ENAME, 10 AS DEPTNO;
+
+# Plain SQL keeps working before enabling.
+query I
+SELECT count(*) FROM emp;
+----
+1
+
+# ── Bad mapping: enable_sparql_parser rejects it up front ────────────────────
+
+statement error
+CALL enable_sparql_parser('test/r2rml/does_not_exist.ttl');
+----
+Mapping file not found
+
+# A bare SPARQL statement still fails as ordinary SQL, since the bad-mapping
+# call above must not have left the parser enabled.
+statement error
+PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }
+----
+Parser Error
+
+# ── Enable ────────────────────────────────────────────────────────────────────
+
+query I
+CALL enable_sparql_parser('test/r2rml/full_r2rml_lower.ttl');
+----
+true
+
+# Bare SPARQL now runs directly, no execute_sparql()/sparql_to_sql() wrapper.
+query TT
+PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }
+----
+http://data.example.com/employee/7369	SMITH
+
+# A trailing ';', which any interactive client (e.g. the duckdb shell) sends
+# as part of the statement text, must not break SPARQL parsing.
+query TT
+PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name };
+----
+http://data.example.com/employee/7369	SMITH
+
+# Same result via execute_sparql(), proving both paths agree.
+query TT
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+http://data.example.com/employee/7369	SMITH
+
+# A `;` predicate-object list round-trips correctly - this is the whole reason
+# parser_override (not parse_function, which runs after DuckDB splits on ';')
+# is used to hook the raw-SPARQL path.
+query TT
+PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name ; ex:name ?name }
+----
+http://data.example.com/employee/7369	SMITH
+
+# Ordinary SQL keeps working unaffected while the parser is enabled.
+query I
+SELECT count(*) FROM emp;
+----
+1
+
+query I
+SELECT 1 + 1;
+----
+2
+
+# ── Disable ───────────────────────────────────────────────────────────────────
+
+query I
+CALL disable_sparql_parser();
+----
+false
+
+# The same bare SPARQL statement is once again an ordinary SQL parse error.
+statement error
+PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }
+----
+Parser Error

@@ -21,7 +21,7 @@ static unique_ptr<TableRef> ExecuteSparqlBindReplace(ClientContext &context, Tab
 	auto sparql_text = input.inputs[0].GetValue<string>();
 	auto mapping_path = input.inputs[1].GetValue<string>();
 
-	std::string sql = TranslateSparqlToSql(context, sparql_text, mapping_path);
+	std::string sql = TranslateSparqlToSql(&context, sparql_text, mapping_path);
 
 	Parser parser(context.GetParserOptions());
 	parser.ParseQuery(sql);

@@ -1,5 +1,38 @@
 # This file is included by DuckDB's build system. It specifies which extension to load
 
+# duckdb_extension_load()'s own version auto-detection (extension_build_tools.cmake's
+# duckdb_extension_generate_version) passes its --match pattern to `git describe` wrapped
+# in literal single quotes (`--match '${VERSIONING_TAG_MATCH}'`). execute_process() does not
+# go through a shell, so those quote characters reach git as literal pattern characters and
+# never match a real tag - git always falls back to the bare short hash (--always), even when
+# HEAD is exactly on a vX.Y.Z tag. Compute the version ourselves here, with a correctly-quoted
+# git invocation, and pass it explicitly via EXTENSION_VERSION to sidestep the bug.
+find_package(Git QUIET)
+set(RDF_EXTENSION_VERSION "")
+if (Git_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --always --match "v*.*.*"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+        RESULT_VARIABLE RDF_GIT_DESCRIBE_RESULT
+        OUTPUT_VARIABLE RDF_GIT_DESCRIBE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if (RDF_GIT_DESCRIBE_RESULT EQUAL 0)
+        if (RDF_GIT_DESCRIBE MATCHES "^v[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9\\.]+)?$")
+            set(RDF_EXTENSION_VERSION "${RDF_GIT_DESCRIBE}")
+        else()
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} log -1 --format=%h
+                WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+                OUTPUT_VARIABLE RDF_EXTENSION_VERSION
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+            )
+        endif()
+    endif()
+endif()
+
 # Extension from this repo
 # WASM side modules are linked by a separate `emcc -sSIDE_MODULE=2 ... ${TO_BE_LINKED}` step
 # (see duckdb/extension/extension_build_tools.cmake) that ignores target_link_libraries().
@@ -24,12 +57,14 @@ if (EMSCRIPTEN)
     duckdb_extension_load(rdf
         SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}
         LOAD_TESTS
+        EXTENSION_VERSION "${RDF_EXTENSION_VERSION}"
         LINKED_LIBS "$<TARGET_FILE:serd> $<TARGET_FILE:sql2rdf_yarrrml> $<TARGET_FILE:sql2rdf_r2rml> $<TARGET_FILE:sql2rdf_sparql> $<TARGET_FILE:sql2rdf_sparql2sql> $<TARGET_FILE:yaml-cpp>"
     )
 else()
     duckdb_extension_load(rdf
         SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}
         LOAD_TESTS
+        EXTENSION_VERSION "${RDF_EXTENSION_VERSION}"
         LINKED_LIBS "$<TARGET_FILE:serd> $<TARGET_FILE:sql2rdf_yarrrml> $<TARGET_FILE:sql2rdf_r2rml> $<TARGET_FILE:sql2rdf_sparql> $<TARGET_FILE:sql2rdf_sparql2sql> $<TARGET_FILE:LibXml2::LibXml2> $<TARGET_FILE:CURL::libcurl>"
     )
 endif()

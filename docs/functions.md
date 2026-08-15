@@ -481,6 +481,49 @@ WHERE t.v_e = 'http://data.example.com/employee/7369';
 
 ---
 
+## `enable_sparql_parser(mapping)` / `disable_sparql_parser()`
+
+Table functions. `enable_sparql_parser(mapping)` lets a *raw* SPARQL `SELECT`/`ASK` statement be run directly — with no `sparql_to_sql()`/`execute_sparql()` wrapper at all — for as long as it stays enabled:
+
+```sql
+CALL enable_sparql_parser('mapping.ttl');
+
+PREFIX ex: <http://example.com/ns#>
+SELECT ?e ?name WHERE { ?e ex:name ?name }
+```
+
+Internally, this hooks into DuckDB's parser via a `ParserExtension`: any statement that isn't valid SQL is first checked to see whether it parses as SPARQL; if it does, it is translated and executed through the exact same `TranslateSparqlToSql` pipeline `sparql_to_sql()`/`execute_sparql()` use, against the mapping passed to `enable_sparql_parser`. Ordinary SQL statements are completely unaffected and keep working normally in the same session.
+
+`disable_sparql_parser()` turns this back off.
+
+**Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `mapping` | VARCHAR | Path to the R2RML or YARRML mapping file. Same requirements as `sparql_to_sql`/`execute_sparql` — must be a full R2RML mapping, validated immediately (a bad or missing mapping raises an error from `enable_sparql_parser` itself and does not enable anything). |
+
+**Scope and limitations**
+
+- This is a **database-wide** toggle, not a per-connection setting: it affects every connection to the same DuckDB database, not just the session that called `enable_sparql_parser`. There is no per-connection variant, since the underlying parser hook has no notion of which connection is asking.
+- Only one mapping can be active at a time; calling `enable_sparql_parser` again replaces the previous mapping.
+- Text that fails to parse as SPARQL at all falls straight through to DuckDB's normal SQL parser (so plain SQL keeps working); text that parses as SPARQL but then fails translation (bad mapping, unsupported construct) raises the same errors `sparql_to_sql`/`execute_sparql` would.
+- In the Duck CLI any `;` in the query immeadiate terminates parsing. You can escape those using `$$` boundary markers (e.g `$$ ; $$`). This is one of those 'because we could' features, your mileage will vary.
+
+**Example**
+
+```sql
+CALL enable_sparql_parser('mapping.ttl');
+
+SELECT ?e ?name WHERE { ?e <http://example.com/ns#name> ?name };
+
+-- Ordinary SQL still works while enabled
+SELECT count(*) FROM my_table;
+
+CALL disable_sparql_parser();
+```
+
+---
+
 # Writing RDF
 ## `COPY ... TO ... (FORMAT r2rml, ...)`
 
