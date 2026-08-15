@@ -90,3 +90,40 @@ statement error
 PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }
 ----
 Parser Error
+
+# ── Pre-existing allow_parser_override_extension setting is preserved ─────────
+# (see issue #73: disable_sparql_parser() must restore whatever value was in
+# effect before the first enable, not hard-code DEFAULT).
+
+statement ok
+SET allow_parser_override_extension = 'FALLBACK';
+
+query I
+CALL enable_sparql_parser('test/r2rml/full_r2rml_lower.ttl');
+----
+true
+
+query I
+SELECT current_setting('allow_parser_override_extension');
+----
+STRICT
+
+# Re-enabling (e.g. to swap mappings) while already enabled must not clobber
+# the originally saved 'FALLBACK' value with the current 'STRICT' one.
+query I
+CALL enable_sparql_parser('test/r2rml/full_r2rml_lower.ttl');
+----
+true
+
+query I
+CALL disable_sparql_parser();
+----
+false
+
+query I
+SELECT current_setting('allow_parser_override_extension');
+----
+FALLBACK
+
+statement ok
+SET allow_parser_override_extension = 'DEFAULT';
