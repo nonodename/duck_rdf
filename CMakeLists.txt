@@ -70,20 +70,11 @@ target_include_directories(${SERD_NAME}
 FetchContent_Declare(
   sql2rdf
   GIT_REPOSITORY https://github.com/nonodename/sql2rdf.git
-  GIT_TAG v2.1.6
+  GIT_TAG v2.1.7
 )
 
 FetchContent_MakeAvailable(sql2rdf)
 
-# sql2rdf::TypeCatalogLoader (sql2rdf::loadTypeCatalog) fills a
-# sparql2sql::TypeCatalog from a live r2rml::SQLConnection, including
-# rr:sqlQuery view result columns (described, not executed) - the mapping-aware
-# half of sparql_to_sql.cpp's type catalog. It has no DuckDB dependency of its
-# own (only r2rml::SQLConnection, an abstract interface we already implement),
-# but sql2rdf's own build only compiles it into its CLI-only sql2rdf_duckdb
-# target, so it's added directly to our own sources here instead of linking
-# that target (which would drag in sql2rdf's CLI/find_package(DuckDB) needs).
-list(APPEND EXTENSION_SOURCES "${sql2rdf_SOURCE_DIR}/src/TypeCatalogLoader.cpp")
 
 # ------------------------------------------------------------
 # DuckDB extension: static + loadable
@@ -119,17 +110,21 @@ if (NOT EMSCRIPTEN)
 endif()
 
 # Link internal libs; LibXml2 and CURL are excluded for WASM (no OS sockets, no WASM build of CURL).
-# sql2rdf::sparql2sql (SPARQL-to-SQL translation) has no curl/libxml2/DuckDB dependency of its own,
-# so unlike LibXml2/CURL below it is linked unconditionally, including for WASM.
+# sql2rdf::sparql2sql (SPARQL-to-SQL translation) and sql2rdf::type_catalog_loader
+# (sql2rdf::loadTypeCatalog, used by BuildTypeCatalog in sparql_to_sql.cpp) have no
+# curl/libxml2/DuckDB dependency of their own, so unlike LibXml2/CURL below they are
+# linked unconditionally, including for WASM.
 target_link_libraries(${EXTENSION_NAME}
         ${SERD_NAME}
         sql2rdf::yarrrml
         sql2rdf::sparql2sql
+        sql2rdf::type_catalog_loader
 )
 target_link_libraries(${LOADABLE_EXTENSION_NAME}
         ${SERD_NAME}
         sql2rdf::yarrrml
         sql2rdf::sparql2sql
+        sql2rdf::type_catalog_loader
 )
 
 # Signal to C++ that XML and SPARQL features are disabled in WASM builds
@@ -149,7 +144,7 @@ if (WIN32)
 endif()
 
 install(
-    TARGETS sql2rdf_r2rml sql2rdf_yarrrml sql2rdf_sparql sql2rdf_sparql2sql yaml-cpp ${SERD_NAME}
+    TARGETS sql2rdf_r2rml sql2rdf_yarrrml sql2rdf_sparql sql2rdf_sparql2sql sql2rdf_type_catalog_loader yaml-cpp ${SERD_NAME}
     EXPORT "${DUCKDB_EXPORT_SET}"
     ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"  # .a file on Unix, .lib on Windows
 )
