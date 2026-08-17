@@ -27,6 +27,11 @@ struct SparqlParserState : public ParserExtensionInfo, public TableFunctionInfo 
 	std::mutex mutex;
 	bool enabled = false;
 	std::string mapping_path;
+	// The value of allow_parser_override_extension in effect just before the
+	// first enable_sparql_parser() call flipped it to STRICT, so
+	// disable_sparql_parser() can restore it instead of assuming DEFAULT.
+	bool has_saved_override_setting = false;
+	Value saved_override_setting;
 };
 
 // parser_override receives the raw statement text exactly as submitted,
@@ -143,15 +148,26 @@ static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, T
 		    mapping_path.c_str());
 	}
 
+	auto &config = DBConfig::GetConfig(context);
 	auto &state = *static_cast<SparqlParserState *>(input.info.get());
 	{
 		std::lock_guard<std::mutex> lock(state.mutex);
+		if (!state.enabled) {
+			// Only capture the pre-existing setting on the transition from
+			// disabled to enabled, so a re-enable (e.g. to swap mappings)
+			// doesn't clobber the originally saved value with STRICT.
+			Value current_value;
+			if (config.TryGetCurrentSetting("allow_parser_override_extension", current_value)) {
+				state.saved_override_setting = current_value;
+				state.has_saved_override_setting = true;
+			}
+		}
 		state.enabled = true;
 		state.mapping_path = mapping_path;
 	}
 	// parser_override only runs when allow_parser_override_extension is not
 	// DEFAULT - flip it to STRICT so bare SPARQL statements actually reach it.
-	DBConfig::GetConfig(context).SetOptionByName("allow_parser_override_extension", Value("STRICT"));
+	config.SetOptionByName("allow_parser_override_extension", Value("STRICT"));
 
 	names = {"sparql_parser_enabled"};
 	return_types = {LogicalType::BOOLEAN};
@@ -163,12 +179,21 @@ static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, T
 static unique_ptr<FunctionData> DisableSparqlParserBind(ClientContext &context, TableFunctionBindInput &input,
                                                         vector<LogicalType> &return_types, vector<string> &names) {
 	auto &state = *static_cast<SparqlParserState *>(input.info.get());
+	Value restore_value("DEFAULT");
+	auto wasEnabled = false;
 	{
 		std::lock_guard<std::mutex> lock(state.mutex);
+		wasEnabled = state.enabled;
 		state.enabled = false;
 		state.mapping_path.clear();
+		if (state.has_saved_override_setting) {
+			restore_value = state.saved_override_setting;
+			state.has_saved_override_setting = false;
+		}
 	}
-	DBConfig::GetConfig(context).SetOptionByName("allow_parser_override_extension", Value("DEFAULT"));
+	if (wasEnabled) { // only restore if was enabled to avoid clobbering another package installed state
+		DBConfig::GetConfig(context).SetOptionByName("allow_parser_override_extension", restore_value);
+	}
 
 	names = {"sparql_parser_enabled"};
 	return_types = {LogicalType::BOOLEAN};

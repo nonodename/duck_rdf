@@ -506,6 +506,7 @@ Internally, this hooks into DuckDB's parser via a `ParserExtension`: any stateme
 
 - This is a **database-wide** toggle, not a per-connection setting: it affects every connection to the same DuckDB database, not just the session that called `enable_sparql_parser`. There is no per-connection variant, since the underlying parser hook has no notion of which connection is asking.
 - Only one mapping can be active at a time; calling `enable_sparql_parser` again replaces the previous mapping.
+- `enable_sparql_parser` works by setting the database-wide `allow_parser_override_extension` setting to `STRICT`. It remembers whatever value that setting had immediately before the first `enable_sparql_parser` call, and `disable_sparql_parser` restores exactly that value — so any pre-existing configuration of `allow_parser_override_extension` (set by you or another extension) survives an enable/disable cycle instead of being reset to `DEFAULT`.
 - Text that fails to parse as SPARQL at all falls straight through to DuckDB's normal SQL parser (so plain SQL keeps working); text that parses as SPARQL but then fails translation (bad mapping, unsupported construct) raises the same errors `sparql_to_sql`/`execute_sparql` would.
 - In the Duck CLI any `;` in the query immeadiate terminates parsing. You can escape those using `$$` boundary markers (e.g `$$ ; $$`). This is one of those 'because we could' features, your mileage will vary.
 
