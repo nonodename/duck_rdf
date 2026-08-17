@@ -11,7 +11,7 @@
 #include <sparql2sql/Translator.h>
 #include <sparql2sql/TranslationError.h>
 #include <sparql2sql/TypeCatalog.h>
-#include <TypeCatalogLoader.h>
+#include <sql2rdf/TypeCatalogLoader.h>
 #include <memory>
 
 namespace duckdb {
