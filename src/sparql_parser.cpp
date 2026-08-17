@@ -157,9 +157,10 @@ static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, T
 			// disabled to enabled, so a re-enable (e.g. to swap mappings)
 			// doesn't clobber the originally saved value with STRICT.
 			Value current_value;
-			config.TryGetCurrentSetting("allow_parser_override_extension", current_value);
-			state.saved_override_setting = current_value;
-			state.has_saved_override_setting = true;
+			if(config.TryGetCurrentSetting("allow_parser_override_extension", current_value)){
+				state.saved_override_setting = current_value;
+				state.has_saved_override_setting = true;
+			}
 		}
 		state.enabled = true;
 		state.mapping_path = mapping_path;
@@ -179,8 +180,10 @@ static unique_ptr<FunctionData> DisableSparqlParserBind(ClientContext &context, 
                                                         vector<LogicalType> &return_types, vector<string> &names) {
 	auto &state = *static_cast<SparqlParserState *>(input.info.get());
 	Value restore_value("DEFAULT");
+	auto wasEnabled = false;
 	{
 		std::lock_guard<std::mutex> lock(state.mutex);
+		wasEnabled = state.enabled;
 		state.enabled = false;
 		state.mapping_path.clear();
 		if (state.has_saved_override_setting) {
@@ -188,8 +191,10 @@ static unique_ptr<FunctionData> DisableSparqlParserBind(ClientContext &context, 
 			state.has_saved_override_setting = false;
 		}
 	}
-	DBConfig::GetConfig(context).SetOptionByName("allow_parser_override_extension", restore_value);
-
+	if(wasEnabled){ // only restore if was enabled to avoid clobbering another package installed state
+		DBConfig::GetConfig(context).SetOptionByName("allow_parser_override_extension", restore_value);
+	}
+	
 	names = {"sparql_parser_enabled"};
 	return_types = {LogicalType::BOOLEAN};
 	auto result = make_uniq<SparqlParserToggleData>();
