@@ -157,7 +157,7 @@ static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, T
 			// disabled to enabled, so a re-enable (e.g. to swap mappings)
 			// doesn't clobber the originally saved value with STRICT.
 			Value current_value;
-			if(config.TryGetCurrentSetting("allow_parser_override_extension", current_value)){
+			if (config.TryGetCurrentSetting("allow_parser_override_extension", current_value)) {
 				state.saved_override_setting = current_value;
 				state.has_saved_override_setting = true;
 			}
@@ -191,10 +191,10 @@ static unique_ptr<FunctionData> DisableSparqlParserBind(ClientContext &context, 
 			state.has_saved_override_setting = false;
 		}
 	}
-	if(wasEnabled){ // only restore if was enabled to avoid clobbering another package installed state
+	if (wasEnabled) { // only restore if was enabled to avoid clobbering another package installed state
 		DBConfig::GetConfig(context).SetOptionByName("allow_parser_override_extension", restore_value);
 	}
-	
+
 	names = {"sparql_parser_enabled"};
 	return_types = {LogicalType::BOOLEAN};
 	auto result = make_uniq<SparqlParserToggleData>();
