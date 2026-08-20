@@ -34,7 +34,7 @@ SELECT sparql_to_sql(
     'test/r2rml/full_r2rml_join.ttl'
 );
 ----
-SELECT (t17."v_ename") AS "v_ename", (t17."v_dname") AS "v_dname" FROM (SELECT DISTINCT ('http://data.example.com/department/' || url_encode(CAST(t9."deptno" AS VARCHAR))) AS "v_d", CAST(t3."deptno" AS VARCHAR) AS "v_dno", ('http://data.example.com/employee/' || url_encode(CAST(t3."empno" AS VARCHAR))) AS "v_e", CAST(t3."ename" AS VARCHAR) AS "v_ename", CAST(t9."dname" AS VARCHAR) AS "v_dname" FROM "emp" AS t3, "dept" AS t9 WHERE (t3."empno" IS NOT NULL) AND (t3."ename" IS NOT NULL) AND (t3."deptno" IS NOT NULL) AND (t9."deptno" IS NOT NULL) AND (t3."deptno" = t9."deptno") AND (t9."dname" IS NOT NULL)) AS t17
+SELECT (t17."v_ename") AS "v_ename", (t17."v_dname") AS "v_dname" FROM (SELECT DISTINCT ('http://data.example.com/department/' || url_encode(CAST(t9."deptno" AS VARCHAR))) AS "v_d", CAST(t3."deptno" AS VARCHAR) AS "v_dno", ('http://data.example.com/employee/' || url_encode(CAST(t3."empno" AS VARCHAR))) AS "v_e", t3."ename" AS "v_ename", t9."dname" AS "v_dname" FROM "emp" AS t3, "dept" AS t9 WHERE (t3."empno" IS NOT NULL) AND (t3."ename" IS NOT NULL) AND (t3."deptno" IS NOT NULL) AND (t9."deptno" IS NOT NULL) AND (t3."deptno" = t9."deptno") AND (t9."dname" IS NOT NULL)) AS t17
 
 # Round-trip: the exact SQL text produced above, pasted literally, must
 # actually run and return the joined row - the same correctness oracle
@@ -60,9 +60,11 @@ SMITH	ACCOUNTING
 # ── Fallback: mismatched column types ────────────────────────────────────────
 # dept.deptno is now VARCHAR while emp.deptno is still INTEGER - TypeCatalog's
 # comparable() conservatively refuses to prove the two are safe to compare
-# natively, so the join falls back to the always-correct CAST(...AS VARCHAR)
-# form on both sides. Results must still be correct either way - this
-# optimization only ever changes the join condition, never query semantics.
+# natively, so the join falls back to CAST(...AS VARCHAR). sql2rdf v2.1.8
+# only casts the side that actually needs it (emp.deptno, still INTEGER),
+# leaving dept.deptno bare since it's already VARCHAR. Results must still be
+# correct either way - this optimization only ever changes the join
+# condition, never query semantics.
 
 statement ok
 DROP TABLE dept;
@@ -79,7 +81,7 @@ SELECT sparql_to_sql(
     'test/r2rml/full_r2rml_join.ttl'
 );
 ----
-SELECT (t17."v_ename") AS "v_ename", (t17."v_dname") AS "v_dname" FROM (SELECT DISTINCT ('http://data.example.com/department/' || url_encode(CAST(t9."deptno" AS VARCHAR))) AS "v_d", CAST(t3."deptno" AS VARCHAR) AS "v_dno", ('http://data.example.com/employee/' || url_encode(CAST(t3."empno" AS VARCHAR))) AS "v_e", CAST(t3."ename" AS VARCHAR) AS "v_ename", CAST(t9."dname" AS VARCHAR) AS "v_dname" FROM "emp" AS t3, "dept" AS t9 WHERE (t3."empno" IS NOT NULL) AND (t3."ename" IS NOT NULL) AND (t3."deptno" IS NOT NULL) AND (t9."deptno" IS NOT NULL) AND (CAST(t3."deptno" AS VARCHAR) = CAST(t9."deptno" AS VARCHAR)) AND (('Dhttp://www.w3.org/2001/XMLSchema#integer') = ('Dhttp://www.w3.org/2001/XMLSchema#string')) AND (t9."dname" IS NOT NULL)) AS t17
+SELECT (t17."v_ename") AS "v_ename", (t17."v_dname") AS "v_dname" FROM (SELECT DISTINCT ('http://data.example.com/department/' || url_encode(CAST(t9."deptno" AS VARCHAR))) AS "v_d", CAST(t3."deptno" AS VARCHAR) AS "v_dno", ('http://data.example.com/employee/' || url_encode(CAST(t3."empno" AS VARCHAR))) AS "v_e", t3."ename" AS "v_ename", t9."dname" AS "v_dname" FROM "emp" AS t3, "dept" AS t9 WHERE (t3."empno" IS NOT NULL) AND (t3."ename" IS NOT NULL) AND (t3."deptno" IS NOT NULL) AND (t9."deptno" IS NOT NULL) AND (CAST(t3."deptno" AS VARCHAR) = t9."deptno") AND (('Dhttp://www.w3.org/2001/XMLSchema#integer') = ('Dhttp://www.w3.org/2001/XMLSchema#string')) AND (t9."dname" IS NOT NULL)) AS t17
 
 query TT
 SELECT (t17."v_ename") AS "v_ename", (t17."v_dname") AS "v_dname" FROM (SELECT DISTINCT ('http://data.example.com/department/' || CAST(t9."deptno" AS VARCHAR)) AS "v_d", CAST(t3."deptno" AS VARCHAR) AS "v_dno", ('http://data.example.com/employee/' || CAST(t3."empno" AS VARCHAR)) AS "v_e", CAST(t3."ename" AS VARCHAR) AS "v_ename", CAST(t9."dname" AS VARCHAR) AS "v_dname" FROM "emp" AS t3, "dept" AS t9 WHERE (t3."empno" IS NOT NULL) AND (t3."ename" IS NOT NULL) AND (t3."deptno" IS NOT NULL) AND (t9."deptno" IS NOT NULL) AND (CAST(t3."deptno" AS VARCHAR) = CAST(t9."deptno" AS VARCHAR)) AND (t9."dname" IS NOT NULL)) AS t17;

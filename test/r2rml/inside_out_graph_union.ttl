@@ -1,0 +1,25 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Subject-level rr:graph applies to every triple from this TriplesMap; the
+# ex:name predicate-object map additionally has its own rr:graph. Per R2RML
+# section 12, the graphs for a predicate-object map's triples are the UNION
+# of the subject map's graphs and its own — so the name triple should be
+# written into BOTH graphs (two quads, same S/P/O, different graph), while
+# rdf:type and ex:department only go into the subject-level graph.
+
+<#EmployeeMap>
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{EMPNO}" ;
+        rr:class ex:Employee ;
+        rr:graph <http://example.com/graph/all> ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ENAME" ] ;
+        rr:graph <http://example.com/graph/names> ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:department ;
+        rr:objectMap [ rr:template "http://data.example.com/department/{DEPTNO}" ] ;
+    ] .

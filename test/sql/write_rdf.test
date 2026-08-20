@@ -144,6 +144,70 @@ SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.nq');
 ----
 3
 
+# read_rdf accepts NTriples syntax when reading a file typed as Turtle or
+# NQuads (both are supersets of NTriples), so the COUNT(*) checks above don't
+# actually prove the file was serialized as Turtle/NQuads rather than always
+# falling back to NTriples. Check the raw bytes to be sure: real Turtle output
+# uses "a" for rdf:type and a ";" predicate-object list (not one full triple
+# per line), which plain NTriples never produces.
+query I
+SELECT count(*) > 0 FROM read_text('__TEST_DIR__/io_out.ttl') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+----
+true
+
+# ── rdf_format inferred from the output file extension ────────────────────────
+# When rdf_format is not given, the output syntax is inferred from the target
+# file's extension, mirroring read_rdf's own extension-based format detection
+# (regression test: this previously always fell back to NTriples regardless of
+# the destination extension).
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/inferred.ttl'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
+
+query I
+SELECT count(*) > 0 FROM read_text('__TEST_DIR__/inferred.ttl') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+----
+true
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/inferred.ttl', file_type = 'ttl');
+----
+3
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/inferred.turtle'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
+
+query I
+SELECT count(*) > 0 FROM read_text('__TEST_DIR__/inferred.turtle') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+----
+true
+
+# .nt and any other/unknown extension still default to NTriples.
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/inferred.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
+
+query I
+SELECT count(*) > 0 FROM read_text('__TEST_DIR__/inferred.nt') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+----
+false
+
+# an explicit rdf_format option always wins over the extension-based guess
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/inferred_override.nt'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'turtle', ignore_case true);
+
+query I
+SELECT count(*) > 0 FROM read_text('__TEST_DIR__/inferred_override.nt') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+----
+true
+
 # ── Error cases ───────────────────────────────────────────────────────────────
 
 # mapping option is required

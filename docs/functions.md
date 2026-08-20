@@ -535,7 +535,7 @@ Copy function. Writes RDF from a DuckDB query using an R2RML or YARRML mapping.
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
 | `mapping` | Yes | — | Path to the R2RML or YARRML mapping file (`.ttl`,`.yml`,`.yaml`, `.yarrrml`) |
-| `rdf_format` | No | `ntriples` | Output serialization: `ntriples`, `turtle`, or `nquads` |
+| `rdf_format` | No | inferred from the output path's extension (`.ttl`/`.turtle` → `turtle`, `.nq`/`.nquads` → `nquads`, anything else → `ntriples`) | Output serialization: `ntriples`, `turtle`, or `nquads` |
 | `ignore_non_fatal_errors` | No | `true` | When `true`, logical errors are collected silently. When `false`, the first error raises an exception |
 | `ignore_case` | No | `false` | When `true`, all column and table names are lowercased before matching. Use when your R2RML mapping uses lowercase names, which is consistent with DuckDB's lowercase identifier folding. |
 
@@ -550,6 +550,8 @@ TO 'output.nt'
 ```
 
 This mode benefits from DuckDB parellism and will have substantial performance gains for large volumes of nTriples (which can be written by multiple threads).
+
+`rr:graph` (a constant IRI) and `rr:graphMap` (a full term map, e.g. `rr:template`/`rr:column`, for a row-dependent graph) are supported on both subject maps and predicate-object maps — the graphs for a given triple are the union of both. `rr:defaultGraph` behaves like omitting `rr:graph` (no graph term). This only takes effect with `rdf_format 'nquads'`; Turtle has no syntax for named graphs, so with `rdf_format 'turtle'` the triples are still written but any `rr:graph`/`rr:graphMap` is silently dropped. (YARRRML `graph`/`graphs` mappings are not yet supported.)
 
 **Full R2RML mode** — use when the mapping contains `rr:logicalTable` declarations. The extension ignores the `COPY` query and runs its own queries from the mapping. Pass a dummy `SELECT 1`:
 
