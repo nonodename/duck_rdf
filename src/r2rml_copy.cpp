@@ -1,4 +1,5 @@
 #include "include/r2rml_copy.hpp"
+#include "include/I_triples_buffer.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/exception.hpp"
 #include "duckdb/function/copy_function.hpp"
@@ -105,6 +106,20 @@ static SerdSyntax ParseRdfFormat(const std::string &fmt) {
 	if (x == "nt" || x == "ntriples")
 		return SERD_NTRIPLES;
 	throw InvalidInputException("Unknown rdf_format '%s'. Valid values: ntriples, turtle, nquads.", fmt.c_str());
+}
+
+// Mirrors read_rdf's extension-based format detection so that, absent an
+// explicit rdf_format option, writing to e.g. "out.ttl" produces Turtle
+// instead of always defaulting to NTriples.
+static SerdSyntax DetectRdfFormatFromPath(const std::string &path) {
+	switch (ITriplesBuffer::DetectFileTypeFromPath(path)) {
+	case ITriplesBuffer::TURTLE:
+		return SERD_TURTLE;
+	case ITriplesBuffer::NQUADS:
+		return SERD_NQUADS;
+	default:
+		return SERD_NTRIPLES;
+	}
 }
 
 // Lazily wraps a DuckDB Value; type, string representation and XSD datatype
@@ -585,7 +600,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 		throw InvalidInputException("R2RML mapping '%s' is not valid.", mapping_path.c_str());
 	}
 
-	SerdSyntax syntax = SERD_NTRIPLES;
+	SerdSyntax syntax = DetectRdfFormatFromPath(input.info.file_path);
 	auto fmt_it = options.find(RDF_FORMAT_OPTION);
 	if (fmt_it != options.end() && !fmt_it->second.empty()) {
 		syntax = ParseRdfFormat(fmt_it->second[0].GetValue<std::string>());

@@ -535,7 +535,7 @@ Copy function. Writes RDF from a DuckDB query using an R2RML or YARRML mapping.
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
 | `mapping` | Yes | — | Path to the R2RML or YARRML mapping file (`.ttl`,`.yml`,`.yaml`, `.yarrrml`) |
-| `rdf_format` | No | `ntriples` | Output serialization: `ntriples`, `turtle`, or `nquads` |
+| `rdf_format` | No | inferred from the output path's extension (`.ttl`/`.turtle` → `turtle`, `.nq`/`.nquads` → `nquads`, anything else → `ntriples`) | Output serialization: `ntriples`, `turtle`, or `nquads` |
 | `ignore_non_fatal_errors` | No | `true` | When `true`, logical errors are collected silently. When `false`, the first error raises an exception |
 | `ignore_case` | No | `false` | When `true`, all column and table names are lowercased before matching. Use when your R2RML mapping uses lowercase names, which is consistent with DuckDB's lowercase identifier folding. |
 
