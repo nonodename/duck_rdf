@@ -1,0 +1,18 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# rr:defaultGraph is R2RML's explicit way of saying "the default graph" —
+# it must behave identically to not specifying rr:graph at all (plain
+# triples, no graph term), not as a named graph literally called
+# "defaultGraph".
+
+<#EmployeeMap>
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{EMPNO}" ;
+        rr:class ex:Employee ;
+        rr:graph rr:defaultGraph ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ENAME" ] ;
+    ] .

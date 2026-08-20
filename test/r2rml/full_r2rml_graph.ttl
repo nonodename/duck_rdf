@@ -1,0 +1,18 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Full R2RML mapping (rr:logicalTable, lowercase columns) with a constant
+# rr:graph on the subject map — exercises rr:graph support in the
+# processDatabase()-driven full-R2RML COPY path, not just inside-out.
+
+<#EmployeeMap>
+    rr:logicalTable [ rr:tableName "emp" ] ;
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{empno}" ;
+        rr:class ex:Employee ;
+        rr:graph <http://example.com/graph/employees> ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ename" ] ;
+    ] .

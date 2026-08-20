@@ -1,0 +1,22 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Inside-out mapping with a constant rr:graph on the subject map: every triple
+# for this TriplesMap (rdf:type + both predicate-object maps) is written into
+# the same named graph. Exercises sql2rdf's rr:graph support (added in
+# sql2rdf v2.1.8) end to end via COPY ... FORMAT r2rml with rdf_format 'nquads'.
+
+<#EmployeeMap>
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{EMPNO}" ;
+        rr:class ex:Employee ;
+        rr:graph <http://example.com/graph/employees> ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ENAME" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:department ;
+        rr:objectMap [ rr:template "http://data.example.com/department/{DEPTNO}" ] ;
+    ] .

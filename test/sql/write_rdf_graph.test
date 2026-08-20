@@ -1,0 +1,157 @@
+# name: test/sql/write_rdf_graph.test
+# description: test rr:graph / rr:graphMap support in COPY ... FORMAT r2rml (sql2rdf v2.1.8)
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+
+statement ok
+CREATE TABLE emp AS SELECT 7369 AS EMPNO, 'SMITH' AS ENAME, 10 AS DEPTNO;
+
+# ── rr:graph (constant IRI) on the subject map ────────────────────────────────
+# test/r2rml/inside_out_graph.ttl puts every triple from the TriplesMap
+# (rdf:type + both predicate-object maps) into the same named graph.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/graph_const.nq'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out_graph.ttl', rdf_format 'nquads', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_const.nq');
+----
+3
+
+# All three triples land in the mapped named graph, not the default graph.
+query I
+SELECT COUNT(DISTINCT graph) FROM read_rdf('__TEST_DIR__/graph_const.nq');
+----
+1
+
+query T
+SELECT DISTINCT graph FROM read_rdf('__TEST_DIR__/graph_const.nq');
+----
+http://example.com/graph/employees
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/graph_const.nq')
+WHERE graph = 'http://example.com/graph/employees'
+  AND predicate = 'http://example.com/ns#name';
+----
+SMITH
+
+# ── rr:graphMap (row-dependent, rr:template referencing a column) ────────────
+# test/r2rml/inside_out_graph_map.ttl routes each row into a graph named after
+# its own DEPTNO — same mechanism as a subject/object template, just for the
+# graph position.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/graph_map.nq'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out_graph_map.ttl', rdf_format 'nquads', ignore_case true);
+
+query T
+SELECT DISTINCT graph FROM read_rdf('__TEST_DIR__/graph_map.nq');
+----
+http://example.com/graph/dept-10
+
+# ── Union of subject-level and predicate-object-map-level rr:graph ───────────
+# test/r2rml/inside_out_graph_union.ttl: the subject map has rr:graph
+# <.../all>; the ex:name predicate-object map additionally has its own
+# rr:graph <.../names>. Per R2RML section 12 the graphs that apply to a
+# triple are the UNION of both, so the name triple is written into BOTH
+# graphs (two quads, same S/P/O, different graph) while rdf:type and
+# ex:department only go into the subject-level graph.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/graph_union.nq'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out_graph_union.ttl', rdf_format 'nquads', ignore_case true);
+
+# 4 quads total: rdf:type + department (graph "all" only) + name (both graphs)
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_union.nq');
+----
+4
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_union.nq')
+WHERE predicate = 'http://example.com/ns#name';
+----
+2
+
+query T
+SELECT graph FROM read_rdf('__TEST_DIR__/graph_union.nq')
+WHERE predicate = 'http://example.com/ns#name'
+ORDER BY graph;
+----
+http://example.com/graph/all
+http://example.com/graph/names
+
+query T
+SELECT graph FROM read_rdf('__TEST_DIR__/graph_union.nq')
+WHERE predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+http://example.com/graph/all
+
+# ── rr:defaultGraph must behave like no rr:graph at all ──────────────────────
+# rr:defaultGraph is R2RML's explicit way of saying "the default graph" — it
+# must produce plain triples with no graph term, not a named graph literally
+# called "defaultGraph". test/r2rml/inside_out_default_graph.ttl sets
+# rr:graph rr:defaultGraph on the subject map.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/graph_default.nq'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out_default_graph.ttl', rdf_format 'nquads', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_default.nq');
+----
+2
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_default.nq') WHERE graph IS NULL;
+----
+2
+
+# ── rr:graph is silently dropped (not an error) when writing Turtle ──────────
+# Turtle has no syntax for named graphs; the triples must still all be
+# written, just without any graph information.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
+TO '__TEST_DIR__/graph_const.ttl'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out_graph.ttl', rdf_format 'turtle', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_const.ttl', file_type = 'ttl');
+----
+3
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_const.ttl', file_type = 'ttl') WHERE graph IS NULL;
+----
+3
+
+# ── Full R2RML mode: rr:graph also works through processDatabase() ───────────
+# test/r2rml/full_r2rml_graph.ttl has rr:logicalTable [ rr:tableName "emp" ],
+# so this drives the extension's other write path (the mapping runs its own
+# SQL query against the "emp" table created above, instead of consuming the
+# COPY SELECT). DuckDB folds emp's unquoted EMPNO/ENAME/DEPTNO to lowercase,
+# matching the mapping's lowercase column refs.
+
+statement ok
+COPY (SELECT 1) TO '__TEST_DIR__/full_graph.nq'
+(FORMAT r2rml, mapping 'test/r2rml/full_r2rml_graph.ttl', rdf_format 'nquads', ignore_case true);
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_graph.nq');
+----
+2
+
+query T
+SELECT DISTINCT graph FROM read_rdf('__TEST_DIR__/full_graph.nq');
+----
+http://example.com/graph/employees

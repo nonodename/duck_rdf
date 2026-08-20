@@ -551,6 +551,8 @@ TO 'output.nt'
 
 This mode benefits from DuckDB parellism and will have substantial performance gains for large volumes of nTriples (which can be written by multiple threads).
 
+`rr:graph` (a constant IRI) and `rr:graphMap` (a full term map, e.g. `rr:template`/`rr:column`, for a row-dependent graph) are supported on both subject maps and predicate-object maps — the graphs for a given triple are the union of both. `rr:defaultGraph` behaves like omitting `rr:graph` (no graph term). This only takes effect with `rdf_format 'nquads'`; Turtle has no syntax for named graphs, so with `rdf_format 'turtle'` the triples are still written but any `rr:graph`/`rr:graphMap` is silently dropped. (YARRRML `graph`/`graphs` mappings are not yet supported.)
+
 **Full R2RML mode** — use when the mapping contains `rr:logicalTable` declarations. The extension ignores the `COPY` query and runs its own queries from the mapping. Pass a dummy `SELECT 1`:
 
 ```sql

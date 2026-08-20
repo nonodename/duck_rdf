@@ -20,7 +20,7 @@ SELECT sparql_to_sql(
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3
+SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", t1."ename" AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)
 
 # Same query/mapping via YARRRML (.yml) — proves format-by-extension dispatch
 # produces the same translation as the R2RML Turtle mapping.
@@ -30,7 +30,7 @@ SELECT sparql_to_sql(
     'test/r2rml/full_r2rml_lower.yml'
 );
 ----
-SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", CAST(t1."ename" AS VARCHAR) AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)) AS t3
+SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", t1."ename" AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)
 
 # ── Success: round-trip execute ──────────────────────────────────────────────
 # The exact SQL text produced above, pasted literally and executed against the
@@ -91,7 +91,7 @@ SELECT sparql_to_sql(
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-WITH RECURSIVE cte1 AS (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_%p1", CAST(t1."ename" AS VARCHAR) AS "v_%p2" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)), cte2 AS (SELECT t3."v_%p1" AS "cte_from", t3."v_%p2" AS "cte_to" FROM cte1 AS t3 UNION SELECT t5."cte_from", t4."v_%p2" FROM cte2 AS t5 JOIN cte1 AS t4 ON t5."cte_to" = t4."v_%p1") SELECT (t7."v_e") AS "v_e", (t7."v_name") AS "v_name" FROM (SELECT t6."cte_from" AS "v_e", t6."cte_to" AS "v_name" FROM cte2 AS t6) AS t7
+WITH RECURSIVE cte1 AS (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_%p1", t1."ename" AS "v_%p2" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)), cte2 AS (SELECT t3."v_%p1" AS "cte_from", t3."v_%p2" AS "cte_to" FROM cte1 AS t3 UNION SELECT t5."cte_from", t4."v_%p2" FROM cte2 AS t5 JOIN cte1 AS t4 ON t5."cte_to" = t4."v_%p1") SELECT t6."cte_from" AS "v_e", t6."cte_to" AS "v_name" FROM cte2 AS t6
 
 # ── Type catalog from rr:sqlQuery views ────────────────────────────────────────
 # test/r2rml/view_types.ttl maps ex:label from BOTH emp.ename (a plain table,
