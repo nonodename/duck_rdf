@@ -21,16 +21,24 @@ static std::string DescribeParseError(const sparql::ParseError &e) {
 	       std::to_string(e.column()) + ", near '" + e.nearText() + "')";
 }
 
-// Best-effort column-type catalog for translateQuery()'s native-join-key
-// optimization (an equi-join between two base columns of comparable declared
-// type is emitted uncast instead of the always-correct-but-slower VARCHAR-cast
-// form) and for R2RML Section 10.2's natural-datatype inference on bare
-// rr:column literals. R2RML/YARRRML mappings carry no SQL type info of their
-// own, so sql2rdf::loadTypeCatalog reads it from two sources: every base
-// table's columns via information_schema, and each rr:sqlQuery logical
-// table's result columns via DESCRIBE (mapping may be nullptr to skip the
-// latter). Any failure here must never break translation - fall back to
-// nullptr (today's behavior).
+// Best-effort column-type/constraint catalog for translateQuery(). It backs:
+// (a) the native-join-key optimization (an equi-join between two base columns
+// of comparable declared type is emitted uncast instead of the
+// always-correct-but-slower VARCHAR-cast form), (b) R2RML Section 10.2's
+// natural-datatype inference on bare rr:column literals, (c) dropping the "IS
+// NOT NULL" guard on a column the DDL declares NOT NULL, and (d) dropping a
+// candidate arm's DISTINCT once a declared PRIMARY KEY/UNIQUE constraint
+// proves its projected columns already determine the row. R2RML/YARRRML
+// mappings carry no SQL type or constraint info of their own, so
+// sql2rdf::loadTypeCatalog (sql2rdf v2.1.9+) reads it from three sources:
+// every base table's columns + nullability via one information_schema.columns
+// sweep, each base table's PRIMARY KEY/UNIQUE constraints via
+// information_schema.table_constraints/key_column_usage, and each
+// rr:sqlQuery logical table's result columns via DESCRIBE (mapping may be
+// nullptr to skip the last one; a view gets no constraint facts, since no
+// backend reports constraints for an arbitrary query's result). Any failure
+// here must never break translation - fall back to nullptr (today's
+// behavior).
 static std::unique_ptr<sparql2sql::TypeCatalog> BuildTypeCatalog(ClientContext &context,
                                                                  const r2rml::R2RMLMapping *mapping) {
 	auto catalog = make_uniq<sparql2sql::TypeCatalog>();
