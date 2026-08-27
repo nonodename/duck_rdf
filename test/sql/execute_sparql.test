@@ -117,14 +117,14 @@ SELECT * FROM execute_sparql(
 ----
 SPARQL-to-SQL translation error
 
-# unsupported construct: GRAPH pattern (R2RML mappings carry no named-graph info)
-statement error
+# Graph patterns now supported
+query TT
 SELECT * FROM execute_sparql(
     'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { GRAPH ?g { ?e ex:name ?name } }',
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-GRAPH patterns require named-graph support
+
 
 # Property paths now permitted
 query TT

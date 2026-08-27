@@ -75,14 +75,14 @@ SELECT sparql_to_sql(
 ----
 SPARQL-to-SQL translation error
 
-# unsupported construct: GRAPH pattern (R2RML mappings carry no named-graph info)
-statement error
+# GRAPH pattern now supported
+query T
 SELECT sparql_to_sql(
     'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { GRAPH ?g { ?e ex:name ?name } }',
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-GRAPH patterns require named-graph support
+SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT CAST(NULL AS VARCHAR) AS "v_e", CAST(NULL AS VARCHAR) AS "v_name", CAST(NULL AS VARCHAR) AS "v_g" WHERE FALSE) AS t3
 
 # property path in predicate position
 query T
