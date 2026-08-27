@@ -406,7 +406,9 @@ Scalar function. Translates a SPARQL `SELECT` or `ASK` query into an equivalent 
 
 - The mapping must be a **full R2RML mapping**: every `TriplesMap` needs an `rr:logicalTable` (or, for YARRRML, a `sources` entry) naming the table or view to query. This is the same requirement `is_valid_r2rml()` checks (i.e. `is_valid_r2rml(mapping) = true`). An inside-out-only mapping — one with no `rr:logicalTable`, as used by `COPY ... FORMAT r2rml` inside-out mode and accepted by `can_call_inside_out()` — is **not** sufficient here, since there is no live SQL connection for `sparql_to_sql` to bounce rows through.
 - Only the `SELECT` and `ASK` SPARQL query forms are supported. `CONSTRUCT` and `DESCRIBE` raise an error naming the unsupported form.
-- `GRAPH`, `SERVICE`, most property paths, and a handful of `FILTER` builtins are not yet supported and raise a detailed error describing the unsupported construct.
+- `SERVICE` and a handful of `FILTER` builtins are not yet supported and raise a detailed error describing the unsupported construct.
+- **Named graphs (`GRAPH`, `FROM`, `FROM NAMED`) are supported**, reading a mapping's `rr:graph`/`rr:graphMap` "in reverse": `GRAPH <iri>` prunes candidates whose graph map cannot produce that IRI, and `GRAPH ?g` binds `?g` like any other query variable. A triple whose graph set has more than one member (subject map graph unioned with its predicate-object map's own graph, per R2RML §12) yields one solution per graph under `GRAPH ?g`. `FROM`/`FROM NAMED` restrict the queryable dataset per SPARQL 1.1 §13.2.
+  - ⚠️ **Strict RDF-dataset semantics.** With no `FROM`/`FROM NAMED` clause, the default graph (i.e. a query with no `GRAPH` block) contains only triples whose graph set is empty or names `rr:defaultGraph` — a triple that only carries a named graph is invisible outside a `GRAPH`/`FROM` clause. This is a behaviour change for any mapping using `rr:graph`/`rr:graphMap`: prior to sql2rdf v2.2.0, `GRAPH` unconditionally raised an error, so there was no way to observe this rule. Mappings that never use `rr:graph`/`rr:graphMap` generate byte-identical SQL and are unaffected.
 
 **Errors**
 
@@ -418,7 +420,7 @@ On failure, `sparql_to_sql` raises an error whose message identifies which stage
 | `R2RML/YARRRML mapping parse error: ...` | The mapping file is not syntactically valid |
 | `Mapping '...' is not a valid full R2RML mapping...` | The mapping parses but lacks `rr:logicalTable`/`sources` declarations |
 | `SPARQL parse error: ...` | The SPARQL query text has a syntax error (includes line/column/near-text detail) |
-| `SPARQL-to-SQL translation error: ...` | The query is syntactically valid SPARQL but uses a construct the translator can't express as SQL against this mapping (e.g. `CONSTRUCT`, `GRAPH`, an unsupported property path) |
+| `SPARQL-to-SQL translation error: ...` | The query is syntactically valid SPARQL but uses a construct the translator can't express as SQL against this mapping (e.g. `CONSTRUCT`, `SERVICE`, an unsupported `FILTER` builtin) |
 
 **Example**
 
@@ -459,7 +461,8 @@ Identical to `sparql_to_sql` (they share the same translation code):
 
 - The mapping must be a **full R2RML mapping**: every `TriplesMap` needs an `rr:logicalTable` (or, for YARRRML, a `sources` entry) naming the table or view to query — the same requirement `is_valid_r2rml()` checks. An inside-out-only mapping is **not** sufficient here.
 - Only the `SELECT` and `ASK` SPARQL query forms are supported. `CONSTRUCT` and `DESCRIBE` raise an error naming the unsupported form.
-- `GRAPH`, `SERVICE`, most property paths, and a handful of `FILTER` builtins are not yet supported and raise a detailed error describing the unsupported construct.
+- `SERVICE` and a handful of `FILTER` builtins are not yet supported and raise a detailed error describing the unsupported construct.
+- Named graphs (`GRAPH`, `FROM`, `FROM NAMED`) are supported — see `sparql_to_sql`'s requirements above, including the strict RDF-dataset semantics note.
 
 **Errors**
 
@@ -551,7 +554,7 @@ TO 'output.nt'
 
 This mode benefits from DuckDB parellism and will have substantial performance gains for large volumes of nTriples (which can be written by multiple threads).
 
-`rr:graph` (a constant IRI) and `rr:graphMap` (a full term map, e.g. `rr:template`/`rr:column`, for a row-dependent graph) are supported on both subject maps and predicate-object maps — the graphs for a given triple are the union of both. `rr:defaultGraph` behaves like omitting `rr:graph` (no graph term). This only takes effect with `rdf_format 'nquads'`; Turtle has no syntax for named graphs, so with `rdf_format 'turtle'` the triples are still written but any `rr:graph`/`rr:graphMap` is silently dropped. (YARRRML `graph`/`graphs` mappings are not yet supported.)
+`rr:graph` (a constant IRI) and `rr:graphMap` (a full term map, e.g. `rr:template`/`rr:column`, for a row-dependent graph) are supported on both subject maps and predicate-object maps, as well as via YARRRML's `graph`/`graphs` shorthand. Per R2RML §12 the graphs that apply to a triple are the **union** of the subject map's graphs and its predicate-object map's own — a triple whose graph set has two members is written **twice**, once per graph. `rr:defaultGraph` is a **member** of that set, not a value that suppresses a sibling named graph: a graph set of `{rr:defaultGraph, ex:g1}` writes the triple both as a quad in `ex:g1` and as a plain triple (no graph term) in the default graph; only when `rr:defaultGraph` is the *sole* entry does it behave like omitting `rr:graph` entirely. This only takes effect with `rdf_format 'nquads'`; Turtle has no syntax for named graphs, so with `rdf_format 'turtle'` the triples are still written but any `rr:graph`/`rr:graphMap` is silently dropped (a two-member graph set is written just once in that case, since the graph distinction that made it two quads is gone).
 
 **Full R2RML mode** — use when the mapping contains `rr:logicalTable` declarations. The extension ignores the `COPY` query and runs its own queries from the mapping. Pass a dummy `SELECT 1`:
 

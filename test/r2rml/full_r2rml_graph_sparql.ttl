@@ -1,0 +1,34 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Full R2RML mapping (has rr:logicalTable, so usable with sparql_to_sql /
+# execute_sparql) exercising named-graph support added in sql2rdf v2.2.0.
+# Uses the same lowercase "emp" table as full_r2rml_lower.ttl.
+#
+#   - Subject map has a CONSTANT rr:graph, so every triple this TriplesMap
+#     generates - including the rr:class rdf:type triple - is in <graph/g1>.
+#   - ex:name has no graph of its own, so it is in <graph/g1> only (inherited
+#     from the subject map).
+#   - ex:department has its own rr:graphMap (a per-row TEMPLATE), so per
+#     R2RML section 12 its triples are in the UNION of <graph/g1> and a
+#     department-specific graph.
+
+<#EmployeeMap>
+    rr:logicalTable [ rr:tableName "emp" ] ;
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{empno}" ;
+        rr:class ex:Employee ;
+        rr:graph <http://example.com/graph/g1> ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ename" ] ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:department ;
+        rr:objectMap [
+            rr:template "http://data.example.com/department/{deptno}" ;
+            rr:termType rr:IRI ;
+        ] ;
+        rr:graphMap [ rr:template "http://example.com/graph/dept/{deptno}" ] ;
+    ] .

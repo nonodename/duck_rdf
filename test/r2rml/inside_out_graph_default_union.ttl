@@ -1,0 +1,35 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# Exercises rr:defaultGraph as a *member* of R2RML section 12's target graph
+# set, rather than a value that suppresses itself whenever a sibling graph
+# resolves to a real named graph (fixed in sql2rdf v2.2.0 - previously a
+# graph set of {rr:defaultGraph, ex:g1} silently dropped the default-graph
+# copy, so this mixed set only ever produced the named-graph quad).
+#
+#   - ex:name's predicate-object map declares BOTH rr:defaultGraph and a
+#     named graph, so its triple must be written TWICE: once as a quad in
+#     ex:g1, and once as a plain triple (graph IS NULL) in the default graph.
+#   - ex:job's predicate-object map declares only the named graph - the
+#     control that keeps the test from passing vacuously if the default-graph
+#     copy were simply always emitted regardless of whether rr:defaultGraph
+#     was actually listed.
+#   - the subject map declares no graph of its own, so the rdf:type triple
+#     from rr:class lands in the default graph only.
+
+<#EmployeeMap>
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{EMPNO}" ;
+        rr:class ex:Employee ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ENAME" ] ;
+        rr:graph rr:defaultGraph ;
+        rr:graph <http://example.com/graph/g1> ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:job ;
+        rr:objectMap [ rr:column "JOB" ] ;
+        rr:graph <http://example.com/graph/g1> ;
+    ] .
