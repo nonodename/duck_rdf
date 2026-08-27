@@ -75,14 +75,17 @@ SELECT sparql_to_sql(
 ----
 SPARQL-to-SQL translation error
 
-# unsupported construct: GRAPH pattern (R2RML mappings carry no named-graph info)
-statement error
+# GRAPH pattern now supported. full_r2rml_lower.ttl has no rr:graph/rr:graphMap
+# anywhere, so every candidate's graph set is empty and GRAPH can never bind -
+# this is the degenerate case; see "Named graphs" below for a mapping that
+# actually has graph maps to translate against.
+query T
 SELECT sparql_to_sql(
     'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { GRAPH ?g { ?e ex:name ?name } }',
     'test/r2rml/full_r2rml_lower.ttl'
 );
 ----
-GRAPH patterns require named-graph support
+SELECT (t3."v_e") AS "v_e", (t3."v_name") AS "v_name" FROM (SELECT CAST(NULL AS VARCHAR) AS "v_e", CAST(NULL AS VARCHAR) AS "v_name", CAST(NULL AS VARCHAR) AS "v_g" WHERE FALSE) AS t3
 
 # property path in predicate position
 query T
@@ -123,3 +126,73 @@ SELECT sparql_to_sql(
 ) LIKE '%XMLSchema#integer%';
 ----
 true
+
+# ── Named graphs (sql2rdf v2.2.0) ──────────────────────────────────────────────
+# test/r2rml/full_r2rml_graph_sparql.ttl (full R2RML, same "emp" table as
+# full_r2rml_lower.ttl above): the subject map has a CONSTANT rr:graph
+# <.../g1>, so every triple of the TriplesMap - including ex:name, which has
+# no graph of its own - inherits it. ex:department additionally has its own
+# rr:graphMap (a per-row TEMPLATE keyed on deptno), so per R2RML section 12
+# its triples are in the UNION of <.../g1> and a department-specific graph.
+
+# GRAPH with a bound constant IRI: matches, since ex:name is (only) in g1.
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { GRAPH <http://example.com/graph/g1> { ?e ex:name ?name } }',
+    'test/r2rml/full_r2rml_graph_sparql.ttl'
+);
+----
+SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", t1."ename" AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)
+
+# GRAPH ?g binds the graph as an ordinary query variable.
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name ?g WHERE { GRAPH ?g { ?e ex:name ?name } }',
+    'test/r2rml/full_r2rml_graph_sparql.ttl'
+);
+----
+SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", t1."ename" AS "v_name", 'http://example.com/graph/g1' AS "v_g" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)
+
+# ex:department's graph set has two members, so GRAPH ?g must yield one
+# solution per graph - a UNION over the two graph shapes, one constant
+# ("g1", inherited from the subject map) and one per-row template.
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?d ?g WHERE { GRAPH ?g { ?e ex:department ?d } }',
+    'test/r2rml/full_r2rml_graph_sparql.ttl'
+);
+----
+(SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t2."empno" AS VARCHAR))) AS "v_e", ('http://data.example.com/department/' || url_encode(CAST(t2."deptno" AS VARCHAR))) AS "v_d", 'http://example.com/graph/g1' AS "v_g" FROM "emp" AS t2 WHERE (t2."empno" IS NOT NULL) AND (t2."deptno" IS NOT NULL)) UNION BY NAME (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t2."empno" AS VARCHAR))) AS "v_e", ('http://data.example.com/department/' || url_encode(CAST(t2."deptno" AS VARCHAR))) AS "v_d", ('http://example.com/graph/dept/' || url_encode(CAST(t2."deptno" AS VARCHAR))) AS "v_g" FROM "emp" AS t2 WHERE (('http://example.com/graph/dept/' || url_encode(CAST(t2."deptno" AS VARCHAR))) <> 'http://www.w3.org/ns/r2rml#defaultGraph') AND (t2."empno" IS NOT NULL) AND (t2."deptno" IS NOT NULL))
+
+# Round-trip: pasting the ex:department UNION SQL above literally must return
+# both graphs the triple belongs to for the one row in "emp".
+query TTT
+(SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t2."empno" AS VARCHAR))) AS "v_e", ('http://data.example.com/department/' || url_encode(CAST(t2."deptno" AS VARCHAR))) AS "v_d", 'http://example.com/graph/g1' AS "v_g" FROM "emp" AS t2 WHERE (t2."empno" IS NOT NULL) AND (t2."deptno" IS NOT NULL)) UNION BY NAME (SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t2."empno" AS VARCHAR))) AS "v_e", ('http://data.example.com/department/' || url_encode(CAST(t2."deptno" AS VARCHAR))) AS "v_d", ('http://example.com/graph/dept/' || url_encode(CAST(t2."deptno" AS VARCHAR))) AS "v_g" FROM "emp" AS t2 WHERE (('http://example.com/graph/dept/' || url_encode(CAST(t2."deptno" AS VARCHAR))) <> 'http://www.w3.org/ns/r2rml#defaultGraph') AND (t2."empno" IS NOT NULL) AND (t2."deptno" IS NOT NULL))
+ORDER BY v_g;
+----
+http://data.example.com/employee/7369	http://data.example.com/department/10	http://example.com/graph/dept/10
+http://data.example.com/employee/7369	http://data.example.com/department/10	http://example.com/graph/g1
+
+# FROM <g1> restricts the default graph to g1's triples - equivalent to the
+# bound-GRAPH query above but expressed via a dataset clause instead.
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name FROM <http://example.com/graph/g1> WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_graph_sparql.ttl'
+);
+----
+SELECT DISTINCT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", t1."ename" AS "v_name" FROM "emp" AS t1 WHERE (t1."empno" IS NOT NULL) AND (t1."ename" IS NOT NULL)
+
+# With NO dataset clause and NO GRAPH block, strict RDF-dataset semantics say
+# the default graph holds only triples whose graph set is empty or names
+# rr:defaultGraph - every triple in this mapping has an explicit named graph,
+# so an ungraphed query against it matches nothing. This is the documented
+# behaviour change from before sql2rdf v2.2.0 (mappings using rr:graph now
+# need an explicit GRAPH/FROM to see their triples).
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_graph_sparql.ttl'
+);
+----
+SELECT CAST(NULL AS VARCHAR) AS "v_e", CAST(NULL AS VARCHAR) AS "v_name" WHERE FALSE

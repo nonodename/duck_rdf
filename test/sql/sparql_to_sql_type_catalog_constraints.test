@@ -1,0 +1,51 @@
+# name: test/sql/sparql_to_sql_type_catalog_constraints.test
+# description: test sparql_to_sql/execute_sparql's TypeCatalog NOT NULL/PRIMARY KEY optimizations (sql2rdf v2.1.9)
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# Same mapping/table shape as sparql_to_sql.test (test/r2rml/full_r2rml_lower.ttl,
+# "emp" table), but "empno" is now a PRIMARY KEY and "ename" is NOT NULL. sql2rdf
+# v2.1.9's TypeCatalog now reads those DDL facts alongside column types, so
+# translateQuery() can drop the "IS NOT NULL" guard it would otherwise emit for
+# both columns (the mapping's own subject template on empno and rr:column on
+# ename would each need one) and drop the top-level DISTINCT, since empno alone
+# already determines the row via the declared PRIMARY KEY.
+
+statement ok
+CREATE TABLE emp(empno INTEGER PRIMARY KEY, ename VARCHAR NOT NULL, deptno INTEGER);
+
+statement ok
+INSERT INTO emp VALUES (7369, 'SMITH', 10);
+
+# ── No DISTINCT, no IS NOT NULL guards: PRIMARY KEY + NOT NULL cover both. ────
+
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+SELECT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", t1."ename" AS "v_name" FROM "emp" AS t1
+
+# Round-trip: the exact SQL text produced above, pasted literally, must
+# actually run and return the mapped row - the same correctness oracle used in
+# sparql_to_sql.test.
+
+query TT
+SELECT ('http://data.example.com/employee/' || url_encode(CAST(t1."empno" AS VARCHAR))) AS "v_e", t1."ename" AS "v_name" FROM "emp" AS t1;
+----
+http://data.example.com/employee/7369	SMITH
+
+# execute_sparql shares TranslateSparqlToSql, so it picks up the same
+# constraint-driven optimization - prove the wiring by running the identical
+# query/mapping directly instead of pasting generated SQL.
+
+query TT
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/full_r2rml_lower.ttl'
+);
+----
+http://data.example.com/employee/7369	SMITH

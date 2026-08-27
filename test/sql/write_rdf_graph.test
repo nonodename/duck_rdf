@@ -135,6 +135,53 @@ SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_const.ttl', file_type = 'ttl')
 ----
 3
 
+# ── rr:defaultGraph as a UNION member, not a suppressor (sql2rdf v2.2.0) ─────
+# R2RML section 12 defines a triple's graphs as a SET in which rr:defaultGraph
+# denotes the default graph as a MEMBER, not a value that cancels a sibling
+# named graph. test/r2rml/inside_out_graph_default_union.ttl's ex:name
+# predicate-object map declares BOTH rr:defaultGraph and <.../graph/g1>, so
+# its triple must be written TWICE: once as a quad in g1, once as a plain
+# triple (graph IS NULL) in the default graph. ex:job (named graph only) and
+# rdf:type (no graph map at all) are the controls that keep this from passing
+# vacuously.
+
+statement ok
+COPY (SELECT EMPNO, ENAME, DEPTNO, 'CLERK' AS JOB FROM emp)
+TO '__TEST_DIR__/graph_default_union.nq'
+(FORMAT r2rml, mapping 'test/r2rml/inside_out_graph_default_union.ttl', rdf_format 'nquads', ignore_case true);
+
+# 4 quads: rdf:type (default) + ex:job (g1) + ex:name (g1) + ex:name (default)
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_default_union.nq');
+----
+4
+
+query I
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/graph_default_union.nq')
+WHERE predicate = 'http://example.com/ns#name';
+----
+2
+
+query T
+SELECT graph FROM read_rdf('__TEST_DIR__/graph_default_union.nq')
+WHERE predicate = 'http://example.com/ns#name'
+ORDER BY graph NULLS FIRST;
+----
+NULL
+http://example.com/graph/g1
+
+query T
+SELECT graph FROM read_rdf('__TEST_DIR__/graph_default_union.nq')
+WHERE predicate = 'http://example.com/ns#job';
+----
+http://example.com/graph/g1
+
+query T
+SELECT graph FROM read_rdf('__TEST_DIR__/graph_default_union.nq')
+WHERE predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+----
+NULL
+
 # ── Full R2RML mode: rr:graph also works through processDatabase() ───────────
 # test/r2rml/full_r2rml_graph.ttl has rr:logicalTable [ rr:tableName "emp" ],
 # so this drives the extension's other write path (the mapping runs its own
