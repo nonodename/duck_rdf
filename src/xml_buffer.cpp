@@ -86,7 +86,6 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 		// Filter pushdown: reject non-matching rows before any vector write.
 		// Graph is always empty (and therefore NULL, see writeToVector) for RDF/XML files.
 		if(_column_filters[0].get() && !PassesFilter(_column_filters[0].get(), "", 0, true)) {
-			// Graph filter rejects all rows, so skip the rest of the checks.
 			return;
 		}
 		if(_column_filters[1].get() && !PassesFilter(_column_filters[1].get(), stmt.subject.data(), stmt.subject.length(), stmt.subject.empty())) {
@@ -104,18 +103,6 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 		if(_column_filters[5].get() && !PassesFilter(_column_filters[5].get(), stmt.language.data(), stmt.language.length(), stmt.language.empty())) {
 			return;
 		}
-		
-		/*auto passes = [&](int col, const std::string &s) {
-			auto *filter = _column_filters[col].get();
-			if (!filter) {
-				return true;
-			}
-			return PassesFilter(filter, s.data(), s.size(), s.empty());
-		};
-		if (!passes(0, std::string()) || !passes(1, stmt.subject) || !passes(2, stmt.predicate) ||
-		    !passes(3, stmt.object) || !passes(4, stmt.datatype) || !passes(5, stmt.language)) {
-			return;
-		}*/
 
 		// Safety check: If chunk is full, push to overflow and return
 		if (_current_count >= STANDARD_VECTOR_SIZE) {
