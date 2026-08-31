@@ -85,22 +85,27 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 	try {
 		// Filter pushdown: reject non-matching rows before any vector write.
 		// Graph is always empty (and therefore NULL, see writeToVector) for RDF/XML files.
-		if(_column_filters[0].get() && !PassesFilter(_column_filters[0].get(), "", 0, true)) {
+		if (_column_filters[0].get() && !PassesFilter(_column_filters[0].get(), "", 0, true)) {
 			return;
 		}
-		if(_column_filters[1].get() && !PassesFilter(_column_filters[1].get(), stmt.subject.data(), stmt.subject.length(), stmt.subject.empty())) {
+		if (_column_filters[1].get() &&
+		    !PassesFilter(_column_filters[1].get(), stmt.subject.data(), stmt.subject.length(), stmt.subject.empty())) {
 			return;
 		}
-		if(_column_filters[2].get() && !PassesFilter(_column_filters[2].get(), stmt.predicate.data(), stmt.predicate.length(), stmt.predicate.empty())) {
+		if (_column_filters[2].get() && !PassesFilter(_column_filters[2].get(), stmt.predicate.data(),
+		                                              stmt.predicate.length(), stmt.predicate.empty())) {
 			return;
 		}
-		if(_column_filters[3].get() && !PassesFilter(_column_filters[3].get(), stmt.object.data(), stmt.object.length(), stmt.object.empty())) {
+		if (_column_filters[3].get() &&
+		    !PassesFilter(_column_filters[3].get(), stmt.object.data(), stmt.object.length(), stmt.object.empty())) {
 			return;
 		}
-		if(_column_filters[4].get() && !PassesFilter(_column_filters[4].get(), stmt.datatype.data(), stmt.datatype.length(), stmt.datatype.empty())) {
+		if (_column_filters[4].get() && !PassesFilter(_column_filters[4].get(), stmt.datatype.data(),
+		                                              stmt.datatype.length(), stmt.datatype.empty())) {
 			return;
 		}
-		if(_column_filters[5].get() && !PassesFilter(_column_filters[5].get(), stmt.language.data(), stmt.language.length(), stmt.language.empty())) {
+		if (_column_filters[5].get() && !PassesFilter(_column_filters[5].get(), stmt.language.data(),
+		                                              stmt.language.length(), stmt.language.empty())) {
 			return;
 		}
 
