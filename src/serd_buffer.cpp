@@ -150,7 +150,7 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 
 	// 1. Drain overflow buffer first (if any)
 	while (!_overflow_buffer.empty() && _current_count < STANDARD_VECTOR_SIZE) {
-		RDFRow row = _overflow_buffer.front();
+		RDFRow row = std::move(_overflow_buffer.front());
 		_overflow_buffer.pop_front();
 		writeOverflowStr(_output_slot[0], row.graph);
 		writeOverflowStr(_output_slot[1], row.subject);

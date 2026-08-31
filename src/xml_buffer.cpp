@@ -29,7 +29,7 @@ void XMLBuffer::PopulateChunk(duckdb::DataChunk &output) {
 	_current_chunk = &output;
 	_current_count = 0;
 	while (!_overflow_buffer.empty() && _current_count < STANDARD_VECTOR_SIZE) {
-		RDFRow row = _overflow_buffer.front();
+		RDFRow row = std::move(_overflow_buffer.front());
 		_overflow_buffer.pop_front();
 		// Use writeToVector (fast path: StringVector::AddString + FlatVector::GetData).
 		if (_output_slot[0] >= 0)
