@@ -113,21 +113,16 @@ bool SerdBuffer::AtStreamEnd() {
 	return sz >= 0 && pos >= (idx_t)sz;
 }
 
-void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNode *node) {
+void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNode *node,
+                               const SerdNode *expanded_node) {
 	if (!node || !node->buf) {
 		duckdb::FlatVector::SetNull(vec, row_idx, true);
 		return;
 	}
-	// Zero-copy from Serd buffer to DuckDB String Heap
-	if (_expand_prefixes && (node->type == SERD_CURIE || node->type == SERD_URI)) {
-		SerdNode expanded = serd_env_expand_node(_env.get(), node);
-		if (expanded.buf) {
-			auto str = duckdb::StringVector::AddString(vec, (const char *)expanded.buf, expanded.n_bytes);
-			duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
-			serd_node_free(&expanded);
-			return;
-		}
-		// If expansion failed, fall through to adding the original node
+	if (expanded_node && expanded_node->buf && expanded_node->n_bytes > 0) {
+		auto str = duckdb::StringVector::AddString(vec, (const char *)expanded_node->buf, expanded_node->n_bytes);
+		duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
+		return;
 	}
 	auto str = duckdb::StringVector::AddString(vec, (const char *)node->buf, node->n_bytes);
 	duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
@@ -227,31 +222,34 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 	_current_chunk = nullptr; // Clear pointer for safety
 }
 
-string SerdBuffer::SafeString(const SerdNode *node) {
+string SerdBuffer::SafeString(const SerdNode *node, const SerdNode *expanded_node) {
 	if (!node || !node->buf || node->n_bytes == 0)
 		return {};
-	std::string retVal;
-	if (_expand_prefixes && (node->type == SERD_CURIE || node->type == SERD_URI)) {
-		SerdNode expanded = serd_env_expand_node(_env.get(), node);
-		if (expanded.buf) {
-			retVal = std::string(reinterpret_cast<const char *>(expanded.buf), expanded.n_bytes);
-			serd_node_free(&expanded);
-		} else {
-			retVal = std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
-		}
+	if (expanded_node && expanded_node->buf && expanded_node->n_bytes > 0) {
+		return std::string(reinterpret_cast<const char *>(expanded_node->buf), expanded_node->n_bytes);
 	} else {
-		retVal = std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
+		return std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
 	}
-	return retVal;
 }
 
 SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, const SerdNode *graph,
                                          const SerdNode *subject, const SerdNode *predicate, const SerdNode *object,
                                          const SerdNode *object_datatype, const SerdNode *object_lang) {
 	auto *self = static_cast<SerdBuffer *>(user_data);
+	auto expandIfCan = [&](const SerdNode *node) -> SerdNode {
+		if (self->_expand_prefixes && node && (node->type == SERD_CURIE || node->type == SERD_URI)) {
+			return serd_env_expand_node(self->_env.get(), node);
+		}
+		return SERD_NODE_NULL;
+	};
+	SerdNode expanded_graph = expandIfCan(graph);
+	SerdNode expanded_subject = expandIfCan(subject);
+	SerdNode expanded_predicate = expandIfCan(predicate);
+	SerdNode expanded_object = expandIfCan(object);
+	SerdNode expanded_object_datatype = expandIfCan(object_datatype);
 
 	// Filter pushdown: reject non-matching rows before any string is copied.
-	auto passesRaw = [&](int col, const SerdNode *node) {
+	auto passesRaw = [&](int col, const SerdNode *node, const SerdNode *expanded_node = nullptr) {
 		auto *filter = self->_column_filters[col].get();
 		if (!filter) {
 			return true;
@@ -259,49 +257,64 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 		if (!node || !node->buf) {
 			return PassesFilter(filter, nullptr, 0, true);
 		}
-		if (self->_expand_prefixes && (node->type == SERD_CURIE || node->type == SERD_URI)) {
-			SerdNode expanded = serd_env_expand_node(self->_env.get(), node);
-			bool ok = PassesFilter(filter, (const char *)expanded.buf, expanded.n_bytes, !expanded.buf);
-			serd_node_free(&expanded);
-			return ok;
+		if (expanded_node && expanded_node->buf) {
+			return PassesFilter(filter, (const char *)expanded_node->buf, expanded_node->n_bytes, false);
 		}
 		return PassesFilter(filter, (const char *)node->buf, node->n_bytes, false);
 	};
-	if (!passesRaw(0, graph) || !passesRaw(1, subject) || !passesRaw(2, predicate) || !passesRaw(3, object) ||
-	    !passesRaw(4, object_datatype) || !passesRaw(5, object_lang)) {
-		return SERD_SUCCESS;
+	if (!passesRaw(0, graph, &expanded_graph) || !passesRaw(1, subject, &expanded_subject) ||
+	    !passesRaw(2, predicate, &expanded_predicate) || !passesRaw(3, object, &expanded_object) ||
+	    !passesRaw(4, object_datatype, &expanded_object_datatype) || !passesRaw(5, object_lang)) {
+	} else {
+		// Safety check: If chunk is full, push to overflow and return
+		if (self->_current_count >= STANDARD_VECTOR_SIZE) {
+			RDFRow row;
+			row.subject = self->SafeString(subject, &expanded_subject);
+			row.predicate = self->SafeString(predicate, &expanded_predicate);
+			row.object = self->SafeString(object, &expanded_object);
+			row.graph = self->SafeString(graph, &expanded_graph);
+			row.datatype = self->SafeString(object_datatype, &expanded_object_datatype);
+			row.lang = self->SafeString(object_lang, nullptr);
+			self->_overflow_buffer.push_back(std::move(row));
+		} else {
+			// Fast Path: Direct Write to DuckDB Vectors
+			// Note: DataChunk columns map to: 0:graph, 1:subject, 2:predicate, 3:object, ...
+			const int8_t *slots = self->_output_slot;
+			if (slots[0] >= 0)
+				self->WriteToVector(self->_current_chunk->data[slots[0]], self->_current_count, graph, &expanded_graph);
+			if (slots[1] >= 0)
+				self->WriteToVector(self->_current_chunk->data[slots[1]], self->_current_count, subject,
+				                    &expanded_subject);
+			if (slots[2] >= 0)
+				self->WriteToVector(self->_current_chunk->data[slots[2]], self->_current_count, predicate,
+				                    &expanded_predicate);
+			if (slots[3] >= 0)
+				self->WriteToVector(self->_current_chunk->data[slots[3]], self->_current_count, object,
+				                    &expanded_object);
+			if (slots[4] >= 0)
+				self->WriteToVector(self->_current_chunk->data[slots[4]], self->_current_count, object_datatype,
+				                    &expanded_object_datatype);
+			if (slots[5] >= 0)
+				self->WriteToVector(self->_current_chunk->data[slots[5]], self->_current_count, object_lang, nullptr);
+
+			self->_current_count++;
+		}
 	}
-
-	// Safety check: If chunk is full, push to overflow and return
-	if (self->_current_count >= STANDARD_VECTOR_SIZE) {
-		RDFRow row;
-		row.subject = self->SafeString(subject);
-		row.predicate = self->SafeString(predicate);
-		row.object = self->SafeString(object);
-		row.graph = self->SafeString(graph);
-		row.datatype = self->SafeString(object_datatype);
-		row.lang = self->SafeString(object_lang);
-		self->_overflow_buffer.push_back(std::move(row));
-		return SERD_SUCCESS;
+	if (expanded_graph.buf) {
+		serd_node_free(&expanded_graph);
 	}
-
-	// Fast Path: Direct Write to DuckDB Vectors
-	// Note: DataChunk columns map to: 0:graph, 1:subject, 2:predicate, 3:object, ...
-	const int8_t *slots = self->_output_slot;
-	if (slots[0] >= 0)
-		self->WriteToVector(self->_current_chunk->data[slots[0]], self->_current_count, graph);
-	if (slots[1] >= 0)
-		self->WriteToVector(self->_current_chunk->data[slots[1]], self->_current_count, subject);
-	if (slots[2] >= 0)
-		self->WriteToVector(self->_current_chunk->data[slots[2]], self->_current_count, predicate);
-	if (slots[3] >= 0)
-		self->WriteToVector(self->_current_chunk->data[slots[3]], self->_current_count, object);
-	if (slots[4] >= 0)
-		self->WriteToVector(self->_current_chunk->data[slots[4]], self->_current_count, object_datatype);
-	if (slots[5] >= 0)
-		self->WriteToVector(self->_current_chunk->data[slots[5]], self->_current_count, object_lang);
-
-	self->_current_count++;
+	if (expanded_subject.buf) {
+		serd_node_free(&expanded_subject);
+	}
+	if (expanded_predicate.buf) {
+		serd_node_free(&expanded_predicate);
+	}
+	if (expanded_object.buf) {
+		serd_node_free(&expanded_object);
+	}
+	if (expanded_object_datatype.buf) {
+		serd_node_free(&expanded_object_datatype);
+	}
 	return SERD_SUCCESS;
 }
 
