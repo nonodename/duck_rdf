@@ -216,6 +216,7 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 				if (serd_reader_skip_until_byte(_reader.get(), '\n') == SERD_FAILURE)
 					throw std::runtime_error("SERD failure while skipping after syntax error");
 			}
+			break;
 		default:
 			throw std::runtime_error("SERD other error");
 			break;

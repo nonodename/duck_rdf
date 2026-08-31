@@ -54,6 +54,20 @@ select count(*) from read_rdf('test/rdf/tests-bad-uri.ttl', strict_parsing = fal
 ----
 9 
 
+### Regression: SERD_ERR_BAD_SYNTAX must not fall through to a fatal error
+# tests-bad-uri.nt line 6 has a bad URI (space inside <...>), which SERD
+# reports as SERD_ERR_BAD_SYNTAX regardless of strict_parsing (the error
+# callback's return value does not change the reader's own status). With
+# strict_parsing=false this case must skip the bad line and keep parsing --
+# a missing `break` after that skip previously fell through into the
+# `default` case, turning the recoverable syntax error into a fatal
+# "SERD other error" and aborting the whole read.
+query I
+select count(*) from read_rdf('test/rdf/tests-bad-uri.nt', strict_parsing = false)
+where subject = 'http://example.org/book/123';
+----
+2
+
 # Bad nquads
 statement error
 select count(*) from read_rdf('test/rdf/tests-bad-uri.nq');
