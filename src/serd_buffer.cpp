@@ -204,7 +204,7 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		case SERD_ERR_ID_CLASH:
 		case SERD_ERR_BAD_TEXT:
 		case SERD_ERR_INTERNAL:
-			throw std::runtime_error("SERD Error: " + SerdStatusToString(st));
+			throw std::runtime_error("SERD Error: " + std::string(reinterpret_cast<const char *>(serd_strerror(st))));
 		case SERD_ERR_BAD_SYNTAX:
 			if (_strict_parsing) {
 				if (_has_error) {
@@ -243,35 +243,6 @@ string SerdBuffer::SafeString(const SerdNode *node) {
 		retVal = std::string(reinterpret_cast<const char *>(node->buf), node->n_bytes);
 	}
 	return retVal;
-}
-
-string SerdBuffer::SerdStatusToString(SerdStatus status) {
-	switch (status) {
-	case SERD_SUCCESS:
-		return "Success";
-	case SERD_FAILURE:
-		return "Non-fatal failure";
-	case SERD_ERR_UNKNOWN:
-		return "Unknown error";
-	case SERD_ERR_BAD_SYNTAX:
-		return "Invalid syntax";
-	case SERD_ERR_BAD_ARG:
-		return "Invalid argument";
-	case SERD_ERR_NOT_FOUND:
-		return "Not found";
-	case SERD_ERR_ID_CLASH:
-		return "ID clash";
-	case SERD_ERR_BAD_CURIE:
-		return "Bad CURIE";
-	case SERD_ERR_INTERNAL:
-		return "Internal error";
-	case SERD_ERR_BAD_WRITE:
-		return "Write error";
-	case SERD_ERR_BAD_TEXT:
-		return "Bad text encoding";
-	default:
-		return "Unrecognized SerdStatus";
-	}
 }
 
 SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, const SerdNode *graph,
@@ -340,7 +311,8 @@ SerdStatus SerdBuffer::ErrorCallBack(void *user_data, const SerdError *error) {
 	auto *self = static_cast<SerdBuffer *>(user_data);
 	if (self->_strict_parsing) {
 		self->_has_error = true;
-		self->_error_message = "SERD parsing error '" + SerdStatusToString(error->status) + "' in '" +
+		self->_error_message = "SERD parsing error '" +
+		                       std::string(reinterpret_cast<const char *>(serd_strerror(error->status))) + "' in '" +
 		                       self->_file_path + "', at line " + std::to_string(error->line) + ", column " +
 		                       std::to_string(error->col);
 		return SERD_FAILURE;
