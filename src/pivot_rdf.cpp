@@ -513,10 +513,6 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 
 			std::string graph = ReadStr(0);
 			std::string subject = ReadStr(1);
-			std::string predicate = ReadStr(2);
-			std::string object = ReadStr(3);
-			std::string datatype = ReadStr(4);
-			std::string lang = ReadStr(5);
 
 			std::string key = graph + '\x01' + subject;
 			auto map_it = state.subject_index.find(key);
@@ -532,9 +528,12 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 			} else {
 				entry_idx = map_it->second;
 			}
-
+			std::string predicate = ReadStr(2);
 			auto it = bind_data.pred_to_col.find(predicate);
 			if (it != bind_data.pred_to_col.end()) {
+				std::string object = ReadStr(3);
+				std::string datatype = ReadStr(4);
+				std::string lang = ReadStr(5);
 				idx_t col_idx = it->second;
 				PivotColAccum &accum = state.entries[entry_idx].cols[col_idx];
 				const PivotColInfo &col = bind_data.columns[col_idx];
