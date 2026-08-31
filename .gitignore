@@ -13,3 +13,4 @@ CMakeCache.txt
 package-lock.json
 cmake.check_cache
 CMakeConfigureLog.yaml
+.VSCodeCounter
