@@ -273,8 +273,9 @@ struct PivotRDFLocalState : public LocalTableFunctionState {
 		std::string subject;
 		std::vector<PivotColAccum> cols;
 	};
-	// key = graph + '\x01' + subject
-	std::unordered_map<std::string, idx_t> subject_index;
+	// outer key = graph, inner key = subject; avoids concatenating a combined
+	// key string on every triple when many triples share a subject
+	std::unordered_map<std::string, std::unordered_map<std::string, idx_t>> subject_index;
 	std::vector<SubjectEntry> entries;
 	idx_t emit_idx = 0;
 	bool in_emit_phase = false;
@@ -511,15 +512,15 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 				return data[row].GetString();
 			};
 
-			std::string graph = ReadStr(0);
-			std::string subject = ReadStr(1);
+			auto graph = ReadStr(0);
+			auto subject = ReadStr(1);
 
-			std::string key = graph + '\x01' + subject;
-			auto map_it = state.subject_index.find(key);
+			auto &subject_map = state.subject_index[graph];
+			auto map_it = subject_map.find(subject);
 			idx_t entry_idx;
-			if (map_it == state.subject_index.end()) {
+			if (map_it == subject_map.end()) {
 				entry_idx = state.entries.size();
-				state.subject_index[key] = entry_idx;
+				subject_map.emplace(subject, entry_idx);
 				PivotRDFLocalState::SubjectEntry entry;
 				entry.graph = graph;
 				entry.subject = subject;
@@ -528,12 +529,12 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 			} else {
 				entry_idx = map_it->second;
 			}
-			std::string predicate = ReadStr(2);
+			auto predicate = ReadStr(2);
 			auto it = bind_data.pred_to_col.find(predicate);
 			if (it != bind_data.pred_to_col.end()) {
-				std::string object = ReadStr(3);
-				std::string datatype = ReadStr(4);
-				std::string lang = ReadStr(5);
+				auto object = ReadStr(3);
+				auto datatype = ReadStr(4);
+				auto lang = ReadStr(5);
 				idx_t col_idx = it->second;
 				PivotColAccum &accum = state.entries[entry_idx].cols[col_idx];
 				const PivotColInfo &col = bind_data.columns[col_idx];
