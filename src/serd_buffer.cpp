@@ -300,21 +300,12 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 			self->_current_count++;
 		}
 	}
-	if (expanded_graph.buf) {
-		serd_node_free(&expanded_graph);
-	}
-	if (expanded_subject.buf) {
-		serd_node_free(&expanded_subject);
-	}
-	if (expanded_predicate.buf) {
-		serd_node_free(&expanded_predicate);
-	}
-	if (expanded_object.buf) {
-		serd_node_free(&expanded_object);
-	}
-	if (expanded_object_datatype.buf) {
-		serd_node_free(&expanded_object_datatype);
-	}
+	// serd_node_free() is safe to call on SERD_NODE_NULL, so we can free all expanded nodes unconditionally.
+	serd_node_free(&expanded_graph);
+	serd_node_free(&expanded_subject);
+	serd_node_free(&expanded_predicate);
+	serd_node_free(&expanded_object);
+	serd_node_free(&expanded_object_datatype);
 	return SERD_SUCCESS;
 }
 
