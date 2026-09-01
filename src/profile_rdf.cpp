@@ -1,7 +1,6 @@
 #include "include/profile_rdf.hpp"
 #include "include/rdf_profiler.hpp"
 #include "include/I_triples_buffer.hpp"
-#include "include/string_util.hpp"
 #include "include/rdf_multi_file.hpp"
 
 #include "duckdb.hpp"

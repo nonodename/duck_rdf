@@ -24,7 +24,6 @@
 #include <algorithm>
 #include <atomic>
 #include <mutex>
-#include "include/string_util.hpp"
 
 using namespace std;
 

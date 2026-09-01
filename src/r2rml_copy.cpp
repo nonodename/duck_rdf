@@ -17,7 +17,6 @@
 #include <r2rml/SQLValue.h>
 #include <r2rml/StringSQLValue.h>
 #include <r2rml/TriplesMap.h>
-#include "include/string_util.hpp"
 #include "yarrrml/YARRRMLParser.h"
 #include <map>
 #include <mutex>
@@ -97,13 +96,13 @@ inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result
 	});
 }
 
-static SerdSyntax ParseRdfFormat(const std::string &fmt) {
-	std::string x = stringtoLower(fmt);
-	if (x == "ttl" || x == "turtle")
+static SerdSyntax ParseRdfFormat(std::string fmt) {
+	std::transform(fmt.begin(), fmt.end(), fmt.begin(), ::tolower);
+	if (fmt == "ttl" || fmt == "turtle")
 		return SERD_TURTLE;
-	if (x == "nq" || x == "nquads")
+	if (fmt == "nq" || fmt == "nquads")
 		return SERD_NQUADS;
-	if (x == "nt" || x == "ntriples")
+	if (fmt == "nt" || fmt == "ntriples")
 		return SERD_NTRIPLES;
 	throw InvalidInputException("Unknown rdf_format '%s'. Valid values: ntriples, turtle, nquads.", fmt.c_str());
 }
@@ -351,7 +350,9 @@ private:
 		if (!ignore_case_) {
 			return name;
 		}
-		return stringtoLower(name);
+		auto lowered = name;
+		std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
+		return lowered;
 	}
 };
 
@@ -387,7 +388,9 @@ public:
 				for (idx_t c = 0; c < current_chunk_->ColumnCount(); c++) {
 					std::string name = result_->ColumnName(c);
 					if (ignore_case_) {
-						name = stringtoLower(name);
+						auto lowered = name;
+						std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
+						name = lowered;
 					}
 					col_index_[name] = c;
 				}
@@ -422,7 +425,9 @@ std::unique_ptr<r2rml::SQLResultSet> ClientContextSQLConnection::execute(const s
 	// rr:tableName (e.g. "EMP") match DuckDB's lowercase-folded identifiers.
 	std::string exec_sql = sql;
 	if (ignore_case_) {
-		exec_sql = stringtoLower(exec_sql);
+		auto lowered = exec_sql;
+		std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
+		exec_sql = lowered;
 	}
 	auto result = conn.Query(exec_sql);
 	if (result->HasError()) {
@@ -616,7 +621,10 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	result->ignore_case = ignore_case;
 
 	for (idx_t i = 0; i < names.size(); i++) {
-		std::string col_name = ignore_case ? stringtoLower(names[i]) : names[i];
+		std::string col_name = names[i];
+		if (ignore_case) {
+			std::transform(col_name.begin(), col_name.end(), col_name.begin(), ::tolower);
+		}
 		result->column_names.push_back(col_name);
 		result->col_index[col_name] = i;
 	}
