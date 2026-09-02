@@ -111,10 +111,10 @@ void RegisterSparqlToSql(ExtensionLoader &loader) {
 	CreateScalarFunctionInfo info(sparql_to_sql_sf);
 	FunctionDescription desc;
 	desc.description =
-	    "Translate a SPARQL SELECT or ASK query into an equivalent SQL query, using an R2RML or YARRRML mapping file "
+	    "Translate a SPARQL SELECT or ASK query into an equivalent SQL query, using an R2RML or YARRRML mapping file(s) "
 	    "in reverse. The mapping must be a full R2RML mapping (every TriplesMap has an rr:logicalTable or YARRRML "
 	    "'sources' entry) - inside-out-only mappings are not accepted. Throws a detailed error naming the mapping "
-	    "file, the SPARQL syntax problem, or the unsupported SPARQL construct on failure. Currently only the "
+	    "file(s), the SPARQL syntax problem, or the unsupported SPARQL construct on failure. Currently only the "
 	    "'duckdb' SQL dialect is supported.";
 	desc.examples.push_back(
 	    "SELECT sparql_to_sql('SELECT ?e ?name WHERE { ?e <http://example.com/ns#name> ?name }', 'mapping.ttl')");
