@@ -17,10 +17,10 @@
 #include <r2rml/SQLValue.h>
 #include <r2rml/StringSQLValue.h>
 #include <r2rml/TriplesMap.h>
-#include "yarrrml/YARRRMLParser.h"
 #include <map>
 #include <mutex>
 #include <unordered_map>
+#include <algorithm>
 
 using namespace std;
 
@@ -55,23 +55,30 @@ static const std::string XSD_DATETIME_STAMP = std::string(XSD_NS) + "dateTimeSta
 
 namespace duckdb {
 
-r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(const std::string &name, bool ignoreNonFatalErrors) {
-	r2rml::R2RMLMapping mapping;
-	if (yarrrml::YARRRMLParser::hasYarrrmlExtension(name)) {
-		yarrrml::YARRRMLParser parser;
-		mapping = parser.parse(name, ignoreNonFatalErrors);
-	} else {
-		r2rml::R2RMLParser parser;
-		mapping = parser.parse(name, ignoreNonFatalErrors);
+std::vector<std::string> ResolveMappingFiles(const std::string &path_or_glob) {
+	auto local_fs = FileSystem::CreateLocal();
+	auto matches = local_fs->Glob(path_or_glob);
+	std::vector<std::string> paths;
+	paths.reserve(matches.size());
+	for (auto &match : matches) {
+		paths.push_back(match.path);
 	}
-	return mapping;
+	std::sort(paths.begin(), paths.end());
+	return paths;
+}
+
+r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(const std::string &path_or_glob, bool ignoreNonFatalErrors) {
+	auto paths = ResolveMappingFiles(path_or_glob);
+	if (paths.empty()) {
+		throw std::runtime_error("No mapping files matched: " + path_or_glob);
+	}
+	return r2rml::MappingParser::parseMultiple(paths, ignoreNonFatalErrors);
 }
 
 inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &name_vector = args.data[0];
 	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
-		auto &fs = FileSystem::GetFileSystem(state.GetContext());
-		if (!fs.FileExists(name.GetString())) {
+		if (ResolveMappingFiles(name.GetString()).empty()) {
 			return false;
 		}
 		r2rml::R2RMLMapping mapping = ParseR2RMLOrYarrrmlMapping(name.GetString());
@@ -82,8 +89,7 @@ inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &re
 inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &name_vector = args.data[0];
 	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
-		auto &fs = FileSystem::GetFileSystem(state.GetContext());
-		if (!fs.FileExists(name.GetString())) {
+		if (ResolveMappingFiles(name.GetString()).empty()) {
 			return false;
 		}
 		r2rml::R2RMLMapping mapping;
@@ -576,8 +582,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	}
 	std::string mapping_path = mapping_it->second[0].GetValue<std::string>();
 
-	auto &fs = FileSystem::GetFileSystem(context);
-	if (!fs.FileExists(mapping_path)) {
+	if (ResolveMappingFiles(mapping_path).empty()) {
 		throw IOException("R2RML mapping file not found: " + mapping_path);
 	}
 

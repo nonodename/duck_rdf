@@ -2,7 +2,6 @@
 #include "include/r2rml_copy.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/exception.hpp"
-#include "duckdb/common/file_system.hpp"
 #include "duckdb/main/connection.hpp"
 #include <r2rml/R2RMLMapping.h>
 #include <sparql-parser/ParseError.h>
@@ -53,11 +52,8 @@ static std::unique_ptr<sparql2sql::TypeCatalog> BuildTypeCatalog(ClientContext &
 
 std::string TranslateSparqlToSql(ClientContext *context, const std::string &sparql_text,
                                  const std::string &mapping_path) {
-	if (context) {
-		auto &fs = FileSystem::GetFileSystem(*context);
-		if (!fs.FileExists(mapping_path)) {
-			throw IOException("Mapping file not found: " + mapping_path);
-		}
+	if (ResolveMappingFiles(mapping_path).empty()) {
+		throw IOException("Mapping file not found: " + mapping_path);
 	}
 
 	r2rml::R2RMLMapping mapping;

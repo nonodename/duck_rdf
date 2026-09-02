@@ -12,6 +12,7 @@
 #include <memory>
 
 /// A single RDF triple with optional datatype and language tag on the object.
+// TODO: can this be replaced with the existing RDFRow struct in I_triples_buffer.hpp?
 struct RdfStatement {
 	std::string subject;
 	std::string predicate;

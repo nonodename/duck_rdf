@@ -2,7 +2,6 @@
 #include "include/sparql_to_sql.hpp"
 #include "include/r2rml_copy.hpp"
 #include "duckdb/common/exception.hpp"
-#include "duckdb/common/file_system.hpp"
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/parser/parser.hpp"
@@ -129,8 +128,7 @@ static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, T
                                                        vector<LogicalType> &return_types, vector<string> &names) {
 	auto mapping_path = input.inputs[0].GetValue<string>();
 
-	auto &fs = FileSystem::GetFileSystem(context);
-	if (!fs.FileExists(mapping_path)) {
+	if (ResolveMappingFiles(mapping_path).empty()) {
 		throw IOException("Mapping file not found: " + mapping_path);
 	}
 
@@ -217,7 +215,8 @@ void RegisterSparqlParser(ExtensionLoader &loader) {
 	FunctionDescription enable_desc;
 	enable_desc.description =
 	    "Enable treating raw SPARQL SELECT/ASK statements (not wrapped in sparql_to_sql()/execute_sparql()) as "
-	    "first-class statements, translated on the fly via the given R2RML or YARRRML mapping - the same mapping "
+	    "first-class statements, translated on the fly via the given R2RML or YARRRML mapping file(s) - the same "
+	    "mapping "
 	    "requirements as sparql_to_sql()/execute_sparql(). This is a database-wide toggle (shared by all "
 	    "connections to this database, not just the current session); ordinary SQL statements keep working "
 	    "unaffected while it is enabled. Use disable_sparql_parser() to turn it back off.";

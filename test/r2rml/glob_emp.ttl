@@ -1,0 +1,19 @@
+@prefix rr: <http://www.w3.org/ns/r2rml#> .
+@prefix ex: <http://example.com/ns#> .
+
+# One of two mapping files (see also glob_dept.ttl) used to test glob-pattern
+# mapping resolution: 'test/r2rml/glob_*.ttl' must match both and merge them
+# into a single mapping via sql2rdf's MappingParser::parseMultiple. Each file
+# declares an independent TriplesMap over a different table, so a query
+# touching only one of the two tables proves both files were actually loaded.
+
+<#EmployeeMap>
+    rr:logicalTable [ rr:tableName "emp" ] ;
+    rr:subjectMap [
+        rr:template "http://data.example.com/employee/{empno}" ;
+        rr:class ex:Employee ;
+    ] ;
+    rr:predicateObjectMap [
+        rr:predicate ex:name ;
+        rr:objectMap [ rr:column "ename" ] ;
+    ] .

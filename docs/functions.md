@@ -357,9 +357,9 @@ Scalar function. Validates an R2RML mapping file.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | VARCHAR | Path to the R2RML or YARRML mapping file |
+| `path` | VARCHAR | Path or glob pattern (e.g. `mappings/*.ttl`) matching one or more R2RML or YARRML mapping files. Multiple matches are merged into a single mapping — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
 
-**Returns** BOOLEAN — `true` if the file is a valid R2RML or YARRML mapping, `false` otherwise. YARRML files are those that have extension ".yml", ".yaml", ".yarrrml"
+**Returns** BOOLEAN — `true` if the file (or merged set of files) is a valid R2RML or YARRML mapping, `false` if nothing matches the pattern or the mapping is invalid. YARRML files are those that have extension ".yml", ".yaml", ".yarrrml"
 
 **Example**
 
@@ -377,9 +377,9 @@ Scalar function. Determines whether an R2RML or YARRML mapping is usable in insi
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | VARCHAR | Path to the R2RML or YARRML mapping file |
+| `path` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
 
-**Returns** BOOLEAN — `true` if the mapping is valid for inside-out mode.
+**Returns** BOOLEAN — `true` if the mapping (or merged set of files matched by the pattern) is valid for inside-out mode.
 
 **Example**
 
@@ -398,7 +398,7 @@ Scalar function. Translates a SPARQL `SELECT` or `ASK` query into an equivalent 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `sparql` | VARCHAR | The SPARQL query text |
-| `mapping` | VARCHAR | Path to the R2RML or YARRML mapping file |
+| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
 
 **Returns** VARCHAR — the translated SQL query, for the `duckdb` dialect (currently the only dialect supported).
 
@@ -410,13 +410,22 @@ Scalar function. Translates a SPARQL `SELECT` or `ASK` query into an equivalent 
 - **Named graphs (`GRAPH`, `FROM`, `FROM NAMED`) are supported**, reading a mapping's `rr:graph`/`rr:graphMap` "in reverse": `GRAPH <iri>` prunes candidates whose graph map cannot produce that IRI, and `GRAPH ?g` binds `?g` like any other query variable. A triple whose graph set has more than one member (subject map graph unioned with its predicate-object map's own graph, per R2RML §12) yields one solution per graph under `GRAPH ?g`. `FROM`/`FROM NAMED` restrict the queryable dataset per SPARQL 1.1 §13.2.
   - ⚠️ **Strict RDF-dataset semantics.** With no `FROM`/`FROM NAMED` clause, the default graph (i.e. a query with no `GRAPH` block) contains only triples whose graph set is empty or names `rr:defaultGraph` — a triple that only carries a named graph is invisible outside a `GRAPH`/`FROM` clause. This is a behaviour change for any mapping using `rr:graph`/`rr:graphMap`: prior to sql2rdf v2.2.0, `GRAPH` unconditionally raised an error, so there was no way to observe this rule. Mappings that never use `rr:graph`/`rr:graphMap` generate byte-identical SQL and are unaffected.
 
+**Multiple mapping files and globs**
+
+Every function that takes a `mapping`/`path` parameter (`is_valid_r2rml`, `can_call_inside_out`, `sparql_to_sql`, `execute_sparql`, `enable_sparql_parser`, and `COPY ... FORMAT r2rml`) accepts either a literal file path or a glob pattern (`*`, `?`, `[...]`, matched against the local filesystem). When a pattern matches more than one file, all matches are parsed and merged into a single mapping (via sql2rdf's `MappingParser::parseMultiple`) before use:
+
+- Files are merged before the object model is built, so a `TriplesMap` in one file may reference (e.g. via `rr:parentTriplesMap`) a `TriplesMap` defined in another file in the match set.
+- R2RML Turtle and YARRRML files can be freely mixed in the same match set — each file's format is still auto-detected by extension.
+- If two files declare the same (non-blank) subject, the definition from whichever file sorts first alphabetically by path wins outright; the conflicting statements from the other file are dropped.
+- A pattern that matches zero files raises the same "mapping file not found" error as a literal path that doesn't exist.
+
 **Errors**
 
 On failure, `sparql_to_sql` raises an error whose message identifies which stage failed:
 
 | Prefix | Cause |
 |--------|-------|
-| (none — `IOException`) | The mapping file does not exist |
+| (none — `IOException`) | No file matches the mapping path/glob |
 | `R2RML/YARRRML mapping parse error: ...` | The mapping file is not syntactically valid |
 | `Mapping '...' is not a valid full R2RML mapping...` | The mapping parses but lacks `rr:logicalTable`/`sources` declarations |
 | `SPARQL parse error: ...` | The SPARQL query text has a syntax error (includes line/column/near-text detail) |
@@ -449,7 +458,7 @@ Like `sparql_to_sql`, `execute_sparql` has no libcurl/libxml2 dependency and is 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `sparql` | VARCHAR | The SPARQL query text |
-| `mapping` | VARCHAR | Path to the R2RML or YARRML mapping file |
+| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above. |
 
 **Returns**
 
@@ -503,7 +512,7 @@ Internally, this hooks into DuckDB's parser via a `ParserExtension`: any stateme
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `mapping` | VARCHAR | Path to the R2RML or YARRML mapping file. Same requirements as `sparql_to_sql`/`execute_sparql` — must be a full R2RML mapping, validated immediately (a bad or missing mapping raises an error from `enable_sparql_parser` itself and does not enable anything). |
+| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above. Same requirements as `sparql_to_sql`/`execute_sparql` — must be a full R2RML mapping, validated immediately (a bad or missing mapping raises an error from `enable_sparql_parser` itself and does not enable anything). |
 
 **Scope and limitations**
 
@@ -537,7 +546,7 @@ Copy function. Writes RDF from a DuckDB query using an R2RML or YARRML mapping.
 
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `mapping` | Yes | — | Path to the R2RML or YARRML mapping file (`.ttl`,`.yml`,`.yaml`, `.yarrrml`) |
+| `mapping` | Yes | — | Path or glob pattern matching one or more R2RML or YARRML mapping files (`.ttl`,`.yml`,`.yaml`, `.yarrrml`) — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above |
 | `rdf_format` | No | inferred from the output path's extension (`.ttl`/`.turtle` → `turtle`, `.nq`/`.nquads` → `nquads`, anything else → `ntriples`) | Output serialization: `ntriples`, `turtle`, or `nquads` |
 | `ignore_non_fatal_errors` | No | `true` | When `true`, logical errors are collected silently. When `false`, the first error raises an exception |
 | `ignore_case` | No | `false` | When `true`, all column and table names are lowercased before matching. Use when your R2RML mapping uses lowercase names, which is consistent with DuckDB's lowercase identifier folding. |

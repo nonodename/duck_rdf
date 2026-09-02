@@ -11,7 +11,7 @@
 // ============================================================
 // XSD → DuckDB type name mapping
 // ============================================================
-
+// TODO Replace with string defined in sql2rdf
 static const std::string XSD_PREFIX = "http://www.w3.org/2001/XMLSchema#";
 
 std::string XsdToDuckDBType(const std::string &datatype, const std::string &lang, ObjectKind kind) {

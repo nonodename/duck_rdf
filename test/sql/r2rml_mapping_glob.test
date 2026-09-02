@@ -1,0 +1,124 @@
+# name: test/sql/r2rml_mapping_glob.test
+# description: test glob-pattern resolution and multi-file merging for R2RML/YARRRML mapping arguments
+# group: [sql]
+
+require rdf
+
+# ── Setup ─────────────────────────────────────────────────────────────────────
+# test/r2rml/glob_emp.ttl and test/r2rml/glob_dept.ttl each declare one,
+# independent TriplesMap (over "emp" and "dept" respectively). The glob
+# pattern 'test/r2rml/glob_*.ttl' matches both, and every mapping-taking
+# function must merge them via sql2rdf's MappingParser::parseMultiple into a
+# single mapping - a query touching only one of the two tables still proves
+# both files were loaded, since neither file alone would satisfy it.
+
+statement ok
+CREATE TABLE emp AS SELECT 7369 AS empno, 'SMITH' AS ename;
+
+statement ok
+CREATE TABLE dept AS SELECT 10 AS deptno, 'ACCOUNTING' AS dname;
+
+# ── is_valid_r2rml / can_call_inside_out ─────────────────────────────────────
+
+query T
+SELECT is_valid_r2rml('test/r2rml/glob_*.ttl');
+----
+true
+
+# A pattern matching nothing behaves like a nonexistent literal path.
+query T
+SELECT is_valid_r2rml('test/r2rml/glob_nonexistent_*.ttl');
+----
+false
+
+query T
+SELECT can_call_inside_out('test/r2rml/glob_*.ttl');
+----
+false
+
+# ── sparql_to_sql / execute_sparql: both files are actually loaded ──────────
+
+query TT
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/glob_*.ttl'
+) WHERE v_e LIKE '%employee%';
+----
+http://data.example.com/employee/7369	SMITH
+
+query TT
+SELECT * FROM execute_sparql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/glob_*.ttl'
+) WHERE v_e LIKE '%department%';
+----
+http://data.example.com/department/10	ACCOUNTING
+
+# The translated SQL references both merged tables - proof that
+# MappingParser::parseMultiple actually combined the two files' TriplesMaps
+# into candidate arms for the same predicate, rather than only keeping one.
+query T
+SELECT sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/glob_*.ttl'
+) LIKE '%"emp"%' AND sparql_to_sql(
+    'PREFIX ex: <http://example.com/ns#> SELECT ?e ?name WHERE { ?e ex:name ?name }',
+    'test/r2rml/glob_*.ttl'
+) LIKE '%"dept"%';
+----
+true
+
+# ── enable_sparql_parser: glob mapping works for raw SPARQL too ──────────────
+
+query I
+CALL enable_sparql_parser('test/r2rml/glob_*.ttl');
+----
+true
+
+# Bound to the department's subject IRI (only produced by glob_dept.ttl), so
+# a result here proves the parser_override path merged both files too.
+query T
+PREFIX ex: <http://example.com/ns#> SELECT ?name WHERE { <http://data.example.com/department/10> ex:name ?name }
+----
+ACCOUNTING
+
+statement ok
+CALL disable_sparql_parser();
+
+# ── COPY ... FORMAT r2rml (full R2RML mode): both files' triples are written ─
+
+statement ok
+COPY (SELECT 1) TO '__TEST_DIR__/glob_out.nt' (FORMAT r2rml, mapping 'test/r2rml/glob_*.ttl');
+
+query T
+SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/glob_out.nt');
+----
+4
+
+query T
+SELECT object FROM read_rdf('__TEST_DIR__/glob_out.nt')
+WHERE subject = 'http://data.example.com/department/10' AND predicate = 'http://example.com/ns#name';
+----
+ACCOUNTING
+
+# ── Error cases: a glob matching zero files behaves like a missing path ──────
+
+statement error
+SELECT sparql_to_sql('SELECT ?e WHERE { ?e ?p ?o }', 'test/r2rml/glob_nonexistent_*.ttl');
+----
+Mapping file not found
+
+statement error
+SELECT * FROM execute_sparql('SELECT ?e WHERE { ?e ?p ?o }', 'test/r2rml/glob_nonexistent_*.ttl');
+----
+Mapping file not found
+
+statement error
+CALL enable_sparql_parser('test/r2rml/glob_nonexistent_*.ttl');
+----
+Mapping file not found
+
+statement error
+COPY (SELECT 1) TO '__TEST_DIR__/glob_none.nt' (FORMAT r2rml, mapping 'test/r2rml/glob_nonexistent_*.ttl');
+----
+R2RML mapping file not found
