@@ -70,11 +70,10 @@ target_include_directories(${SERD_NAME}
 FetchContent_Declare(
   sql2rdf
   GIT_REPOSITORY https://github.com/nonodename/sql2rdf.git
-  GIT_TAG v2.2.0
+  GIT_TAG v2.2.1
 )
 
 FetchContent_MakeAvailable(sql2rdf)
-
 
 # ------------------------------------------------------------
 # DuckDB extension: static + loadable
@@ -144,7 +143,7 @@ if (WIN32)
 endif()
 
 install(
-    TARGETS sql2rdf_r2rml sql2rdf_yarrrml sql2rdf_sparql sql2rdf_sparql2sql sql2rdf_type_catalog_loader yaml-cpp ${SERD_NAME}
+    TARGETS sql2rdf_r2rml sql2rdf_yarrrml sql2rdf_sparql sql2rdf_sparql2sql sql2rdf_type_catalog_loader yaml-cpp sql2rdf_rdf ${SERD_NAME}
     EXPORT "${DUCKDB_EXPORT_SET}"
     ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"  # .a file on Unix, .lib on Windows
 )
