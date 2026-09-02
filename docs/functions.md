@@ -357,9 +357,9 @@ Scalar function. Validates an R2RML mapping file.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | VARCHAR | Path or glob pattern (e.g. `mappings/*.ttl`) matching one or more R2RML or YARRML mapping files. Multiple matches are merged into a single mapping — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
+| `path` | VARCHAR | Path or glob pattern (e.g. `mappings/*.ttl`) matching one or more R2RML or YARRRML mapping files. Multiple matches are merged into a single mapping — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
 
-**Returns** BOOLEAN — `true` if the file (or merged set of files) is a valid R2RML or YARRML mapping, `false` if nothing matches the pattern or the mapping is invalid. YARRML files are those that have extension ".yml", ".yaml", ".yarrrml"
+**Returns** BOOLEAN — `true` if the file (or merged set of files) is a valid R2RML or YARRRML mapping, `false` if nothing matches the pattern or the mapping is invalid. YARRRML files are those that have extension ".yml", ".yaml", ".yarrrml"
 
 **Example**
 
@@ -371,13 +371,13 @@ SELECT is_valid_r2rml('mapping.ttl');
 
 ## `can_call_inside_out(path)`
 
-Scalar function. Determines whether an R2RML or YARRML mapping is usable in inside-out mode (i.e. has no `rr:logicalTable` or t: declarations). Use this to decide which write mode to use.
+Scalar function. Determines whether an R2RML or YARRRML mapping is usable in inside-out mode (i.e. has no `rr:logicalTable` or t: declarations). Use this to decide which write mode to use.
 
 **Parameters**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `path` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
+| `path` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
 
 **Returns** BOOLEAN — `true` if the mapping (or merged set of files matched by the pattern) is valid for inside-out mode.
 
@@ -391,14 +391,14 @@ SELECT can_call_inside_out('mapping.ttl');
 
 ## `sparql_to_sql(sparql, mapping)`
 
-Scalar function. Translates a SPARQL `SELECT` or `ASK` query into an equivalent SQL query, using an R2RML or YARRML mapping file "in reverse" (via the [SQL2RDF++](https://github.com/nonodename/sql2rdf) `sparql2sql` translator). The returned SQL is a standalone query — it can be executed directly against the mapped tables without going through `sparql_to_sql` again.
+Scalar function. Translates a SPARQL `SELECT` or `ASK` query into an equivalent SQL query, using an R2RML or YARRRML mapping file "in reverse" (via the [SQL2RDF++](https://github.com/nonodename/sql2rdf) `sparql2sql` translator). The returned SQL is a standalone query — it can be executed directly against the mapped tables without going through `sparql_to_sql` again.
 
 **Parameters**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `sparql` | VARCHAR | The SPARQL query text |
-| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
+| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) below. |
 
 **Returns** VARCHAR — the translated SQL query, for the `duckdb` dialect (currently the only dialect supported).
 
@@ -458,7 +458,7 @@ Like `sparql_to_sql`, `execute_sparql` has no libcurl/libxml2 dependency and is 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `sparql` | VARCHAR | The SPARQL query text |
-| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above. |
+| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above. |
 
 **Returns**
 
@@ -512,7 +512,7 @@ Internally, this hooks into DuckDB's parser via a `ParserExtension`: any stateme
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above. Same requirements as `sparql_to_sql`/`execute_sparql` — must be a full R2RML mapping, validated immediately (a bad or missing mapping raises an error from `enable_sparql_parser` itself and does not enable anything). |
+| `mapping` | VARCHAR | Path or glob pattern matching one or more R2RML or YARRRML mapping files — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above. Same requirements as `sparql_to_sql`/`execute_sparql` — must be a full R2RML mapping, validated immediately (a bad or missing mapping raises an error from `enable_sparql_parser` itself and does not enable anything). |
 
 **Scope and limitations**
 
@@ -540,13 +540,13 @@ CALL disable_sparql_parser();
 # Writing RDF
 ## `COPY ... TO ... (FORMAT r2rml, ...)`
 
-Copy function. Writes RDF from a DuckDB query using an R2RML or YARRML mapping.
+Copy function. Writes RDF from a DuckDB query using an R2RML or YARRRML mapping.
 
 **Options**
 
 | Option | Required | Default | Description |
 |--------|----------|---------|-------------|
-| `mapping` | Yes | — | Path or glob pattern matching one or more R2RML or YARRML mapping files (`.ttl`,`.yml`,`.yaml`, `.yarrrml`) — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above |
+| `mapping` | Yes | — | Path or glob pattern matching one or more R2RML or YARRRML mapping files (`.ttl`,`.yml`,`.yaml`, `.yarrrml`) — see [Multiple/glob mapping files](#multiple-mapping-files-and-globs) above |
 | `rdf_format` | No | inferred from the output path's extension (`.ttl`/`.turtle` → `turtle`, `.nq`/`.nquads` → `nquads`, anything else → `ntriples`) | Output serialization: `ntriples`, `turtle`, or `nquads` |
 | `ignore_non_fatal_errors` | No | `true` | When `true`, logical errors are collected silently. When `false`, the first error raises an exception |
 | `ignore_case` | No | `false` | When `true`, all column and table names are lowercased before matching. Use when your R2RML mapping uses lowercase names, which is consistent with DuckDB's lowercase identifier folding. |

@@ -10,7 +10,7 @@
 
 Read, write and manipulate RDF within DuckDB. This extension has three broad capabilities
 * reading/profiling RDF from standard serializations: [Turtle](http://www.w3.org/TR/turtle/), [NTriples](http://www.w3.org/TR/n-triples/), [NQuads](http://www.w3.org/TR/n-quads/), [TriG](http://www.w3.org/TR/trig/), and [RDF/XML](https://www.w3.org/TR/rdf12-xml/) into a standard columnar schema or pivoted based on observed predicates.
-* writing using [R2RML](https://www.w3.org/TR/r2rml/) or [YARRML](https://rml.io/yarrrml/) mappings
+* writing using [R2RML](https://www.w3.org/TR/r2rml/) or [YARRRML](https://rml.io/yarrrml/) mappings
 * querying either remote sources or using a subset of [SPARQL](https://www.w3.org/TR/sparql11-query/) and the R2RML/Yarrrml mappings in reverse
 
 The extension works across all platforms that DuckDB supports however, note that RDF/XML parsing and `read_sparql()` (which requires OS-level networking via libcurl) are not available in WASM. 

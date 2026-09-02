@@ -18,7 +18,7 @@ select is_valid_r2rml('test/r2rml/invalid_turtle_unclosed_literal.ttl');
 ----
 false
 
-# Yarrml file exists but is invalid 
+# Yarrrml file exists but is invalid 
 query T
 select is_valid_r2rml('test/r2rml/invalid_yaml.yml');
 ----
@@ -30,7 +30,7 @@ select is_valid_r2rml('test/r2rml/example4.ttl');
 ----
 true
 
-# Valid YARRML 
+# Valid Yarrrml 
 query T
 select is_valid_r2rml('test/r2rml/example4.yml');
 ----
@@ -54,7 +54,7 @@ select can_call_inside_out('test/r2rml/inside_out_valid.ttl');
 ----
 true
 
-# Valid YARRML valid inside out
+# Valid Yarrrml valid inside out
 query T
 select can_call_inside_out('test/r2rml/inside_out.yml');
 ----
