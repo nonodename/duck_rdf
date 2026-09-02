@@ -756,9 +756,9 @@ void RegisterR2RMLCopy(ExtensionLoader &loader) {
 	                                      CanCallInsideOut);
 	CreateScalarFunctionInfo can_call_info(can_call_inside_out_sf);
 	FunctionDescription can_call_desc;
-	can_call_desc.description =
-	    "Return true if the given R2RML or YARRML mapping file(s) can be executed in inside-out mode, where DuckDB runs "
-	    "the SQL query and the extension maps each output row to RDF triples.";
+	can_call_desc.description = "Return true if the given R2RML or YARRML mapping file(s) can be executed in "
+	                            "inside-out mode, where DuckDB runs "
+	                            "the SQL query and the extension maps each output row to RDF triples.";
 	can_call_desc.examples.push_back("SELECT can_call_inside_out('mapping.ttl')");
 	can_call_info.descriptions.push_back(can_call_desc);
 	loader.RegisterFunction(std::move(can_call_info));

@@ -95,12 +95,14 @@ target_include_directories(${EXTENSION_NAME}
         src/include
         ${serd_SOURCE_DIR}/include
         ${sql2rdf_SOURCE_DIR}/src
+        ${sql2rdf_rdf_SOURCE_DIR}/include
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
         ${serd_SOURCE_DIR}/include
         ${sql2rdf_SOURCE_DIR}/src
+        ${sql2rdf_rdf_SOURCE_DIR}/include
 )
 
 if (NOT EMSCRIPTEN)
