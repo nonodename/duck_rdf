@@ -98,7 +98,7 @@ public:
 		if (pos == std::string::npos)
 			return false;
 		auto ext = path.substr(pos + 1);
-		return ext == "gz" || ext == "zst" || ext == "GZ" || ext == "BZ2";
+		return ext == "gz" || ext == "zst" || ext == "GZ" || ext == "ZST";
 	}
 
 	static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {
