@@ -199,6 +199,11 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &context, TableFunctionInitInput &input) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderGlobalState>();
+	// Start from the unfiltered bind-time total and subtract skipped files below,
+	// so the progress denominator reflects only files that actually produce work
+	// items. Cardinality estimation (RDFReaderCardinality) intentionally keeps
+	// using bind_data.total_bytes, since it runs at bind time before any
+	// filename filter is known.
 	state->total_bytes = bind_data.total_bytes;
 	auto &fs = FileSystem::GetFileSystem(context);
 
@@ -224,6 +229,7 @@ static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &c
 	for (idx_t i = 0; i < bind_data.file_paths.size(); i++) {
 		const string &path = bind_data.file_paths[i];
 		if (filename_filter && !PassesFilter(filename_filter, path.data(), path.size(), false)) {
+			state->total_bytes -= bind_data.file_sizes[i];
 			continue;
 		}
 		idx_t file_size = bind_data.file_sizes[i];
