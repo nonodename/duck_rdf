@@ -60,10 +60,9 @@ std::vector<std::string> ResolveMappingFiles(const std::string &path_or_glob) {
 	return paths;
 }
 
-r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(const std::string &path_or_glob, bool ignoreNonFatalErrors) {
-	auto paths = ResolveMappingFiles(path_or_glob);
+r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(std::vector<std::string> paths, const std::string original_path, bool ignoreNonFatalErrors) {
 	if (paths.empty()) {
-		throw std::runtime_error("No mapping files matched: " + path_or_glob);
+		throw std::runtime_error("No mapping files matched: " + original_path);
 	}
 	return r2rml::MappingParser::parseMultiple(paths, ignoreNonFatalErrors);
 }
@@ -71,10 +70,11 @@ r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(const std::string &path_or_glob, 
 inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &name_vector = args.data[0];
 	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
-		if (ResolveMappingFiles(name.GetString()).empty()) {
+		auto paths = ResolveMappingFiles(name.GetString());
+		if (paths.empty()) {
 			return false;
 		}
-		r2rml::R2RMLMapping mapping = ParseR2RMLOrYarrrmlMapping(name.GetString());
+		r2rml::R2RMLMapping mapping = ParseR2RMLOrYarrrmlMapping(paths, name.GetString(), true);
 		return mapping.isValidInsideOut();
 	});
 }
@@ -82,12 +82,13 @@ inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &re
 inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &name_vector = args.data[0];
 	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
-		if (ResolveMappingFiles(name.GetString()).empty()) {
+		auto paths = ResolveMappingFiles(name.GetString());
+		if (paths.empty()) {
 			return false;
 		}
 		r2rml::R2RMLMapping mapping;
 		try {
-			mapping = ParseR2RMLOrYarrrmlMapping(name.GetString());
+			mapping = ParseR2RMLOrYarrrmlMapping(paths, name.GetString(), true);
 		} catch (const std::runtime_error &e) {
 			return false;
 		}
@@ -593,7 +594,8 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 
 	std::shared_ptr<r2rml::R2RMLMapping> mapping;
 	try {
-		mapping = std::make_shared<r2rml::R2RMLMapping>(ParseR2RMLOrYarrrmlMapping(mapping_path, ignore_nfe));
+		auto paths = ResolveMappingFiles(mapping_path);
+		mapping = std::make_shared<r2rml::R2RMLMapping>(ParseR2RMLOrYarrrmlMapping(paths, mapping_path, ignore_nfe));
 	} catch (const std::runtime_error &e) {
 		throw InvalidInputException("R2RML mapping parse error: %s", e.what());
 	}
@@ -660,8 +662,9 @@ static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext
 	// no-ops (Finalize does the work single-threaded), so skip the reparse there.
 	if (bind.inside_out_mode) {
 		try {
+			auto paths = ResolveMappingFiles(bind.mapping_file_path);
 			local->mapping = std::make_shared<r2rml::R2RMLMapping>(
-			    ParseR2RMLOrYarrrmlMapping(bind.mapping_file_path, bind.ignore_non_fatal_errors));
+			    ParseR2RMLOrYarrrmlMapping(paths, bind.mapping_file_path, bind.ignore_non_fatal_errors));
 		} catch (const std::runtime_error &e) {
 			throw InternalException("Failed to re-parse R2RML mapping for parallel write: %s", e.what());
 		}

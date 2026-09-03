@@ -21,13 +21,13 @@ void RegisterR2RMLCopy(ExtensionLoader &loader);
 // nothing matches.
 std::vector<std::string> ResolveMappingFiles(const std::string &path_or_glob);
 
-// Resolves `path_or_glob` (see ResolveMappingFiles) and parses the matching
+// Parses the paths passed as a vector as 
 // R2RML (Turtle) and/or YARRRML (YAML) mapping file(s), dispatching each file
 // on its extension (yarrrml::YARRRMLParser::hasYarrrmlExtension) and merging
 // multiple matches via sql2rdf's MappingParser::parseMultiple. Shared with
 // sparql_to_sql.cpp so mapping-format dispatch lives in exactly one place.
 // Throws std::runtime_error if no file matches or if parsing fails.
-r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(const std::string &path_or_glob, bool ignore_non_fatal_errors = true);
+r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(std::vector<std::string> paths, const std::string original_path, bool ignoreNonFatalErrors);
 
 // SQLConnection backed by the live DuckDB instance via a fresh Connection.
 // Used for full R2RML mode where processDatabase() runs the mapping's SQL

@@ -58,7 +58,8 @@ std::string TranslateSparqlToSql(ClientContext *context, const std::string &spar
 
 	r2rml::R2RMLMapping mapping;
 	try {
-		mapping = ParseR2RMLOrYarrrmlMapping(mapping_path);
+		auto paths = ResolveMappingFiles(mapping_path);
+		mapping = ParseR2RMLOrYarrrmlMapping(paths, mapping_path, true);
 	} catch (const std::runtime_error &e) {
 		throw InvalidInputException("R2RML/YARRRML mapping parse error: %s", e.what());
 	}
