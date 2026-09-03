@@ -17,6 +17,7 @@
 #include <r2rml/SQLValue.h>
 #include <r2rml/StringSQLValue.h>
 #include <r2rml/TriplesMap.h>
+#include <rdf/Term.h>
 #include <map>
 #include <mutex>
 #include <unordered_map>
@@ -24,29 +25,21 @@
 
 using namespace std;
 
-static const char *const XSD_NS = "http://www.w3.org/2001/XMLSchema#";
-
-// Pre-built XSD datatype IRI strings. Each ensureConverted() call previously
-// did std::string(XSD_NS) + "boolean" etc., allocating a new string per value.
-// Static statics are initialised once at program start and reused thereafter.
-static const std::string XSD_BOOLEAN = std::string(XSD_NS) + "boolean";
-static const std::string XSD_BYTE = std::string(XSD_NS) + "byte";
-static const std::string XSD_SHORT = std::string(XSD_NS) + "short";
-static const std::string XSD_INT = std::string(XSD_NS) + "int";
-static const std::string XSD_LONG = std::string(XSD_NS) + "long";
-static const std::string XSD_UNSIGNED_BYTE = std::string(XSD_NS) + "unsignedByte";
-static const std::string XSD_UNSIGNED_SHORT = std::string(XSD_NS) + "unsignedShort";
-static const std::string XSD_UNSIGNED_INT = std::string(XSD_NS) + "unsignedInt";
-static const std::string XSD_UNSIGNED_LONG = std::string(XSD_NS) + "unsignedLong";
-static const std::string XSD_INTEGER = std::string(XSD_NS) + "integer";
-static const std::string XSD_NON_NEGATIVE_INT = std::string(XSD_NS) + "nonNegativeInteger";
-static const std::string XSD_FLOAT = std::string(XSD_NS) + "float";
-static const std::string XSD_DOUBLE = std::string(XSD_NS) + "double";
-static const std::string XSD_DECIMAL = std::string(XSD_NS) + "decimal";
-static const std::string XSD_DATE = std::string(XSD_NS) + "date";
-static const std::string XSD_TIME = std::string(XSD_NS) + "time";
-static const std::string XSD_DATETIME = std::string(XSD_NS) + "dateTime";
-static const std::string XSD_DATETIME_STAMP = std::string(XSD_NS) + "dateTimeStamp";
+// TODO: migrate to sql2rdf versions of these on next release
+constexpr const char *const XSD_BYTE = "http://www.w3.org/2001/XMLSchema#byte";
+constexpr const char *const XSD_SHORT = "http://www.w3.org/2001/XMLSchema#short";
+constexpr const char *const XSD_INT = "http://www.w3.org/2001/XMLSchema#int";
+constexpr const char *const XSD_LONG = "http://www.w3.org/2001/XMLSchema#long";
+constexpr const char *const XSD_UNSIGNED_BYTE = "http://www.w3.org/2001/XMLSchema#unsignedByte";
+constexpr const char *const XSD_UNSIGNED_SHORT = "http://www.w3.org/2001/XMLSchema#unsignedShort";
+constexpr const char *const XSD_UNSIGNED_INT = "http://www.w3.org/2001/XMLSchema#unsignedInt";
+constexpr const char *const XSD_UNSIGNED_LONG = "http://www.w3.org/2001/XMLSchema#unsignedLong";
+constexpr const char *const XSD_NON_NEGATIVE_INT = "http://www.w3.org/2001/XMLSchema#nonNegativeInteger";
+constexpr const char *const XSD_FLOAT = "http://www.w3.org/2001/XMLSchema#float";
+constexpr const char *const XSD_DATE = "http://www.w3.org/2001/XMLSchema#date";
+constexpr const char *const XSD_TIME = "http://www.w3.org/2001/XMLSchema#time";
+constexpr const char *const XSD_DATETIME = "http://www.w3.org/2001/XMLSchema#dateTime";
+constexpr const char *const XSD_DATETIME_STAMP = "http://www.w3.org/2001/XMLSchema#dateTimeStamp";
 
 #define MAPPING_OPTION          "mapping"
 #define RDF_FORMAT_OPTION       "rdf_format"
@@ -185,7 +178,7 @@ private:
 		case LogicalTypeId::BOOLEAN:
 			type_ = Type::Boolean;
 			string_ = val_.GetValue<bool>() ? "true" : "false";
-			datatypeIRI_ = XSD_BOOLEAN;
+			datatypeIRI_ = rdf::XSD_BOOLEAN;
 			break;
 		case LogicalTypeId::TINYINT:
 			type_ = Type::Integer;
@@ -230,7 +223,7 @@ private:
 		case LogicalTypeId::HUGEINT:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = XSD_INTEGER;
+			datatypeIRI_ = rdf::XSD_INTEGER;
 			break;
 		case LogicalTypeId::UHUGEINT:
 			type_ = Type::String;
@@ -245,12 +238,12 @@ private:
 		case LogicalTypeId::DOUBLE:
 			type_ = Type::Double;
 			string_ = formatDouble(val_.GetValue<double>());
-			datatypeIRI_ = XSD_DOUBLE;
+			datatypeIRI_ = rdf::XSD_DOUBLE;
 			break;
 		case LogicalTypeId::DECIMAL:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = XSD_DECIMAL;
+			datatypeIRI_ = rdf::XSD_DECIMAL;
 			break;
 		case LogicalTypeId::DATE:
 			type_ = Type::String;
