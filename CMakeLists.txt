@@ -15,7 +15,7 @@ endif()
 
 project(${TARGET_NAME} LANGUAGES C CXX)
 
-# For yarrml support
+# For yarrrml support
 set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
 set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
@@ -70,11 +70,10 @@ target_include_directories(${SERD_NAME}
 FetchContent_Declare(
   sql2rdf
   GIT_REPOSITORY https://github.com/nonodename/sql2rdf.git
-  GIT_TAG v2.2.0
+  GIT_TAG v2.2.1
 )
 
 FetchContent_MakeAvailable(sql2rdf)
-
 
 # ------------------------------------------------------------
 # DuckDB extension: static + loadable
@@ -96,12 +95,14 @@ target_include_directories(${EXTENSION_NAME}
         src/include
         ${serd_SOURCE_DIR}/include
         ${sql2rdf_SOURCE_DIR}/src
+        ${sql2rdf_rdf_SOURCE_DIR}/include
 )
 target_include_directories(${LOADABLE_EXTENSION_NAME}
     PRIVATE
         src/include
         ${serd_SOURCE_DIR}/include
         ${sql2rdf_SOURCE_DIR}/src
+        ${sql2rdf_rdf_SOURCE_DIR}/include
 )
 
 if (NOT EMSCRIPTEN)
@@ -144,7 +145,7 @@ if (WIN32)
 endif()
 
 install(
-    TARGETS sql2rdf_r2rml sql2rdf_yarrrml sql2rdf_sparql sql2rdf_sparql2sql sql2rdf_type_catalog_loader yaml-cpp ${SERD_NAME}
+    TARGETS sql2rdf_r2rml sql2rdf_yarrrml sql2rdf_sparql sql2rdf_sparql2sql sql2rdf_type_catalog_loader yaml-cpp sql2rdf_rdf ${SERD_NAME}
     EXPORT "${DUCKDB_EXPORT_SET}"
     ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"  # .a file on Unix, .lib on Windows
 )

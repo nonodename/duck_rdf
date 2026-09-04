@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <atomic>
 #include <queue>
-#include "string_util.hpp"
 /*
     Holder for a single row of RDF
 */
@@ -81,17 +80,18 @@ public:
 	}
 
 	static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
-		std::string x = stringtoLower(s);
-		if (x == "ttl" || x == "turtle")
+		// could we do a lower here and then test for that?
+		// yeah, we could but who's naming files 'Ttl' or 'Nq'
+		// so let's not bother with a lower() here.
+		if (s == "ttl" || s == "turtle" || s == "TTL" || s == "TURTLE")
 			return ITriplesBuffer::TURTLE;
-		if (x == "nq" || x == "nquads")
+		if (s == "nq" || s == "nquads" || s == "NQ" || s == "NQUADS")
 			return ITriplesBuffer::NQUADS;
-
-		if (x == "nt" || x == "ntriples")
+		if (s == "nt" || s == "ntriples" || s == "NT" || s == "NTRIPLES")
 			return ITriplesBuffer::NTRIPLES;
-		if (x == "trig")
+		if (s == "trig" || s == "TRIG")
 			return ITriplesBuffer::TRIG;
-		if (x == "rdf" || x == "xml")
+		if (s == "rdf" || s == "xml" || s == "RDF" || s == "XML")
 			return ITriplesBuffer::XML;
 		return ITriplesBuffer::UNKNOWN;
 	}
@@ -100,7 +100,8 @@ public:
 		auto pos = path.rfind('.');
 		if (pos == std::string::npos)
 			return false;
-		return stringtoLower(path.substr(pos + 1)) == "gz" || stringtoLower(path.substr(pos + 1)) == "zst";
+		auto ext = path.substr(pos + 1);
+		return ext == "gz" || ext == "zst" || ext == "GZ" || ext == "ZST";
 	}
 
 	static ITriplesBuffer::FileType DetectFileTypeFromPath(const std::string &path) {

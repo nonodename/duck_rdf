@@ -17,37 +17,29 @@
 #include <r2rml/SQLValue.h>
 #include <r2rml/StringSQLValue.h>
 #include <r2rml/TriplesMap.h>
-#include "include/string_util.hpp"
-#include "yarrrml/YARRRMLParser.h"
+#include <rdf/Term.h>
 #include <map>
 #include <mutex>
 #include <unordered_map>
+#include <algorithm>
 
 using namespace std;
 
-static const char *const XSD_NS = "http://www.w3.org/2001/XMLSchema#";
-
-// Pre-built XSD datatype IRI strings. Each ensureConverted() call previously
-// did std::string(XSD_NS) + "boolean" etc., allocating a new string per value.
-// Static statics are initialised once at program start and reused thereafter.
-static const std::string XSD_BOOLEAN = std::string(XSD_NS) + "boolean";
-static const std::string XSD_BYTE = std::string(XSD_NS) + "byte";
-static const std::string XSD_SHORT = std::string(XSD_NS) + "short";
-static const std::string XSD_INT = std::string(XSD_NS) + "int";
-static const std::string XSD_LONG = std::string(XSD_NS) + "long";
-static const std::string XSD_UNSIGNED_BYTE = std::string(XSD_NS) + "unsignedByte";
-static const std::string XSD_UNSIGNED_SHORT = std::string(XSD_NS) + "unsignedShort";
-static const std::string XSD_UNSIGNED_INT = std::string(XSD_NS) + "unsignedInt";
-static const std::string XSD_UNSIGNED_LONG = std::string(XSD_NS) + "unsignedLong";
-static const std::string XSD_INTEGER = std::string(XSD_NS) + "integer";
-static const std::string XSD_NON_NEGATIVE_INT = std::string(XSD_NS) + "nonNegativeInteger";
-static const std::string XSD_FLOAT = std::string(XSD_NS) + "float";
-static const std::string XSD_DOUBLE = std::string(XSD_NS) + "double";
-static const std::string XSD_DECIMAL = std::string(XSD_NS) + "decimal";
-static const std::string XSD_DATE = std::string(XSD_NS) + "date";
-static const std::string XSD_TIME = std::string(XSD_NS) + "time";
-static const std::string XSD_DATETIME = std::string(XSD_NS) + "dateTime";
-static const std::string XSD_DATETIME_STAMP = std::string(XSD_NS) + "dateTimeStamp";
+// TODO: migrate to sql2rdf versions of these on next release
+constexpr const char *const XSD_BYTE = "http://www.w3.org/2001/XMLSchema#byte";
+constexpr const char *const XSD_SHORT = "http://www.w3.org/2001/XMLSchema#short";
+constexpr const char *const XSD_INT = "http://www.w3.org/2001/XMLSchema#int";
+constexpr const char *const XSD_LONG = "http://www.w3.org/2001/XMLSchema#long";
+constexpr const char *const XSD_UNSIGNED_BYTE = "http://www.w3.org/2001/XMLSchema#unsignedByte";
+constexpr const char *const XSD_UNSIGNED_SHORT = "http://www.w3.org/2001/XMLSchema#unsignedShort";
+constexpr const char *const XSD_UNSIGNED_INT = "http://www.w3.org/2001/XMLSchema#unsignedInt";
+constexpr const char *const XSD_UNSIGNED_LONG = "http://www.w3.org/2001/XMLSchema#unsignedLong";
+constexpr const char *const XSD_NON_NEGATIVE_INT = "http://www.w3.org/2001/XMLSchema#nonNegativeInteger";
+constexpr const char *const XSD_FLOAT = "http://www.w3.org/2001/XMLSchema#float";
+constexpr const char *const XSD_DATE = "http://www.w3.org/2001/XMLSchema#date";
+constexpr const char *const XSD_TIME = "http://www.w3.org/2001/XMLSchema#time";
+constexpr const char *const XSD_DATETIME = "http://www.w3.org/2001/XMLSchema#dateTime";
+constexpr const char *const XSD_DATETIME_STAMP = "http://www.w3.org/2001/XMLSchema#dateTimeStamp";
 
 #define MAPPING_OPTION          "mapping"
 #define RDF_FORMAT_OPTION       "rdf_format"
@@ -56,26 +48,34 @@ static const std::string XSD_DATETIME_STAMP = std::string(XSD_NS) + "dateTimeSta
 
 namespace duckdb {
 
-r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(const std::string &name, bool ignoreNonFatalErrors) {
-	r2rml::R2RMLMapping mapping;
-	if (yarrrml::YARRRMLParser::hasYarrrmlExtension(name)) {
-		yarrrml::YARRRMLParser parser;
-		mapping = parser.parse(name, ignoreNonFatalErrors);
-	} else {
-		r2rml::R2RMLParser parser;
-		mapping = parser.parse(name, ignoreNonFatalErrors);
+std::vector<std::string> ResolveMappingFiles(const std::string &path_or_glob) {
+	auto local_fs = FileSystem::CreateLocal();
+	auto matches = local_fs->Glob(path_or_glob);
+	std::vector<std::string> paths;
+	paths.reserve(matches.size());
+	for (auto &match : matches) {
+		paths.push_back(match.path);
 	}
-	return mapping;
+	std::sort(paths.begin(), paths.end());
+	return paths;
+}
+
+r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(std::vector<std::string> paths, const std::string original_path,
+                                               bool ignoreNonFatalErrors) {
+	if (paths.empty()) {
+		throw std::runtime_error("No mapping files matched: " + original_path);
+	}
+	return r2rml::MappingParser::parseMultiple(paths, ignoreNonFatalErrors);
 }
 
 inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &name_vector = args.data[0];
 	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
-		auto &fs = FileSystem::GetFileSystem(state.GetContext());
-		if (!fs.FileExists(name.GetString())) {
+		auto paths = ResolveMappingFiles(name.GetString());
+		if (paths.empty()) {
 			return false;
 		}
-		r2rml::R2RMLMapping mapping = ParseR2RMLOrYarrrmlMapping(name.GetString());
+		r2rml::R2RMLMapping mapping = ParseR2RMLOrYarrrmlMapping(paths, name.GetString(), true);
 		return mapping.isValidInsideOut();
 	});
 }
@@ -83,13 +83,13 @@ inline void CanCallInsideOut(DataChunk &args, ExpressionState &state, Vector &re
 inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &name_vector = args.data[0];
 	UnaryExecutor::Execute<string_t, bool>(name_vector, result, args.size(), [&](string_t name) {
-		auto &fs = FileSystem::GetFileSystem(state.GetContext());
-		if (!fs.FileExists(name.GetString())) {
+		auto paths = ResolveMappingFiles(name.GetString());
+		if (paths.empty()) {
 			return false;
 		}
 		r2rml::R2RMLMapping mapping;
 		try {
-			mapping = ParseR2RMLOrYarrrmlMapping(name.GetString());
+			mapping = ParseR2RMLOrYarrrmlMapping(paths, name.GetString(), true);
 		} catch (const std::runtime_error &e) {
 			return false;
 		}
@@ -97,13 +97,13 @@ inline void IsValidR2RML(DataChunk &args, ExpressionState &state, Vector &result
 	});
 }
 
-static SerdSyntax ParseRdfFormat(const std::string &fmt) {
-	std::string x = stringtoLower(fmt);
-	if (x == "ttl" || x == "turtle")
+static SerdSyntax ParseRdfFormat(std::string fmt) {
+	std::transform(fmt.begin(), fmt.end(), fmt.begin(), ::tolower);
+	if (fmt == "ttl" || fmt == "turtle")
 		return SERD_TURTLE;
-	if (x == "nq" || x == "nquads")
+	if (fmt == "nq" || fmt == "nquads")
 		return SERD_NQUADS;
-	if (x == "nt" || x == "ntriples")
+	if (fmt == "nt" || fmt == "ntriples")
 		return SERD_NTRIPLES;
 	throw InvalidInputException("Unknown rdf_format '%s'. Valid values: ntriples, turtle, nquads.", fmt.c_str());
 }
@@ -180,7 +180,7 @@ private:
 		case LogicalTypeId::BOOLEAN:
 			type_ = Type::Boolean;
 			string_ = val_.GetValue<bool>() ? "true" : "false";
-			datatypeIRI_ = XSD_BOOLEAN;
+			datatypeIRI_ = rdf::XSD_BOOLEAN;
 			break;
 		case LogicalTypeId::TINYINT:
 			type_ = Type::Integer;
@@ -225,7 +225,7 @@ private:
 		case LogicalTypeId::HUGEINT:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = XSD_INTEGER;
+			datatypeIRI_ = rdf::XSD_INTEGER;
 			break;
 		case LogicalTypeId::UHUGEINT:
 			type_ = Type::String;
@@ -240,12 +240,12 @@ private:
 		case LogicalTypeId::DOUBLE:
 			type_ = Type::Double;
 			string_ = formatDouble(val_.GetValue<double>());
-			datatypeIRI_ = XSD_DOUBLE;
+			datatypeIRI_ = rdf::XSD_DOUBLE;
 			break;
 		case LogicalTypeId::DECIMAL:
 			type_ = Type::String;
 			string_ = val_.ToString();
-			datatypeIRI_ = XSD_DECIMAL;
+			datatypeIRI_ = rdf::XSD_DECIMAL;
 			break;
 		case LogicalTypeId::DATE:
 			type_ = Type::String;
@@ -351,7 +351,9 @@ private:
 		if (!ignore_case_) {
 			return name;
 		}
-		return stringtoLower(name);
+		auto lowered = name;
+		std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
+		return lowered;
 	}
 };
 
@@ -387,7 +389,9 @@ public:
 				for (idx_t c = 0; c < current_chunk_->ColumnCount(); c++) {
 					std::string name = result_->ColumnName(c);
 					if (ignore_case_) {
-						name = stringtoLower(name);
+						auto lowered = name;
+						std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
+						name = lowered;
 					}
 					col_index_[name] = c;
 				}
@@ -422,7 +426,9 @@ std::unique_ptr<r2rml::SQLResultSet> ClientContextSQLConnection::execute(const s
 	// rr:tableName (e.g. "EMP") match DuckDB's lowercase-folded identifiers.
 	std::string exec_sql = sql;
 	if (ignore_case_) {
-		exec_sql = stringtoLower(exec_sql);
+		auto lowered = exec_sql;
+		std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
+		exec_sql = lowered;
 	}
 	auto result = conn.Query(exec_sql);
 	if (result->HasError()) {
@@ -571,8 +577,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	}
 	std::string mapping_path = mapping_it->second[0].GetValue<std::string>();
 
-	auto &fs = FileSystem::GetFileSystem(context);
-	if (!fs.FileExists(mapping_path)) {
+	if (ResolveMappingFiles(mapping_path).empty()) {
 		throw IOException("R2RML mapping file not found: " + mapping_path);
 	}
 
@@ -590,7 +595,8 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 
 	std::shared_ptr<r2rml::R2RMLMapping> mapping;
 	try {
-		mapping = std::make_shared<r2rml::R2RMLMapping>(ParseR2RMLOrYarrrmlMapping(mapping_path, ignore_nfe));
+		auto paths = ResolveMappingFiles(mapping_path);
+		mapping = std::make_shared<r2rml::R2RMLMapping>(ParseR2RMLOrYarrrmlMapping(paths, mapping_path, ignore_nfe));
 	} catch (const std::runtime_error &e) {
 		throw InvalidInputException("R2RML mapping parse error: %s", e.what());
 	}
@@ -616,7 +622,10 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	result->ignore_case = ignore_case;
 
 	for (idx_t i = 0; i < names.size(); i++) {
-		std::string col_name = ignore_case ? stringtoLower(names[i]) : names[i];
+		std::string col_name = names[i];
+		if (ignore_case) {
+			std::transform(col_name.begin(), col_name.end(), col_name.begin(), ::tolower);
+		}
 		result->column_names.push_back(col_name);
 		result->col_index[col_name] = i;
 	}
@@ -654,8 +663,9 @@ static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext
 	// no-ops (Finalize does the work single-threaded), so skip the reparse there.
 	if (bind.inside_out_mode) {
 		try {
+			auto paths = ResolveMappingFiles(bind.mapping_file_path);
 			local->mapping = std::make_shared<r2rml::R2RMLMapping>(
-			    ParseR2RMLOrYarrrmlMapping(bind.mapping_file_path, bind.ignore_non_fatal_errors));
+			    ParseR2RMLOrYarrrmlMapping(paths, bind.mapping_file_path, bind.ignore_non_fatal_errors));
 		} catch (const std::runtime_error &e) {
 			throw InternalException("Failed to re-parse R2RML mapping for parallel write: %s", e.what());
 		}
@@ -743,9 +753,9 @@ void RegisterR2RMLCopy(ExtensionLoader &loader) {
 	                                      CanCallInsideOut);
 	CreateScalarFunctionInfo can_call_info(can_call_inside_out_sf);
 	FunctionDescription can_call_desc;
-	can_call_desc.description =
-	    "Return true if the given R2RML or YARRML mapping file can be executed in inside-out mode, where DuckDB runs "
-	    "the SQL query and the extension maps each output row to RDF triples.";
+	can_call_desc.description = "Return true if the given R2RML or YARRRML mapping file(s) can be executed in "
+	                            "inside-out mode, where DuckDB runs "
+	                            "the SQL query and the extension maps each output row to RDF triples.";
 	can_call_desc.examples.push_back("SELECT can_call_inside_out('mapping.ttl')");
 	can_call_info.descriptions.push_back(can_call_desc);
 	loader.RegisterFunction(std::move(can_call_info));
@@ -754,7 +764,7 @@ void RegisterR2RMLCopy(ExtensionLoader &loader) {
 	CreateScalarFunctionInfo is_valid_info(is_valid_r2rml_sf);
 	FunctionDescription is_valid_desc;
 	is_valid_desc.description =
-	    "Return true if the given file is a syntactically valid R2RML or YARRML mapping document.";
+	    "Return true if the given file(s) is a syntactically valid R2RML or YARRRML mapping document.";
 	is_valid_desc.examples.push_back("SELECT is_valid_r2rml('mapping.yml')");
 	is_valid_info.descriptions.push_back(is_valid_desc);
 	loader.RegisterFunction(std::move(is_valid_info));

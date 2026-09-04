@@ -24,7 +24,6 @@
 #include <algorithm>
 #include <atomic>
 #include <mutex>
-#include "include/string_util.hpp"
 
 using namespace std;
 
@@ -200,11 +199,39 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &context, TableFunctionInitInput &input) {
 	auto &bind_data = (RDFReaderBindData &)*input.bind_data;
 	auto state = make_uniq<RDFReaderGlobalState>();
+	// Start from the unfiltered bind-time total and subtract skipped files below,
+	// so the progress denominator reflects only files that actually produce work
+	// items. Cardinality estimation (RDFReaderCardinality) intentionally keeps
+	// using bind_data.total_bytes, since it runs at bind time before any
+	// filename filter is known.
 	state->total_bytes = bind_data.total_bytes;
 	auto &fs = FileSystem::GetFileSystem(context);
 
+	// The filename column (index 6) is synthetic - it isn't known to
+	// ITriplesBuffer, so a filter on it is applied here, once per file, before
+	// any work items are created. This lets non-matching files be excluded up
+	// front instead of being claimed-then-rejected by every scanning thread.
+	// TableFilterSet is keyed by position within column_ids (see
+	// CreateTableFilterSet in plan_get.cpp), so find that position first.
+	const TableFilter *filename_filter = nullptr;
+	if (bind_data.include_filenames && input.filters) {
+		for (idx_t i = 0; i < input.column_ids.size(); i++) {
+			if (input.column_ids[i] == 6) {
+				auto it = input.filters->filters.find(i);
+				if (it != input.filters->filters.end()) {
+					filename_filter = it->second.get();
+				}
+				break;
+			}
+		}
+	}
+
 	for (idx_t i = 0; i < bind_data.file_paths.size(); i++) {
 		const string &path = bind_data.file_paths[i];
+		if (filename_filter && !PassesFilter(filename_filter, path.data(), path.size(), false)) {
+			state->total_bytes -= bind_data.file_sizes[i];
+			continue;
+		}
 		idx_t file_size = bind_data.file_sizes[i];
 		ITriplesBuffer::FileType ft = bind_data.file_type == ITriplesBuffer::UNKNOWN
 		                                  ? ITriplesBuffer::DetectFileTypeFromPath(path)
@@ -299,49 +326,28 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			state.ib.reset();
 		}
 
-		// The filename column (index 6) is synthetic - it isn't known to
-		// ITriplesBuffer, so a filter on it has to be enforced here, once per
-		// file. This also lets us skip parsing entire non-matching files.
-		// TableFilterSet is keyed by position within column_ids (see
-		// CreateTableFilterSet in plan_get.cpp), so find that position first.
-		const TableFilter *filename_filter = nullptr;
-		if (bind_data.include_filenames && state.filters) {
-			for (idx_t i = 0; i < state.column_ids.size(); i++) {
-				if (state.column_ids[i] == 6) {
-					auto it = state.filters->filters.find(i);
-					if (it != state.filters->filters.end()) {
-						filename_filter = it->second.get();
-					}
-					break;
-				}
-			}
-		}
-
 		// Atomically claim the next unit of work: byte ranges first, then
 		// whole files, once ranges are exhausted (order isn't load-bearing).
+		// Files rejected by a filename filter are excluded up front in
+		// RDFReaderGlobalInit, so every work item here is guaranteed to match.
 		idx_t file_idx;
 		string file_path;
 		bool is_range = false;
 		RDFRangeWorkItem range_item {};
-		while (true) {
-			{
-				std::lock_guard<std::mutex> lk(global_state.lock);
-				if (global_state.next_range < global_state.ranges.size()) {
-					range_item = global_state.ranges[global_state.next_range++];
-					file_idx = range_item.file_idx;
-					is_range = true;
-				} else if (global_state.next_whole_file < global_state.whole_files.size()) {
-					file_idx = global_state.whole_files[global_state.next_whole_file++];
-					is_range = false;
-				} else {
-					return; // no more work; empty output signals done to DuckDB
-				}
-			}
-			file_path = bind_data.file_paths[file_idx];
-			if (!filename_filter || PassesFilter(filename_filter, file_path.data(), file_path.size(), false)) {
-				break;
+		{
+			std::lock_guard<std::mutex> lk(global_state.lock);
+			if (global_state.next_range < global_state.ranges.size()) {
+				range_item = global_state.ranges[global_state.next_range++];
+				file_idx = range_item.file_idx;
+				is_range = true;
+			} else if (global_state.next_whole_file < global_state.whole_files.size()) {
+				file_idx = global_state.whole_files[global_state.next_whole_file++];
+				is_range = false;
+			} else {
+				return; // no more work; empty output signals done to DuckDB
 			}
 		}
+		file_path = bind_data.file_paths[file_idx];
 
 		// Open and start parsing the claimed file (or byte range of it)
 		state.current_file = file_path;

@@ -29,7 +29,7 @@ void XMLBuffer::PopulateChunk(duckdb::DataChunk &output) {
 	_current_chunk = &output;
 	_current_count = 0;
 	while (!_overflow_buffer.empty() && _current_count < STANDARD_VECTOR_SIZE) {
-		RDFRow row = _overflow_buffer.front();
+		RDFRow row = std::move(_overflow_buffer.front());
 		_overflow_buffer.pop_front();
 		// Use writeToVector (fast path: StringVector::AddString + FlatVector::GetData).
 		if (_output_slot[0] >= 0)
@@ -85,15 +85,27 @@ void XMLBuffer::statementCallback(const RdfStatement &stmt) {
 	try {
 		// Filter pushdown: reject non-matching rows before any vector write.
 		// Graph is always empty (and therefore NULL, see writeToVector) for RDF/XML files.
-		auto passes = [&](int col, const std::string &s) {
-			auto *filter = _column_filters[col].get();
-			if (!filter) {
-				return true;
-			}
-			return PassesFilter(filter, s.data(), s.size(), s.empty());
-		};
-		if (!passes(0, std::string()) || !passes(1, stmt.subject) || !passes(2, stmt.predicate) ||
-		    !passes(3, stmt.object) || !passes(4, stmt.datatype) || !passes(5, stmt.language)) {
+		if (_column_filters[0].get() && !PassesFilter(_column_filters[0].get(), "", 0, true)) {
+			return;
+		}
+		if (_column_filters[1].get() &&
+		    !PassesFilter(_column_filters[1].get(), stmt.subject.data(), stmt.subject.length(), stmt.subject.empty())) {
+			return;
+		}
+		if (_column_filters[2].get() && !PassesFilter(_column_filters[2].get(), stmt.predicate.data(),
+		                                              stmt.predicate.length(), stmt.predicate.empty())) {
+			return;
+		}
+		if (_column_filters[3].get() &&
+		    !PassesFilter(_column_filters[3].get(), stmt.object.data(), stmt.object.length(), stmt.object.empty())) {
+			return;
+		}
+		if (_column_filters[4].get() && !PassesFilter(_column_filters[4].get(), stmt.datatype.data(),
+		                                              stmt.datatype.length(), stmt.datatype.empty())) {
+			return;
+		}
+		if (_column_filters[5].get() && !PassesFilter(_column_filters[5].get(), stmt.language.data(),
+		                                              stmt.language.length(), stmt.language.empty())) {
 			return;
 		}
 

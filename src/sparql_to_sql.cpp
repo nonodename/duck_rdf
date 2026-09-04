@@ -2,7 +2,6 @@
 #include "include/r2rml_copy.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/exception.hpp"
-#include "duckdb/common/file_system.hpp"
 #include "duckdb/main/connection.hpp"
 #include <r2rml/R2RMLMapping.h>
 #include <sparql-parser/ParseError.h>
@@ -53,16 +52,14 @@ static std::unique_ptr<sparql2sql::TypeCatalog> BuildTypeCatalog(ClientContext &
 
 std::string TranslateSparqlToSql(ClientContext *context, const std::string &sparql_text,
                                  const std::string &mapping_path) {
-	if (context) {
-		auto &fs = FileSystem::GetFileSystem(*context);
-		if (!fs.FileExists(mapping_path)) {
-			throw IOException("Mapping file not found: " + mapping_path);
-		}
+	if (ResolveMappingFiles(mapping_path).empty()) {
+		throw IOException("Mapping file not found: " + mapping_path);
 	}
 
 	r2rml::R2RMLMapping mapping;
 	try {
-		mapping = ParseR2RMLOrYarrrmlMapping(mapping_path);
+		auto paths = ResolveMappingFiles(mapping_path);
+		mapping = ParseR2RMLOrYarrrmlMapping(paths, mapping_path, true);
 	} catch (const std::runtime_error &e) {
 		throw InvalidInputException("R2RML/YARRRML mapping parse error: %s", e.what());
 	}
@@ -115,10 +112,11 @@ void RegisterSparqlToSql(ExtensionLoader &loader) {
 	CreateScalarFunctionInfo info(sparql_to_sql_sf);
 	FunctionDescription desc;
 	desc.description =
-	    "Translate a SPARQL SELECT or ASK query into an equivalent SQL query, using an R2RML or YARRRML mapping file "
+	    "Translate a SPARQL SELECT or ASK query into an equivalent SQL query, using an R2RML or YARRRML mapping "
+	    "file(s) "
 	    "in reverse. The mapping must be a full R2RML mapping (every TriplesMap has an rr:logicalTable or YARRRML "
 	    "'sources' entry) - inside-out-only mappings are not accepted. Throws a detailed error naming the mapping "
-	    "file, the SPARQL syntax problem, or the unsupported SPARQL construct on failure. Currently only the "
+	    "file(s), the SPARQL syntax problem, or the unsupported SPARQL construct on failure. Currently only the "
 	    "'duckdb' SQL dialect is supported.";
 	desc.examples.push_back(
 	    "SELECT sparql_to_sql('SELECT ?e ?name WHERE { ?e <http://example.com/ns#name> ?name }', 'mapping.ttl')");

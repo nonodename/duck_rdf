@@ -4,15 +4,10 @@
 #endif
 #include "duckdb/common/exception.hpp"
 
+#include <rdf/Term.h>
 #include <serd/serd.h>
 #include <stdexcept>
 #include <unordered_map>
-
-// ============================================================
-// XSD → DuckDB type name mapping
-// ============================================================
-
-static const std::string XSD_PREFIX = "http://www.w3.org/2001/XMLSchema#";
 
 std::string XsdToDuckDBType(const std::string &datatype, const std::string &lang, ObjectKind kind) {
 	if (kind == ObjectKind::IRI)
@@ -29,8 +24,8 @@ std::string XsdToDuckDBType(const std::string &datatype, const std::string &lang
 
 	// Strip the XSD namespace prefix for lookup
 	std::string local = datatype;
-	if (datatype.compare(0, XSD_PREFIX.size(), XSD_PREFIX) == 0)
-		local = datatype.substr(XSD_PREFIX.size());
+	if (datatype.compare(0, std::strlen(rdf::XSD_NAMESPACE), rdf::XSD_NAMESPACE) == 0)
+		local = datatype.substr(std::strlen(rdf::XSD_NAMESPACE));
 
 	static const std::unordered_map<std::string, std::string> XSD_MAP = {
 	    {"boolean", "BOOLEAN"},
