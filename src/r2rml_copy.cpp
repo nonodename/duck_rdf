@@ -60,7 +60,8 @@ std::vector<std::string> ResolveMappingFiles(const std::string &path_or_glob) {
 	return paths;
 }
 
-r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(std::vector<std::string> paths, const std::string original_path, bool ignoreNonFatalErrors) {
+r2rml::R2RMLMapping ParseR2RMLOrYarrrmlMapping(std::vector<std::string> paths, const std::string original_path,
+                                               bool ignoreNonFatalErrors) {
 	if (paths.empty()) {
 		throw std::runtime_error("No mapping files matched: " + original_path);
 	}

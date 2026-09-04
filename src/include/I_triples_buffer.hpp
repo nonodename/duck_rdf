@@ -81,7 +81,7 @@ public:
 
 	static ITriplesBuffer::FileType ConvertLabelToFileType(const std::string &s) {
 		// could we do a lower here and then test for that?
-		// yeah, we could but who's naming files 'Ttl' or 'Nq' 
+		// yeah, we could but who's naming files 'Ttl' or 'Nq'
 		// so let's not bother with a lower() here.
 		if (s == "ttl" || s == "turtle" || s == "TTL" || s == "TURTLE")
 			return ITriplesBuffer::TURTLE;
