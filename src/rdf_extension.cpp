@@ -16,9 +16,12 @@
 #include "include/table_filter_eval.hpp"
 #include "include/rdf_multi_file.hpp"
 #include "include/rdf_triples_factory.hpp"
+#include "include/repro_bug.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "duckdb/planner/table_filter_set.hpp"
+#include "duckdb/logging/logger.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
 #include <algorithm>
@@ -125,7 +128,7 @@ static unique_ptr<NodeStatistics> RDFReaderCardinality(ClientContext &context, c
 }
 
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
-                                              vector<LogicalType> &return_types, vector<string> &names) {
+                                              vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<RDFReaderBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
@@ -213,14 +216,12 @@ static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &c
 	// front instead of being claimed-then-rejected by every scanning thread.
 	// TableFilterSet is keyed by position within column_ids (see
 	// CreateTableFilterSet in plan_get.cpp), so find that position first.
-	const TableFilter *filename_filter = nullptr;
+	CompiledColumnFilter filename_filter;
 	if (bind_data.include_filenames && input.filters) {
 		for (idx_t i = 0; i < input.column_ids.size(); i++) {
 			if (input.column_ids[i] == 6) {
-				auto it = input.filters->filters.find(i);
-				if (it != input.filters->filters.end()) {
-					filename_filter = it->second.get();
-				}
+				filename_filter =
+				    CompileColumnFilter(context, input.filters->TryGetFilterByColumnIndex(ProjectionIndex(i)));
 				break;
 			}
 		}
@@ -228,7 +229,7 @@ static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &c
 
 	for (idx_t i = 0; i < bind_data.file_paths.size(); i++) {
 		const string &path = bind_data.file_paths[i];
-		if (filename_filter && !PassesFilter(filename_filter, path.data(), path.size(), false)) {
+		if (!PassesFilter(filename_filter, path.data(), path.size(), false)) {
 			state->total_bytes -= bind_data.file_sizes[i];
 			continue;
 		}
@@ -302,7 +303,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 							auto &vec = output.data[i];
 							auto sv = StringVector::AddString(vec, state.current_file);
 							for (idx_t row = 0; row < output.size(); row++) {
-								FlatVector::GetData<string_t>(vec)[row] = sv;
+								FlatVector::GetDataMutable<string_t>(vec)[row] = sv;
 							}
 							break;
 						}
@@ -364,7 +365,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			new_ib->SetProgressCounter(&global_state.bytes_consumed);
 			new_ib->StartParse();
 			new_ib->SetColumnIds(state.column_ids);
-			new_ib->SetFilters(state.filters, state.column_ids);
+			new_ib->SetFilters(context, state.filters, state.column_ids);
 			state.ib = std::move(new_ib);
 		} catch (const std::runtime_error &re) {
 			throw IOException(re.what());
@@ -386,8 +387,8 @@ static double RDFReaderProgress(ClientContext &context, const FunctionData *bind
 
 static void LoadInternal(ExtensionLoader &loader) {
 	string extension_name = "read_rdf";
-	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, RDFReaderGlobalInit,
-	                 RDFReaderInit);
+	TableFunction tf(Identifier(extension_name), {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind,
+	                 RDFReaderGlobalInit, RDFReaderInit);
 	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
 	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
 	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
@@ -422,6 +423,7 @@ static void LoadInternal(ExtensionLoader &loader) {
 	RegisterProfileRDF(loader);
 	RegisterPivotRDF(loader);
 	RegisterReadRDFPrefixes(loader);
+	RegisterReproBug(loader);
 }
 
 void RdfExtension::Load(ExtensionLoader &loader) {

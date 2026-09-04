@@ -3,20 +3,33 @@
 
 #include "duckdb.hpp"
 #include "duckdb/planner/table_filter.hpp"
+#include "duckdb/planner/filter/expression_filter.hpp"
 
-// Evaluates a single-column DuckDB TableFilter against a raw byte value without
-// requiring it to be materialized as a duckdb::Value or std::string first.
-//
-// Returns false only if `filter` definitely rejects this value. Returns true if
-// the value satisfies the filter, if `filter` is null, or if the filter is of a
-// type this function doesn't understand. The "unsupported -> true" default is
-// safe here: DuckDB only fully removes the corresponding WHERE clause from the
-// plan (trusting the table function to enforce it) for ConstantFilter,
-// ConjunctionAndFilter combinations of those, and IsNull/IsNotNull filters -
-// exactly the cases this function implements. Anything else it might push down
-// (OR-clauses, IN-lists, LIKE wildcard bounds) arrives wrapped so that the
-// original Filter operator stays in the plan, so passing those through here is
-// only ever a missed optimization, never a correctness problem.
-bool PassesFilter(const duckdb::TableFilter *filter, const char *data, duckdb::idx_t len, bool is_null);
+// A pushed-down TableFilter, normalized to an ExpressionFilter. DuckDB represents
+// every pushed-down filter (constant comparisons, AND/OR combinations, IN-lists,
+// IS [NOT] NULL, LIKE, ...) as an arbitrary bound expression (ExpressionFilter);
+// evaluating one against a single value requires a fresh ExpressionExecutor per
+// call (ExpressionFilter::EvaluateWithConstant's own contract - reusing an
+// executor across independent single-row probes is not safe), so
+// CompileColumnFilter() only amortizes the legacy-filter-to-ExpressionFilter
+// conversion once per scanned file/range; PassesFilter() still builds an
+// executor per row.
+struct CompiledColumnFilter {
+	// Only set when a legacy (non-expression) filter had to be converted.
+	duckdb::unique_ptr<duckdb::ExpressionFilter> owned_filter;
+	duckdb::optional_ptr<const duckdb::ExpressionFilter> filter;
+	duckdb::ClientContext *context = nullptr;
+};
+
+// Returns a CompiledColumnFilter with no filter set when `filter` is null;
+// PassesFilter() treats that as "no filter pushed for this column".
+CompiledColumnFilter CompileColumnFilter(duckdb::ClientContext &context,
+                                         duckdb::optional_ptr<const duckdb::TableFilter> filter);
+
+// Evaluates `filter` against a raw byte value (avoiding a duckdb::Value/
+// std::string round-trip only in the common case of no filter at all). Returns
+// true if the value satisfies the filter, or if `filter` has none pushed for
+// this column.
+bool PassesFilter(const CompiledColumnFilter &filter, const char *data, duckdb::idx_t len, bool is_null);
 
 #endif // TABLE_FILTER_EVAL_H

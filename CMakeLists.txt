@@ -39,6 +39,9 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(serd)
 
 file(GLOB EXTENSION_SOURCES "src/*.cpp")
+list(APPEND EXTENSION_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test/repro_bug.cpp"
+)
 
 # CURL and LibXml2 are not available in Emscripten/WASM builds:
 # - CURL requires OS sockets which do not exist in WASM

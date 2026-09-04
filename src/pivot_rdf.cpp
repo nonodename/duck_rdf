@@ -145,7 +145,7 @@ static PivotColumn BuildPivotColumn(const std::string &predicate, const Predicat
 		elem = distinct_types[0];
 	} else {
 		for (size_t i = 0; i < distinct_types.size(); i++)
-			union_members.push_back(std::make_pair(distinct_names[i], distinct_types[i]));
+			union_members.push_back(std::make_pair(Identifier(distinct_names[i]), distinct_types[i]));
 		elem = LogicalType::UNION(union_members);
 	}
 
@@ -286,7 +286,7 @@ struct PivotRDFLocalState : public LocalTableFunctionState {
 // ============================================================
 
 static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFunctionBindInput &input,
-                                             vector<LogicalType> &return_types, vector<string> &names) {
+                                             vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<PivotRDFBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
@@ -341,7 +341,7 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 	names.push_back("subject");
 	return_types.push_back(LogicalType::VARCHAR);
 	for (const auto &col : result->columns) {
-		names.push_back(col.predicate);
+		names.push_back(Identifier(col.predicate));
 		return_types.push_back(col.col_type);
 	}
 

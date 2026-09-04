@@ -125,7 +125,7 @@ static void SparqlParserToggleFunc(ClientContext &, TableFunctionInput &input, D
 }
 
 static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, TableFunctionBindInput &input,
-                                                       vector<LogicalType> &return_types, vector<string> &names) {
+                                                       vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto mapping_path = input.inputs[0].GetValue<string>();
 
 	if (ResolveMappingFiles(mapping_path).empty()) {
@@ -176,7 +176,7 @@ static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, T
 }
 
 static unique_ptr<FunctionData> DisableSparqlParserBind(ClientContext &context, TableFunctionBindInput &input,
-                                                        vector<LogicalType> &return_types, vector<string> &names) {
+                                                        vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto &state = *static_cast<SparqlParserState *>(input.info.get());
 	Value restore_value("DEFAULT");
 	auto wasEnabled = false;

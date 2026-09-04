@@ -127,7 +127,7 @@ struct ProfileRDFLocalState : public LocalTableFunctionState {};
 // ============================================================
 
 static unique_ptr<FunctionData> ProfileRDFBind(ClientContext &context, TableFunctionBindInput &input,
-                                               vector<LogicalType> &return_types, vector<string> &names) {
+                                               vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<ProfileRDFBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 

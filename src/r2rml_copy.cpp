@@ -387,7 +387,7 @@ public:
 			// Build column-name → index map once (schema is fixed across chunks).
 			if (col_index_.empty()) {
 				for (idx_t c = 0; c < current_chunk_->ColumnCount(); c++) {
-					std::string name = result_->ColumnName(c);
+					std::string name = result_->ColumnName(c).GetIdentifierName();
 					if (ignore_case_) {
 						auto lowered = name;
 						std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
@@ -567,7 +567,7 @@ static void R2RMLCopyOptions(ClientContext &, CopyOptionsInput &input) {
 }
 
 static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunctionBindInput &input,
-                                                const vector<string> &names, const vector<LogicalType> &sql_types) {
+                                                const vector<Identifier> &names, const vector<LogicalType> &sql_types) {
 	auto &options = input.info.options;
 
 	// mapping option is required
@@ -622,7 +622,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	result->ignore_case = ignore_case;
 
 	for (idx_t i = 0; i < names.size(); i++) {
-		std::string col_name = names[i];
+		std::string col_name = names[i].GetIdentifierName();
 		if (ignore_case) {
 			std::transform(col_name.begin(), col_name.end(), col_name.begin(), ::tolower);
 		}
@@ -751,6 +751,7 @@ static CopyFunctionExecutionMode R2RMLCopyExecutionMode(bool, bool) {
 void RegisterR2RMLCopy(ExtensionLoader &loader) {
 	ScalarFunction can_call_inside_out_sf("can_call_inside_out", {LogicalType::VARCHAR}, LogicalType::BOOLEAN,
 	                                      CanCallInsideOut);
+	can_call_inside_out_sf.SetFallible();
 	CreateScalarFunctionInfo can_call_info(can_call_inside_out_sf);
 	FunctionDescription can_call_desc;
 	can_call_desc.description = "Return true if the given R2RML or YARRRML mapping file(s) can be executed in "

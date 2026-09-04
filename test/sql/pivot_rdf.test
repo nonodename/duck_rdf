@@ -104,8 +104,8 @@ STRUCT("object" VARCHAR, lang VARCHAR)[]
 
 # Access individual language values by filtering on the lang field
 query TT
-SELECT list_filter("http://ex.org/p_lang", x -> x.lang = 'en')[1].object,
-       list_filter("http://ex.org/p_lang", x -> x.lang = 'es')[1].object
+SELECT list_filter("http://ex.org/p_lang", lambda x: x.lang = 'en')[1].object,
+       list_filter("http://ex.org/p_lang", lambda x: x.lang = 'es')[1].object
 FROM pivot_rdf('test/rdf/pivot_test.nt')
 WHERE subject = 'http://ex.org/s1';
 ----

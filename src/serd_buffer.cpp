@@ -121,11 +121,11 @@ void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNod
 	}
 	if (expanded_node && expanded_node->buf && expanded_node->n_bytes > 0) {
 		auto str = duckdb::StringVector::AddString(vec, (const char *)expanded_node->buf, expanded_node->n_bytes);
-		duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
+		duckdb::FlatVector::GetDataMutable<duckdb::string_t>(vec)[row_idx] = str;
 		return;
 	}
 	auto str = duckdb::StringVector::AddString(vec, (const char *)node->buf, node->n_bytes);
-	duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
+	duckdb::FlatVector::GetDataMutable<duckdb::string_t>(vec)[row_idx] = str;
 }
 
 void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
@@ -143,7 +143,7 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		if (s.empty()) {
 			duckdb::FlatVector::SetNull(vec, _current_count, true);
 		} else {
-			duckdb::FlatVector::GetData<duckdb::string_t>(vec)[_current_count] =
+			duckdb::FlatVector::GetDataMutable<duckdb::string_t>(vec)[_current_count] =
 			    duckdb::StringVector::AddString(vec, s);
 		}
 	};
@@ -250,10 +250,7 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 
 	// Filter pushdown: reject non-matching rows before any string is copied.
 	auto passesRaw = [&](int col, const SerdNode *node, const SerdNode *expanded_node = nullptr) {
-		auto *filter = self->_column_filters[col].get();
-		if (!filter) {
-			return true;
-		}
+		auto &filter = self->_column_filters[col];
 		if (!node || !node->buf) {
 			return PassesFilter(filter, nullptr, 0, true);
 		}

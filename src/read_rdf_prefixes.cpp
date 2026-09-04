@@ -171,7 +171,7 @@ struct RDFPrefixesLocalState : public LocalTableFunctionState {};
 // ============================================================
 
 static unique_ptr<FunctionData> RDFPrefixesBind(ClientContext &context, TableFunctionBindInput &input,
-                                                vector<LogicalType> &return_types, vector<string> &names) {
+                                                vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<RDFPrefixesBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 

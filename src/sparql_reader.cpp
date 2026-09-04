@@ -235,7 +235,7 @@ struct SPARQLGlobalState : public GlobalTableFunctionState {
 // ============================================================
 
 static unique_ptr<FunctionData> SPARQLBind(ClientContext &context, TableFunctionBindInput &input,
-                                           vector<LogicalType> &return_types, vector<string> &names) {
+                                           vector<LogicalType> &return_types, vector<Identifier> &names) {
 	std::string endpoint = input.inputs[0].GetValue<string>();
 	std::string query = input.inputs[1].GetValue<string>();
 
@@ -262,7 +262,7 @@ static unique_ptr<FunctionData> SPARQLBind(ClientContext &context, TableFunction
 	result->rows = std::move(rows);
 
 	for (auto &col_name : header) {
-		names.push_back(col_name);
+		names.push_back(Identifier(col_name));
 	}
 	return_types.assign(header.size(), LogicalType::VARCHAR);
 
@@ -292,8 +292,8 @@ static void SPARQLFunc(ClientContext &context, TableFunctionInput &input, DataCh
 	// per-cell boxing through Value().
 	for (idx_t col = 0; col < num_cols; col++) {
 		auto &vec = output.data[col];
-		auto *flat = FlatVector::GetData<string_t>(vec);
-		auto &validity = FlatVector::Validity(vec);
+		auto *flat = FlatVector::GetDataMutable<string_t>(vec);
+		auto &validity = FlatVector::ValidityMutable(vec);
 		for (idx_t row = 0; row < count; row++) {
 			const auto &data_row = bind_data.rows[start + row];
 			if (col < data_row.size() && !data_row[col].empty()) {

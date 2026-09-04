@@ -109,6 +109,7 @@ inline void SparqlToSql(DataChunk &args, ExpressionState &state, Vector &result)
 void RegisterSparqlToSql(ExtensionLoader &loader) {
 	ScalarFunction sparql_to_sql_sf("sparql_to_sql", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
 	                                SparqlToSql);
+	sparql_to_sql_sf.SetFallible();
 	CreateScalarFunctionInfo info(sparql_to_sql_sf);
 	FunctionDescription desc;
 	desc.description =
