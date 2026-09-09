@@ -304,7 +304,7 @@ static void SPARQLFunc(ClientContext &context, TableFunctionInput &input, DataCh
 		}
 	}
 
-	output.SetCardinality(count);
+	output.SetChildCardinality(count);
 }
 
 // ============================================================

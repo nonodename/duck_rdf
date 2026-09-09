@@ -62,7 +62,7 @@ void XMLBuffer::PopulateChunk(duckdb::DataChunk &output) {
 			throw duckdb::SyntaxException(_deferred_error_message);
 		}
 	}
-	output.SetCardinality(_current_count);
+	output.SetChildCardinality(_current_count);
 	_current_chunk = nullptr;
 }
 void XMLBuffer::StartParse() {

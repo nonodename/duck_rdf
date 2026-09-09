@@ -588,7 +588,7 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 		}
 	}
 
-	output.SetCardinality(out_idx);
+	output.SetChildCardinality(out_idx);
 }
 
 // ============================================================

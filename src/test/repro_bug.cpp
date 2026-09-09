@@ -29,7 +29,7 @@ static unique_ptr<GlobalTableFunctionState> NineRowsGlobalInit(ClientContext &co
 }
 
 static unique_ptr<LocalTableFunctionState> NineRowsLocalInit(ExecutionContext &context, TableFunctionInitInput &input,
-                                                              GlobalTableFunctionState *global_state) {
+                                                             GlobalTableFunctionState *global_state) {
 	auto state = make_uniq<NineRowsLocalState>();
 	state->column_ids = input.column_ids;
 	return state;
@@ -58,7 +58,7 @@ static void NineRowsFunc(ClientContext &context, TableFunctionInput &input, Data
 			}
 		}
 	}
-	output.SetCardinality(9);
+	output.SetChildCardinality(9);
 }
 
 static void LoadReproBug(ExtensionLoader &loader) {

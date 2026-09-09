@@ -218,7 +218,7 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		}
 	}
 
-	output.SetCardinality(_current_count);
+	output.SetChildCardinality(_current_count);
 	_current_chunk = nullptr; // Clear pointer for safety
 }
 

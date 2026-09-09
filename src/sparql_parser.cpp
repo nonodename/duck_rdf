@@ -115,13 +115,13 @@ static unique_ptr<GlobalTableFunctionState> SparqlParserToggleInit(ClientContext
 static void SparqlParserToggleFunc(ClientContext &, TableFunctionInput &input, DataChunk &output) {
 	auto &gstate = (SparqlParserToggleState &)*input.global_state;
 	if (gstate.emitted) {
-		output.SetCardinality(0);
+		output.SetChildCardinality(0);
 		return;
 	}
 	gstate.emitted = true;
 	auto &bind_data = (SparqlParserToggleData &)*input.bind_data;
 	output.SetValue(0, 0, Value::BOOLEAN(bind_data.enabled_after));
-	output.SetCardinality(1);
+	output.SetChildCardinality(1);
 }
 
 static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, TableFunctionBindInput &input,

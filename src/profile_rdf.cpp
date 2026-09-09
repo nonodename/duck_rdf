@@ -238,7 +238,7 @@ static void ProfileRDFFunc(ClientContext & /*context*/, TableFunctionInput &inpu
 		out_idx++;
 	}
 
-	output.SetCardinality(out_idx);
+	output.SetChildCardinality(out_idx);
 }
 
 // ============================================================

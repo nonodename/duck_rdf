@@ -287,7 +287,7 @@ static void RDFPrefixesFunc(ClientContext & /*context*/, TableFunctionInput &inp
 		out_idx++;
 	}
 
-	output.SetCardinality(out_idx);
+	output.SetChildCardinality(out_idx);
 }
 
 // ============================================================
