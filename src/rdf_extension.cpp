@@ -16,7 +16,6 @@
 #include "include/table_filter_eval.hpp"
 #include "include/rdf_multi_file.hpp"
 #include "include/rdf_triples_factory.hpp"
-#include "include/repro_bug.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -423,7 +422,6 @@ static void LoadInternal(ExtensionLoader &loader) {
 	RegisterProfileRDF(loader);
 	RegisterPivotRDF(loader);
 	RegisterReadRDFPrefixes(loader);
-	RegisterReproBug(loader);
 }
 
 void RdfExtension::Load(ExtensionLoader &loader) {
