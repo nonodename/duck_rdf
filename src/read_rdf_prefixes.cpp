@@ -275,14 +275,14 @@ static void RDFPrefixesFunc(ClientContext & /*context*/, TableFunctionInput &inp
 
 		// @base declarations have no prefix name — emit SQL NULL
 		if (row.prefix_is_null) {
-			output.SetValue(0, out_idx, Value());
+			output.data[0].SetValue(out_idx, Value());
 		} else {
-			output.SetValue(0, out_idx, Value(row.prefix));
+			output.data[0].SetValue(out_idx, Value(row.prefix));
 		}
-		output.SetValue(1, out_idx, Value(row.uri));
-		output.SetValue(2, out_idx, Value::BOOLEAN(row.is_base));
+		output.data[1].SetValue(out_idx, Value(row.uri));
+		output.data[2].SetValue(out_idx, Value::BOOLEAN(row.is_base));
 		if (bind_data.include_filenames)
-			output.SetValue(3, out_idx, Value(row.filename));
+			output.data[3].SetValue(out_idx, Value(row.filename));
 
 		out_idx++;
 	}

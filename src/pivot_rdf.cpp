@@ -428,10 +428,11 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 
 static void EmitRow(const PivotRDFLocalState::SubjectEntry &entry, const PivotRDFBindData &bind_data, DataChunk &output,
                     idx_t out_idx) {
-	output.SetValue(0, out_idx, Value(entry.graph));
-	output.SetValue(1, out_idx, Value(entry.subject));
+	output.data[0].SetValue(out_idx, Value(entry.graph));
+	output.data[1].SetValue(out_idx, Value(entry.subject));
 	for (idx_t i = 0; i < bind_data.columns.size(); i++) {
-		output.SetValue(2 + i, out_idx, BuildColValue(entry.cols[i], bind_data.columns[i], bind_data.strict_parsing));
+		output.data[2 + i].SetValue(out_idx,
+		                            BuildColValue(entry.cols[i], bind_data.columns[i], bind_data.strict_parsing));
 	}
 }
 

@@ -209,7 +209,7 @@ static void ProfileRDFFunc(ClientContext & /*context*/, TableFunctionInput &inpu
 		const ProfileRow &row = global.rows[row_idx];
 
 		// predicate
-		output.SetValue(0, out_idx, Value(row.predicate));
+		output.data[0].SetValue(out_idx, Value(row.predicate));
 
 		// types: LIST<VARCHAR>
 		{
@@ -217,23 +217,23 @@ static void ProfileRDFFunc(ClientContext & /*context*/, TableFunctionInput &inpu
 			type_vals.reserve(row.sorted_types.size());
 			for (auto &t : row.sorted_types)
 				type_vals.emplace_back(Value(t));
-			output.SetValue(1, out_idx, Value::LIST(LogicalType::VARCHAR, type_vals));
+			output.data[1].SetValue(out_idx, Value::LIST(LogicalType::VARCHAR, type_vals));
 		}
 
 		// count: MAP<VARCHAR, UBIGINT>
-		output.SetValue(2, out_idx, BuildVarcharBigintMap(row.sorted_types, row.counts));
+		output.data[2].SetValue(out_idx, BuildVarcharBigintMap(row.sorted_types, row.counts));
 
 		// min: MAP<VARCHAR, VARCHAR>
-		output.SetValue(3, out_idx, BuildVarcharVarcharMap(row.sorted_types, row.mins));
+		output.data[3].SetValue(out_idx, BuildVarcharVarcharMap(row.sorted_types, row.mins));
 
 		// max: MAP<VARCHAR, VARCHAR>
-		output.SetValue(4, out_idx, BuildVarcharVarcharMap(row.sorted_types, row.maxs));
+		output.data[4].SetValue(out_idx, BuildVarcharVarcharMap(row.sorted_types, row.maxs));
 
 		// graph_count
-		output.SetValue(5, out_idx, Value::UBIGINT(row.graph_count));
+		output.data[5].SetValue(out_idx, Value::UBIGINT(row.graph_count));
 
 		// subject_count
-		output.SetValue(6, out_idx, Value::UBIGINT(row.subject_count));
+		output.data[6].SetValue(out_idx, Value::UBIGINT(row.subject_count));
 
 		out_idx++;
 	}

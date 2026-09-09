@@ -120,7 +120,7 @@ static void SparqlParserToggleFunc(ClientContext &, TableFunctionInput &input, D
 	}
 	gstate.emitted = true;
 	auto &bind_data = (SparqlParserToggleData &)*input.bind_data;
-	output.SetValue(0, 0, Value::BOOLEAN(bind_data.enabled_after));
+	output.data[0].SetValue(0, Value::BOOLEAN(bind_data.enabled_after));
 	output.SetChildCardinality(1);
 }
 
