@@ -168,7 +168,7 @@ State (whether enabled, and which mapping path) lives in a `SparqlParserState` s
 
 ## Key Dependencies
 
-Git submodules (branch `v1.5-variegata`, i.e. the DuckDB v1.5 line — see `docs/UPDATING.md` for the version-bump procedure):
+Git submodules (branch `v1.5-variegata`, i.e. the DuckDB v1.5 line — see `docs/UPDATING.md` for the version-bump procedure, work on DuckDB v2 - a breaking change - is on the Duck2 branch that will be merged to main after the upstream release):
 - `duckdb/` — DuckDB source the extension builds against
 - `extension-ci-tools/` — shared DuckDB extension build framework (owns the real Makefile logic)
 

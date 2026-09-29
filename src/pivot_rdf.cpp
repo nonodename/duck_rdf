@@ -16,6 +16,10 @@
 #include <unordered_map>
 #include <vector>
 
+#define FILE_TYPE "file_type"
+#define STRICT_PARSING "strict_parsing"
+#define PREFIX_EXPANSION "prefix_expansion"
+
 namespace duckdb {
 
 // ============================================================
@@ -294,17 +298,16 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
-	auto ft_it = input.named_parameters.find("file_type");
-	if (ft_it != input.named_parameters.end())
-		result->file_type = ITriplesBuffer::ParseFileTypeString(ft_it->second.GetValue<string>());
+	
+	auto file_type_param = input.named_parameters.find(FILE_TYPE);
+	auto file_type_str = file_type_param->second.GetValue<string>();
+	result->file_type = file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
-	auto sp_it = input.named_parameters.find("strict_parsing");
-	if (sp_it != input.named_parameters.end())
-		result->strict_parsing = sp_it->second.GetValue<bool>();
+	auto sp_it = input.named_parameters.find(STRICT_PARSING);
+	result->strict_parsing = sp_it->second.GetValue<bool>();
 
-	auto pe_it = input.named_parameters.find("prefix_expansion");
-	if (pe_it != input.named_parameters.end())
-		result->expand_prefixes = pe_it->second.GetValue<bool>();
+	auto pe_it = input.named_parameters.find(PREFIX_EXPANSION);
+	result->expand_prefixes = pe_it->second.GetValue<bool>();
 
 	// Profile
 	RDFProfileAccumulator accumulator;
@@ -599,10 +602,11 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 void RegisterPivotRDF(ExtensionLoader &loader) {
 	TableFunction tf("pivot_rdf", {LogicalType::VARCHAR}, PivotRDFFunc, PivotRDFBind, PivotRDFGlobalInit,
 	                 PivotRDFLocalInit);
-	tf.named_parameters["file_type"] = LogicalType::VARCHAR;
-	tf.named_parameters["strict_parsing"] = LogicalType::BOOLEAN;
-	tf.named_parameters["prefix_expansion"] = LogicalType::BOOLEAN;
-
+	tf.GetSignature()
+		.AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR,Value(""))
+		.AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN,Value::BOOLEAN(true))
+		.AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN,Value::BOOLEAN(true));
+	
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);
 	FunctionDescription desc;

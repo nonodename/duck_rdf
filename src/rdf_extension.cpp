@@ -152,37 +152,23 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 		result->total_bytes += size;
 	}
 
-	// Optional explicit file type override — applied to all matched files
+	// Optional explicit file type override — applied to all matched files. An empty string (the default) means
+	// "detect per-file from extension".
 	auto file_type_param = input.named_parameters.find(FILE_TYPE);
-	if (file_type_param != input.named_parameters.end()) {
-		result->file_type = ITriplesBuffer::ParseFileTypeString(file_type_param->second.GetValue<string>());
-	} else {
-		result->file_type = ITriplesBuffer::UNKNOWN; // detect per-file from extension
-	}
+	auto file_type_str = file_type_param->second.GetValue<string>();
+	result->file_type = file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
 	auto strict_parsing_param = input.named_parameters.find(STRICT_PARSING);
-	if (strict_parsing_param != input.named_parameters.end()) {
-		result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
-	} else {
-		result->strict_parsing = true;
-	}
+	result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
 
 	auto prefix_expansion_param = input.named_parameters.find(PREFIX_EXPANSION);
-	if (prefix_expansion_param != input.named_parameters.end()) {
-		result->expand_prefixes = prefix_expansion_param->second.GetValue<bool>();
-	} else {
-		result->expand_prefixes = false;
-	}
+	result->expand_prefixes = prefix_expansion_param->second.GetValue<bool>();
 
 	auto include_filenames_param = input.named_parameters.find(FILENAME_PARAM);
-	if (include_filenames_param != input.named_parameters.end()) {
-		result->include_filenames = include_filenames_param->second.GetValue<bool>();
-	}
+	result->include_filenames = include_filenames_param->second.GetValue<bool>();
 
 	auto parallel_scan_param = input.named_parameters.find(PARALLEL_SCAN);
-	if (parallel_scan_param != input.named_parameters.end()) {
-		result->parallel_scan = parallel_scan_param->second.GetValue<bool>();
-	}
+	result->parallel_scan = parallel_scan_param->second.GetValue<bool>();
 
 	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
 	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
@@ -388,11 +374,12 @@ static void LoadInternal(ExtensionLoader &loader) {
 	string extension_name = "read_rdf";
 	TableFunction tf(Identifier(extension_name), {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind,
 	                 RDFReaderGlobalInit, RDFReaderInit);
-	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
-	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
-	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
-	tf.named_parameters[FILENAME_PARAM] = LogicalType::BOOLEAN;
-	tf.named_parameters[PARALLEL_SCAN] = LogicalType::BOOLEAN;
+	tf.GetSignature()
+		.AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+		.AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN, Value::BOOLEAN(false))
+		.AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
+		.AddKeywordOnly(FILENAME_PARAM, LogicalType::BOOLEAN, Value::BOOLEAN(false))
+		.AddKeywordOnly(PARALLEL_SCAN, LogicalType::BOOLEAN, Value::BOOLEAN(true));
 	tf.projection_pushdown = true;
 	tf.filter_pushdown = true;
 	tf.cardinality = RDFReaderCardinality;
