@@ -92,7 +92,7 @@ jobs:
         name: Checkout Extension CI tools
         with:
           path: 'extension-ci-tools'
-          ref: v1.5.5
+          ref: v1.5.6
           repository: duckdb/extension-ci-tools
 
       - name: Install
