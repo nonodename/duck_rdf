@@ -5,7 +5,6 @@
 #include "include/rdf_triples_factory.hpp"
 #include "include/rdf_extension.hpp"
 
-#include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/function/table_function.hpp"

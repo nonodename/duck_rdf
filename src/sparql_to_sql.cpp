@@ -2,13 +2,11 @@
 #include "include/r2rml_copy.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
 #include "duckdb/common/exception.hpp"
-#include "duckdb/main/connection.hpp"
 #include <r2rml/R2RMLMapping.h>
 #include <sparql-parser/ParseError.h>
 #include <sparql-parser/Parser.h>
 #include <sparql2sql/DuckDbDialect.h>
 #include <sparql2sql/Translator.h>
-#include <sparql2sql/TranslationError.h>
 #include <sparql2sql/TypeCatalog.h>
 #include <sql2rdf/TypeCatalogLoader.h>
 #include <memory>

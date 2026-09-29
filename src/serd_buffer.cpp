@@ -2,7 +2,6 @@
 #include "include/serd_buffer.hpp"
 #include "include/table_filter_eval.hpp"
 #include "duckdb/common/exception.hpp"
-#include <iostream>
 #include <stdexcept>
 #include <memory>
 

@@ -1,7 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "rdf_extension.hpp"
-#include "duckdb.hpp"
 #include "include/I_triples_buffer.hpp"
 #ifndef DUCK_RDF_NO_SPARQL
 #include "include/sparql_reader.hpp"
@@ -17,7 +16,6 @@
 #include "include/rdf_multi_file.hpp"
 #include "include/rdf_triples_factory.hpp"
 #include "duckdb/common/exception.hpp"
-#include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/planner/table_filter_set.hpp"
 #include "duckdb/logging/logger.hpp"

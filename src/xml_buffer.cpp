@@ -1,7 +1,6 @@
 #include "include/xml_buffer.hpp"
 #include "include/table_filter_eval.hpp"
 #include "duckdb/common/exception.hpp"
-#include "duckdb/common/helper.hpp"
 #include <vector>
 
 XMLBuffer::XMLBuffer(std::string path, std::string base_uri, duckdb::FileSystem *fs, const bool strict_parsing,
