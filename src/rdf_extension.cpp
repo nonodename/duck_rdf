@@ -29,12 +29,6 @@
 
 using namespace std;
 
-#define STRICT_PARSING   "strict_parsing"
-#define PREFIX_EXPANSION "prefix_expansion"
-#define FILE_TYPE        "file_type"
-#define FILENAME_PARAM   "filename"
-#define PARALLEL_SCAN    "parallel_scan"
-
 namespace duckdb {
 
 // Bind data: holds the expanded list of files (supports glob patterns)
@@ -133,7 +127,7 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 
 	// Expand the input (a glob pattern or a LIST[VARCHAR] of paths/globs) to a
 	// concrete list of files
-	auto resolved_files = ResolveRDFFiles(context, input, "read_rdf");
+	auto resolved_files = ResolveRDFFiles(context, input, FUNCTION_NAME);
 	for (auto &info : resolved_files) {
 		result->file_paths.push_back(std::move(info.path));
 	}
@@ -372,8 +366,7 @@ static double RDFReaderProgress(ClientContext &context, const FunctionData *bind
 }
 
 static void LoadInternal(ExtensionLoader &loader) {
-	string extension_name = "read_rdf";
-	TableFunction tf(Identifier(extension_name), {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind,
+	TableFunction tf(Identifier(FUNCTION_NAME), {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind,
 	                 RDFReaderGlobalInit, RDFReaderInit);
 	tf.GetSignature()
 	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))

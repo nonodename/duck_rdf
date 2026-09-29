@@ -2,6 +2,7 @@
 #include "include/rdf_profiler.hpp"
 #include "include/I_triples_buffer.hpp"
 #include "include/rdf_multi_file.hpp"
+#include "include/rdf_extension.hpp"
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -14,9 +15,6 @@
 #include <mutex>
 #include <stdexcept>
 #include <vector>
-
-#define PROFILE_FILE_TYPE      "file_type"
-#define PROFILE_STRICT_PARSING "strict_parsing"
 
 using namespace std;
 
@@ -135,12 +133,12 @@ static unique_ptr<FunctionData> ProfileRDFBind(ClientContext &context, TableFunc
 	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
-	auto file_type_param = input.named_parameters.find(PROFILE_FILE_TYPE);
+	auto file_type_param = input.named_parameters.find(FILE_TYPE);
 	auto file_type_str = file_type_param->second.GetValue<string>();
 	result->file_type =
 	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
-	auto sp_it = input.named_parameters.find(PROFILE_STRICT_PARSING);
+	auto sp_it = input.named_parameters.find(STRICT_PARSING);
 	result->strict_parsing = sp_it->second.GetValue<bool>();
 
 	names = {"predicate", "types", "count", "min", "max", "graph_count", "subject_count"};
@@ -246,11 +244,11 @@ static void ProfileRDFFunc(ClientContext & /*context*/, TableFunctionInput &inpu
 // ============================================================
 
 void RegisterProfileRDF(ExtensionLoader &loader) {
-	TableFunction tf("profile_rdf", {LogicalType::VARCHAR}, ProfileRDFFunc, ProfileRDFBind, ProfileRDFGlobalInit,
+	TableFunction tf(PROFILE_FUNCTION_NAME, {LogicalType::VARCHAR}, ProfileRDFFunc, ProfileRDFBind, ProfileRDFGlobalInit,
 	                 ProfileRDFLocalInit);
 	tf.GetSignature()
-	    .AddKeywordOnly(PROFILE_STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
-	    .AddKeywordOnly(PROFILE_FILE_TYPE, LogicalType::VARCHAR, Value(""));
+	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""));
 
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);

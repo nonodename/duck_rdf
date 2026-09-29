@@ -3,6 +3,7 @@
 #include "include/I_triples_buffer.hpp"
 #include "include/rdf_multi_file.hpp"
 #include "include/rdf_triples_factory.hpp"
+#include "include/rdf_extension.hpp"
 
 #include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
@@ -16,9 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
-#define FILE_TYPE        "file_type"
-#define STRICT_PARSING   "strict_parsing"
-#define PREFIX_EXPANSION "prefix_expansion"
+
 
 namespace duckdb {
 
@@ -600,7 +599,7 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 // ============================================================
 
 void RegisterPivotRDF(ExtensionLoader &loader) {
-	TableFunction tf("pivot_rdf", {LogicalType::VARCHAR}, PivotRDFFunc, PivotRDFBind, PivotRDFGlobalInit,
+	TableFunction tf(PIVOT_FUNCTION_NAME, {LogicalType::VARCHAR}, PivotRDFFunc, PivotRDFBind, PivotRDFGlobalInit,
 	                 PivotRDFLocalInit);
 	tf.GetSignature()
 	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
