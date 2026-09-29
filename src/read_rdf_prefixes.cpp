@@ -17,7 +17,7 @@
 #define PREFIXES_STRICT_PARSING "strict_parsing"
 #define PREFIXES_FILE_TYPE      "file_type"
 #define PREFIXES_FILENAME       "filename"
-#define FUNCTION_NAME			"read_rdf_prefixes"
+#define FUNCTION_NAME           "read_rdf_prefixes"
 using namespace std;
 
 namespace duckdb {
@@ -181,7 +181,8 @@ static unique_ptr<FunctionData> RDFPrefixesBind(ClientContext &context, TableFun
 
 	auto file_type_param = input.named_parameters.find(PREFIXES_FILE_TYPE);
 	auto file_type_str = file_type_param->second.GetValue<string>();
-	result->file_type = file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
+	result->file_type =
+	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
 	auto sp_it = input.named_parameters.find(PREFIXES_STRICT_PARSING);
 	result->strict_parsing = sp_it->second.GetValue<bool>();
@@ -294,12 +295,12 @@ static void RDFPrefixesFunc(ClientContext & /*context*/, TableFunctionInput &inp
 // ============================================================
 
 void RegisterReadRDFPrefixes(ExtensionLoader &loader) {
-	TableFunction tf(FUNCTION_NAME, {LogicalType::VARCHAR}, RDFPrefixesFunc, RDFPrefixesBind,
-	                 RDFPrefixesGlobalInit, RDFPrefixesLocalInit);
+	TableFunction tf(FUNCTION_NAME, {LogicalType::VARCHAR}, RDFPrefixesFunc, RDFPrefixesBind, RDFPrefixesGlobalInit,
+	                 RDFPrefixesLocalInit);
 	tf.GetSignature()
-		.AddKeywordOnly(PREFIXES_STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
-		.AddKeywordOnly(PREFIXES_FILE_TYPE, LogicalType::VARCHAR, Value(""))
-		.AddKeywordOnly(PREFIXES_FILENAME, LogicalType::BOOLEAN, Value::BOOLEAN(false));
+	    .AddKeywordOnly(PREFIXES_STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(PREFIXES_FILE_TYPE, LogicalType::VARCHAR, Value(""))
+	    .AddKeywordOnly(PREFIXES_FILENAME, LogicalType::BOOLEAN, Value::BOOLEAN(false));
 
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);

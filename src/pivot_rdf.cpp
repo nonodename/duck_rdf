@@ -16,8 +16,8 @@
 #include <unordered_map>
 #include <vector>
 
-#define FILE_TYPE "file_type"
-#define STRICT_PARSING "strict_parsing"
+#define FILE_TYPE        "file_type"
+#define STRICT_PARSING   "strict_parsing"
 #define PREFIX_EXPANSION "prefix_expansion"
 
 namespace duckdb {
@@ -298,10 +298,10 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
-	
 	auto file_type_param = input.named_parameters.find(FILE_TYPE);
 	auto file_type_str = file_type_param->second.GetValue<string>();
-	result->file_type = file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
+	result->file_type =
+	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
 	auto sp_it = input.named_parameters.find(STRICT_PARSING);
 	result->strict_parsing = sp_it->second.GetValue<bool>();
@@ -603,10 +603,10 @@ void RegisterPivotRDF(ExtensionLoader &loader) {
 	TableFunction tf("pivot_rdf", {LogicalType::VARCHAR}, PivotRDFFunc, PivotRDFBind, PivotRDFGlobalInit,
 	                 PivotRDFLocalInit);
 	tf.GetSignature()
-		.AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR,Value(""))
-		.AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN,Value::BOOLEAN(true))
-		.AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN,Value::BOOLEAN(true));
-	
+	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
+	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN, Value::BOOLEAN(true));
+
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);
 	FunctionDescription desc;

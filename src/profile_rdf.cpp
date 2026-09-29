@@ -137,7 +137,8 @@ static unique_ptr<FunctionData> ProfileRDFBind(ClientContext &context, TableFunc
 
 	auto file_type_param = input.named_parameters.find(PROFILE_FILE_TYPE);
 	auto file_type_str = file_type_param->second.GetValue<string>();
-	result->file_type = file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
+	result->file_type =
+	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
 	auto sp_it = input.named_parameters.find(PROFILE_STRICT_PARSING);
 	result->strict_parsing = sp_it->second.GetValue<bool>();
@@ -248,9 +249,9 @@ void RegisterProfileRDF(ExtensionLoader &loader) {
 	TableFunction tf("profile_rdf", {LogicalType::VARCHAR}, ProfileRDFFunc, ProfileRDFBind, ProfileRDFGlobalInit,
 	                 ProfileRDFLocalInit);
 	tf.GetSignature()
-		.AddKeywordOnly(PROFILE_STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
-		.AddKeywordOnly(PROFILE_FILE_TYPE, LogicalType::VARCHAR, Value(""));
-	
+	    .AddKeywordOnly(PROFILE_STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(PROFILE_FILE_TYPE, LogicalType::VARCHAR, Value(""));
+
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);
 	FunctionDescription desc;

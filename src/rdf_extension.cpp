@@ -156,7 +156,8 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 	// "detect per-file from extension".
 	auto file_type_param = input.named_parameters.find(FILE_TYPE);
 	auto file_type_str = file_type_param->second.GetValue<string>();
-	result->file_type = file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
+	result->file_type =
+	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
 	auto strict_parsing_param = input.named_parameters.find(STRICT_PARSING);
 	result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
@@ -375,11 +376,11 @@ static void LoadInternal(ExtensionLoader &loader) {
 	TableFunction tf(Identifier(extension_name), {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind,
 	                 RDFReaderGlobalInit, RDFReaderInit);
 	tf.GetSignature()
-		.AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
-		.AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN, Value::BOOLEAN(false))
-		.AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
-		.AddKeywordOnly(FILENAME_PARAM, LogicalType::BOOLEAN, Value::BOOLEAN(false))
-		.AddKeywordOnly(PARALLEL_SCAN, LogicalType::BOOLEAN, Value::BOOLEAN(true));
+	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN, Value::BOOLEAN(false))
+	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
+	    .AddKeywordOnly(FILENAME_PARAM, LogicalType::BOOLEAN, Value::BOOLEAN(false))
+	    .AddKeywordOnly(PARALLEL_SCAN, LogicalType::BOOLEAN, Value::BOOLEAN(true));
 	tf.projection_pushdown = true;
 	tf.filter_pushdown = true;
 	tf.cardinality = RDFReaderCardinality;
