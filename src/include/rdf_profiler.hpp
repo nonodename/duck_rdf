@@ -1,11 +1,15 @@
 #pragma once
 
 #include "I_triples_buffer.hpp"
-#include "duckdb/common/file_system.hpp"
+#include <stdint.h>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <vector>
+#include <utility>
+
+namespace duckdb {
+class FileSystem;
+} // namespace duckdb
 
 /// Whether an RDF object node is an IRI, blank node, or literal.
 /// Determined directly from the parser node type, not by guessing from value strings.

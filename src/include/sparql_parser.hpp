@@ -1,9 +1,8 @@
 #pragma once
 
-#include "duckdb.hpp"
-#include "duckdb/main/extension/extension_loader.hpp"
-
 namespace duckdb {
+
+class ExtensionLoader;
 
 // Registers enable_sparql_parser(mapping_path)/disable_sparql_parser(), and a
 // ParserExtension that lets a raw SPARQL statement run directly (translated

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "duckdb.hpp"
-#include "duckdb/main/extension/extension_loader.hpp"
 #include <r2rml/R2RMLMapping.h>
 #include <r2rml/SQLConnection.h>
 #include <memory>
@@ -9,6 +7,9 @@
 #include <vector>
 
 namespace duckdb {
+
+class ClientContext;
+class ExtensionLoader;
 
 void RegisterR2RMLCopy(ExtensionLoader &loader);
 

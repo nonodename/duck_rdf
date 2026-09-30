@@ -2,19 +2,46 @@
 #include "include/sparql_to_sql.hpp"
 #include "include/r2rml_copy.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/identifier.hpp"
+#include "duckdb/common/optional_ptr.hpp"
+#include "duckdb/common/shared_ptr_ipp.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/typedefs.hpp"
+#include "duckdb/common/types.hpp"
+#include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/value.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/function/function.hpp"
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/main/config.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
+#include "duckdb/main/setting_info.hpp"
+#include "duckdb/parser/parsed_data/create_function_info.hpp"
 #include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/parser_extension.hpp"
+#include "duckdb/parser/sql_statement.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include <r2rml/R2RMLMapping.h>
 #include <sparql-parser/ParseError.h>
 #include <sparql-parser/Parser.h>
+#include <sparql-parser/ast/Query.h>
 
+#include <exception>
+#include <initializer_list>
+#include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace duckdb {
+
+class ClientContext;
+struct ParserOptions;
 
 // Shared, database-wide (not per-connection) toggle state. Neither
 // parse_function nor parser_override receive a ClientContext, so this can't

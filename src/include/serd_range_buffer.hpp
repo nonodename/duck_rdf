@@ -1,7 +1,14 @@
 #ifndef SERD_RANGE_BUFFER_H
 #define SERD_RANGE_BUFFER_H
 
+#include "I_triples_buffer.hpp"
 #include "serd_buffer.hpp"
+#include <stdint.h>
+#include <string>
+
+namespace duckdb {
+class FileSystem;
+} // namespace duckdb
 
 /*
     Byte-range-bounded variant of SerdBuffer, used for parallel scanning of a

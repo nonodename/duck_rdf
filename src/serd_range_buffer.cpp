@@ -1,5 +1,12 @@
 #include "include/serd_range_buffer.hpp"
+#include "duckdb.h"
+#include "duckdb/common/file_system.hpp"
+#include <serd/serd.h>
 #include <algorithm>
+#include <atomic>
+#include <memory>
+#include <stddef.h>
+#include <utility>
 #include <vector>
 
 static const size_t RANGE_READ_BUFFER_SIZE = 1024 * 1024;

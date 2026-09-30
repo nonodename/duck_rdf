@@ -1,15 +1,40 @@
 #include "include/sparql_reader.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/identifier.hpp"
+#include "duckdb/common/optional_ptr.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/type_util.hpp"
+#include "duckdb/common/typedefs.hpp"
+#include "duckdb/common/types.hpp"
+#include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/string_type.hpp"
+#include "duckdb/common/types/validity_mask.hpp"
+#include "duckdb/common/types/value.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/common/vector/flat_vector.hpp"
+#include "duckdb/common/vector/string_vector.hpp"
+#include "duckdb/common/vector_size.hpp"
+#include "duckdb/function/function.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
+#include "duckdb/parser/parsed_data/create_function_info.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 
 #include <curl/curl.h>
+#include <algorithm>
 #include <atomic>
+#include <stddef.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace duckdb {
+
+class ClientContext;
 
 // Maximum SPARQL response body accepted (256 MiB). Prevents OOM from
 // unbounded responses by malicious or misbehaving endpoints.

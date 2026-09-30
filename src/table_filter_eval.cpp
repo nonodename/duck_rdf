@@ -1,5 +1,8 @@
 #include "include/table_filter_eval.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/types.hpp"
 #include "duckdb/common/types/value.hpp"
+#include <string>
 
 using namespace duckdb;
 

@@ -1,9 +1,15 @@
 #ifndef TABLE_FILTER_EVAL_H
 #define TABLE_FILTER_EVAL_H
 
-#include "duckdb.hpp"
+#include "duckdb/common/optional_ptr.hpp"
+#include "duckdb/common/typedefs.hpp"
+#include "duckdb/common/unique_ptr.hpp"
 #include "duckdb/planner/table_filter.hpp"
 #include "duckdb/planner/filter/expression_filter.hpp"
+
+namespace duckdb {
+class ClientContext;
+} // namespace duckdb
 
 // A pushed-down TableFilter, normalized to an ExpressionFilter. DuckDB represents
 // every pushed-down filter (constant comparisons, AND/OR combinations, IN-lists,

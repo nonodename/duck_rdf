@@ -1,9 +1,27 @@
 
 #include "include/serd_buffer.hpp"
 #include "include/table_filter_eval.hpp"
+#include "duckdb/common/enums/file_compression_type.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/file_open_flags.hpp"
+#include "duckdb/common/file_system.hpp"
+#include "duckdb/common/type_util.hpp"
+#include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/string_type.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/common/vector/flat_vector.hpp"
+#include "duckdb/common/vector/string_vector.hpp"
+#include "duckdb/common/vector_size.hpp"
+#include <stddef.h>
+#include <algorithm>
+#include <atomic>
+#include <deque>
+#include <exception>
 #include <stdexcept>
 #include <memory>
+#include <utility>
 
 static const size_t READ_BUFFER_SIZE = 1024 * 1024;
 
