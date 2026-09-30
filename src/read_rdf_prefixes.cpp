@@ -14,7 +14,6 @@
 #include <string>
 #include <vector>
 
-
 using namespace std;
 
 namespace duckdb {
@@ -292,8 +291,8 @@ static void RDFPrefixesFunc(ClientContext & /*context*/, TableFunctionInput &inp
 // ============================================================
 
 void RegisterReadRDFPrefixes(ExtensionLoader &loader) {
-	TableFunction tf(PREFIXES_FUNCTION_NAME, {LogicalType::VARCHAR}, RDFPrefixesFunc, RDFPrefixesBind, RDFPrefixesGlobalInit,
-	                 RDFPrefixesLocalInit);
+	TableFunction tf(PREFIXES_FUNCTION_NAME, {LogicalType::VARCHAR}, RDFPrefixesFunc, RDFPrefixesBind,
+	                 RDFPrefixesGlobalInit, RDFPrefixesLocalInit);
 	tf.GetSignature()
 	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
 	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))

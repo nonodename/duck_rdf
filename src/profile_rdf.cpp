@@ -242,8 +242,8 @@ static void ProfileRDFFunc(ClientContext & /*context*/, TableFunctionInput &inpu
 // ============================================================
 
 void RegisterProfileRDF(ExtensionLoader &loader) {
-	TableFunction tf(PROFILE_FUNCTION_NAME, {LogicalType::VARCHAR}, ProfileRDFFunc, ProfileRDFBind, ProfileRDFGlobalInit,
-	                 ProfileRDFLocalInit);
+	TableFunction tf(PROFILE_FUNCTION_NAME, {LogicalType::VARCHAR}, ProfileRDFFunc, ProfileRDFBind,
+	                 ProfileRDFGlobalInit, ProfileRDFLocalInit);
 	tf.GetSignature()
 	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
 	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""));
