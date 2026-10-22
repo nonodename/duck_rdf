@@ -14,7 +14,6 @@
 #include "duckdb/main/extension/extension_loader.hpp"
 #include "duckdb/parser/parsed_data/create_function_info.hpp"
 #include "duckdb/parser/parser.hpp"
-#include "duckdb/parser/parser_options.hpp"
 #include "duckdb/parser/sql_statement.hpp"
 #include "duckdb/parser/statement/select_statement.hpp"
 #include "duckdb/parser/tableref.hpp"
@@ -39,7 +38,7 @@ static unique_ptr<TableRef> ExecuteSparqlBindReplace(ClientContext &context, Tab
 
 	std::string sql = TranslateSparqlToSql(&context, sparql_text, mapping_path);
 
-	Parser parser(context.GetParserOptions());
+	Parser parser(context);
 	parser.ParseQuery(sql);
 	if (parser.statements.size() != 1 || parser.statements[0]->type != StatementType::SELECT_STATEMENT) {
 		throw InternalException("execute_sparql: translated SQL did not parse back into a single SELECT statement "
