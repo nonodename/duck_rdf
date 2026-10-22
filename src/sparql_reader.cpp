@@ -274,9 +274,7 @@ static unique_ptr<FunctionData> SPARQLBind(ClientContext &context, TableFunction
 	ValidateSPARQLEndpoint(endpoint);
 
 	std::string body = FetchSPARQLCSV(endpoint, query);
-	auto parsed = ParseSPARQLCSV(body);
-	auto &header = parsed.first;
-	auto &rows = parsed.second;
+	auto [header, rows] = ParseSPARQLCSV(body);
 
 	if (header.empty()) {
 		throw IOException("read_sparql: SPARQL endpoint returned an empty response (no CSV header)");

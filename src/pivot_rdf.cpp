@@ -377,10 +377,10 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 	case PivotColKind::LANG_STRUCT: {
 		if (accum.lang_values.empty())
 			return Value(col.col_type); // typed NULL
-		const auto &lv = accum.lang_values[0];
+		const auto &[object_val, lang_val] = accum.lang_values[0];
 		child_list_t<Value> fields;
-		fields.push_back({"object", Value(lv.first)});
-		fields.push_back({"lang", Value(lv.second)});
+		fields.push_back({"object", Value(object_val)});
+		fields.push_back({"lang", Value(lang_val)});
 		return Value::STRUCT(fields);
 	}
 	case PivotColKind::LANG_STRUCT_LIST: {
@@ -388,10 +388,10 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 			return Value(col.col_type); // typed NULL
 		duckdb::vector<Value> list_vals;
 		list_vals.reserve(accum.lang_values.size());
-		for (const auto &lv : accum.lang_values) {
+		for (const auto &[object_val, lang_val] : accum.lang_values) {
 			child_list_t<Value> fields;
-			fields.push_back({"object", Value(lv.first)});
-			fields.push_back({"lang", Value(lv.second)});
+			fields.push_back({"object", Value(object_val)});
+			fields.push_back({"lang", Value(lang_val)});
 			list_vals.emplace_back(Value::STRUCT(fields));
 		}
 		return Value::LIST(col.elem_type, list_vals);
@@ -530,8 +530,7 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 				entry_idx = map_it->second;
 			}
 			auto predicate = ReadStr(2);
-			auto it = bind_data.pred_to_col.find(predicate);
-			if (it != bind_data.pred_to_col.end()) {
+			if (auto it = bind_data.pred_to_col.find(predicate); it != bind_data.pred_to_col.end()) {
 				auto object = ReadStr(3);
 				auto datatype = ReadStr(4);
 				auto lang = ReadStr(5);

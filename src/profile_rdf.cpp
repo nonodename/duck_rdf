@@ -63,9 +63,7 @@ static std::vector<ProfileRow> BuildRows(const RDFProfileAccumulator &acc) {
 	std::vector<ProfileRow> rows;
 	rows.reserve(acc.GetProfiles().size());
 
-	for (const auto &pred_kv : acc.GetProfiles()) {
-		const std::string &predicate = pred_kv.first;
-		const PredicateProfile &profile = pred_kv.second;
+	for (const auto &[predicate, profile] : acc.GetProfiles()) {
 		ProfileRow row;
 		row.predicate = predicate;
 		row.graph_count = profile.graphs.size();

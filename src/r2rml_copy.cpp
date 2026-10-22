@@ -337,8 +337,8 @@ public:
 	// Materialise into a MapSQLRow when a stable copy is needed.
 	std::unique_ptr<r2rml::SQLRow> clone() const override {
 		std::map<std::string, std::unique_ptr<r2rml::SQLValue>> cols;
-		for (const auto &kv : col_index_) {
-			cols[kv.first] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk_.GetValue(kv.second, row_)));
+		for (const auto &[name, idx] : col_index_) {
+			cols[name] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk_.GetValue(idx, row_)));
 		}
 		return std::unique_ptr<r2rml::SQLRow>(new r2rml::MapSQLRow(std::move(cols)));
 	}
@@ -584,14 +584,12 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	}
 
 	bool ignore_nfe = true;
-	auto nfe_it = options.find(IGNORE_NON_FATAL_ERRORS);
-	if (nfe_it != options.end() && !nfe_it->second.empty()) {
+	if (auto nfe_it = options.find(IGNORE_NON_FATAL_ERRORS); nfe_it != options.end() && !nfe_it->second.empty()) {
 		ignore_nfe = nfe_it->second[0].GetValue<bool>();
 	}
 
 	bool ignore_case = false;
-	auto ic_it = options.find(IGNORE_CASE_OPTION);
-	if (ic_it != options.end() && !ic_it->second.empty()) {
+	if (auto ic_it = options.find(IGNORE_CASE_OPTION); ic_it != options.end() && !ic_it->second.empty()) {
 		ignore_case = ic_it->second[0].GetValue<bool>();
 	}
 
@@ -609,8 +607,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	}
 
 	SerdSyntax syntax = DetectRdfFormatFromPath(input.info.file_path);
-	auto fmt_it = options.find(RDF_FORMAT_OPTION);
-	if (fmt_it != options.end() && !fmt_it->second.empty()) {
+	if (auto fmt_it = options.find(RDF_FORMAT_OPTION); fmt_it != options.end() && !fmt_it->second.empty()) {
 		syntax = ParseRdfFormat(fmt_it->second[0].GetValue<std::string>());
 	}
 

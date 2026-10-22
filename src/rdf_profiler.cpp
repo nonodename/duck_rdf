@@ -68,8 +68,7 @@ std::string XsdToDuckDBType(const std::string &datatype, const std::string &lang
 	    {"base64Binary", "BLOB"},
 	};
 
-	auto it = XSD_MAP.find(local);
-	if (it != XSD_MAP.end())
+	if (auto it = XSD_MAP.find(local); it != XSD_MAP.end())
 		return it->second;
 
 	// Unknown datatype: return the full URI so callers can see what it is
