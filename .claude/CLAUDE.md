@@ -53,7 +53,7 @@ make test
 # Run tests against debug build
 make test_debug
 
-# Run the code formatter (do this before committing C++ changes)
+# Run the code formatter (do this before committing C++ changes, note that upstream DuckDB currently requires Python 3.11 so you may need to directly point at it, something like `PYTHON=/opt/homebrew/bin/python3.11 format`
 make format
 
 # Static analysis

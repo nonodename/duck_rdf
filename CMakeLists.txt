@@ -72,7 +72,7 @@ target_include_directories(${SERD_NAME} PRIVATE ${serd_SOURCE_DIR}/include)
 FetchContent_Declare(
   sql2rdf
   GIT_REPOSITORY https://github.com/nonodename/sql2rdf.git
-  GIT_TAG v2.2.2)
+  GIT_TAG v2.3.0)
 
 FetchContent_MakeAvailable(sql2rdf)
 
