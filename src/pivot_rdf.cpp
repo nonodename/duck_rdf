@@ -600,7 +600,7 @@ void RegisterPivotRDF(ExtensionLoader &loader) {
 	tf.GetSignature()
 	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
 	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
-	    .AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN, Value::BOOLEAN(true));
+	    .AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN, Value::BOOLEAN(false));
 
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);
