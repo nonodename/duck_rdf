@@ -1,5 +1,11 @@
 #include "include/rdf_multi_file.hpp"
+#include "duckdb/common/multi_file/multi_file_list.hpp"
 #include "duckdb/common/multi_file/multi_file_reader.hpp"
+#include "duckdb/common/shared_ptr_ipp.hpp"
+#include "duckdb/common/types/value.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/function/table_function.hpp"
+#include <utility>
 
 namespace duckdb {
 

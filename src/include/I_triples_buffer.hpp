@@ -5,6 +5,8 @@
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/planner/table_filter.hpp"
+#include "duckdb/planner/table_filter_set.hpp"
+#include "table_filter_eval.hpp"
 #include <algorithm>
 #include <atomic>
 #include <queue>
@@ -46,28 +48,27 @@ public:
 	}
 
 	// Row filters pushed down from DuckDB for graph/subject/predicate/object/
-	// object_datatype/object_lang (columns 0-5). Only simple constant-comparison
-	// filters (and AND-combinations / IS [NOT] NULL of those) are honored; any
-	// other filter type is left for DuckDB to re-check downstream.
-	duckdb::optional_ptr<duckdb::TableFilter> _column_filters[6] = {};
+	// object_datatype/object_lang (columns 0-5), compiled once per file/range
+	// (see CompileColumnFilter) and reused for every row.
+	CompiledColumnFilter _column_filters[6];
 
 	// `filters` is keyed by *position within col_ids* (DuckDB re-keys
 	// TableFilterSet relative to the projection list before handing it to the
 	// table function - see CreateTableFilterSet in plan_get.cpp), so it must be
 	// translated back to absolute column indices via col_ids, same as
 	// SetColumnIds does above.
-	void SetFilters(duckdb::optional_ptr<duckdb::TableFilterSet> filters,
+	void SetFilters(duckdb::ClientContext &context, duckdb::optional_ptr<duckdb::TableFilterSet> filters,
 	                const duckdb::vector<duckdb::column_t> &col_ids) {
 		if (!filters) {
 			return;
 		}
-		for (auto &entry : filters->filters) {
-			if (entry.first >= col_ids.size()) {
+		for (auto &entry : *filters) {
+			if (entry.GetIndex() >= col_ids.size()) {
 				continue;
 			}
-			duckdb::column_t abs_col = col_ids[entry.first];
+			duckdb::column_t abs_col = col_ids[entry.GetIndex()];
 			if (abs_col < 6) {
-				_column_filters[abs_col] = entry.second.get();
+				_column_filters[abs_col] = CompileColumnFilter(context, &entry.Filter());
 			}
 		}
 	}

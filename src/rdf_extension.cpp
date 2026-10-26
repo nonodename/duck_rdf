@@ -1,7 +1,6 @@
 #define DUCKDB_EXTENSION_MAIN
 
 #include "rdf_extension.hpp"
-#include "duckdb.hpp"
 #include "include/I_triples_buffer.hpp"
 #ifndef DUCK_RDF_NO_SPARQL
 #include "include/sparql_reader.hpp"
@@ -17,8 +16,9 @@
 #include "include/rdf_multi_file.hpp"
 #include "include/rdf_triples_factory.hpp"
 #include "duckdb/common/exception.hpp"
-#include "duckdb/common/string_util.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "duckdb/planner/table_filter_set.hpp"
+#include "duckdb/logging/logger.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include "duckdb/common/file_system.hpp"
 #include <algorithm>
@@ -26,12 +26,6 @@
 #include <mutex>
 
 using namespace std;
-
-#define STRICT_PARSING   "strict_parsing"
-#define PREFIX_EXPANSION "prefix_expansion"
-#define FILE_TYPE        "file_type"
-#define FILENAME_PARAM   "filename"
-#define PARALLEL_SCAN    "parallel_scan"
 
 namespace duckdb {
 
@@ -125,13 +119,13 @@ static unique_ptr<NodeStatistics> RDFReaderCardinality(ClientContext &context, c
 }
 
 static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunctionBindInput &input,
-                                              vector<LogicalType> &return_types, vector<string> &names) {
+                                              vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<RDFReaderBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
 	// Expand the input (a glob pattern or a LIST[VARCHAR] of paths/globs) to a
 	// concrete list of files
-	auto resolved_files = ResolveRDFFiles(context, input, "read_rdf");
+	auto resolved_files = ResolveRDFFiles(context, input, FUNCTION_NAME);
 	for (auto &info : resolved_files) {
 		result->file_paths.push_back(std::move(info.path));
 	}
@@ -150,37 +144,24 @@ static unique_ptr<FunctionData> RDFReaderBind(ClientContext &context, TableFunct
 		result->total_bytes += size;
 	}
 
-	// Optional explicit file type override — applied to all matched files
+	// Optional explicit file type override — applied to all matched files. An empty string (the default) means
+	// "detect per-file from extension".
 	auto file_type_param = input.named_parameters.find(FILE_TYPE);
-	if (file_type_param != input.named_parameters.end()) {
-		result->file_type = ITriplesBuffer::ParseFileTypeString(file_type_param->second.GetValue<string>());
-	} else {
-		result->file_type = ITriplesBuffer::UNKNOWN; // detect per-file from extension
-	}
+	auto file_type_str = file_type_param->second.GetValue<string>();
+	result->file_type =
+	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
 	auto strict_parsing_param = input.named_parameters.find(STRICT_PARSING);
-	if (strict_parsing_param != input.named_parameters.end()) {
-		result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
-	} else {
-		result->strict_parsing = true;
-	}
+	result->strict_parsing = strict_parsing_param->second.GetValue<bool>();
 
 	auto prefix_expansion_param = input.named_parameters.find(PREFIX_EXPANSION);
-	if (prefix_expansion_param != input.named_parameters.end()) {
-		result->expand_prefixes = prefix_expansion_param->second.GetValue<bool>();
-	} else {
-		result->expand_prefixes = false;
-	}
+	result->expand_prefixes = prefix_expansion_param->second.GetValue<bool>();
 
 	auto include_filenames_param = input.named_parameters.find(FILENAME_PARAM);
-	if (include_filenames_param != input.named_parameters.end()) {
-		result->include_filenames = include_filenames_param->second.GetValue<bool>();
-	}
+	result->include_filenames = include_filenames_param->second.GetValue<bool>();
 
 	auto parallel_scan_param = input.named_parameters.find(PARALLEL_SCAN);
-	if (parallel_scan_param != input.named_parameters.end()) {
-		result->parallel_scan = parallel_scan_param->second.GetValue<bool>();
-	}
+	result->parallel_scan = parallel_scan_param->second.GetValue<bool>();
 
 	names = {"graph", "subject", "predicate", "object", "object_datatype", "object_lang"};
 	return_types = {LogicalType::VARCHAR, LogicalType::VARCHAR, LogicalType::VARCHAR,
@@ -213,14 +194,12 @@ static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &c
 	// front instead of being claimed-then-rejected by every scanning thread.
 	// TableFilterSet is keyed by position within column_ids (see
 	// CreateTableFilterSet in plan_get.cpp), so find that position first.
-	const TableFilter *filename_filter = nullptr;
+	CompiledColumnFilter filename_filter;
 	if (bind_data.include_filenames && input.filters) {
 		for (idx_t i = 0; i < input.column_ids.size(); i++) {
 			if (input.column_ids[i] == 6) {
-				auto it = input.filters->filters.find(i);
-				if (it != input.filters->filters.end()) {
-					filename_filter = it->second.get();
-				}
+				filename_filter =
+				    CompileColumnFilter(context, input.filters->TryGetFilterByColumnIndex(ProjectionIndex(i)));
 				break;
 			}
 		}
@@ -228,7 +207,7 @@ static unique_ptr<GlobalTableFunctionState> RDFReaderGlobalInit(ClientContext &c
 
 	for (idx_t i = 0; i < bind_data.file_paths.size(); i++) {
 		const string &path = bind_data.file_paths[i];
-		if (filename_filter && !PassesFilter(filename_filter, path.data(), path.size(), false)) {
+		if (!PassesFilter(filename_filter, path.data(), path.size(), false)) {
 			state->total_bytes -= bind_data.file_sizes[i];
 			continue;
 		}
@@ -302,7 +281,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 							auto &vec = output.data[i];
 							auto sv = StringVector::AddString(vec, state.current_file);
 							for (idx_t row = 0; row < output.size(); row++) {
-								FlatVector::GetData<string_t>(vec)[row] = sv;
+								FlatVector::GetDataMutable<string_t>(vec)[row] = sv;
 							}
 							break;
 						}
@@ -364,7 +343,7 @@ static void RDFReaderFunc(ClientContext &context, TableFunctionInput &input, Dat
 			new_ib->SetProgressCounter(&global_state.bytes_consumed);
 			new_ib->StartParse();
 			new_ib->SetColumnIds(state.column_ids);
-			new_ib->SetFilters(state.filters, state.column_ids);
+			new_ib->SetFilters(context, state.filters, state.column_ids);
 			state.ib = std::move(new_ib);
 		} catch (const std::runtime_error &re) {
 			throw IOException(re.what());
@@ -385,14 +364,14 @@ static double RDFReaderProgress(ClientContext &context, const FunctionData *bind
 }
 
 static void LoadInternal(ExtensionLoader &loader) {
-	string extension_name = "read_rdf";
-	TableFunction tf(extension_name, {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind, RDFReaderGlobalInit,
-	                 RDFReaderInit);
-	tf.named_parameters[STRICT_PARSING] = LogicalType::BOOLEAN;
-	tf.named_parameters[PREFIX_EXPANSION] = LogicalType::BOOLEAN;
-	tf.named_parameters[FILE_TYPE] = LogicalType::VARCHAR;
-	tf.named_parameters[FILENAME_PARAM] = LogicalType::BOOLEAN;
-	tf.named_parameters[PARALLEL_SCAN] = LogicalType::BOOLEAN;
+	TableFunction tf(Identifier(FUNCTION_NAME), {LogicalType::VARCHAR}, RDFReaderFunc, RDFReaderBind,
+	                 RDFReaderGlobalInit, RDFReaderInit);
+	tf.GetSignature()
+	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN, Value::BOOLEAN(false))
+	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
+	    .AddKeywordOnly(FILENAME_PARAM, LogicalType::BOOLEAN, Value::BOOLEAN(false))
+	    .AddKeywordOnly(PARALLEL_SCAN, LogicalType::BOOLEAN, Value::BOOLEAN(true));
 	tf.projection_pushdown = true;
 	tf.filter_pushdown = true;
 	tf.cardinality = RDFReaderCardinality;

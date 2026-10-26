@@ -2,8 +2,8 @@
 #include "include/rdf_profiler.hpp"
 #include "include/I_triples_buffer.hpp"
 #include "include/rdf_multi_file.hpp"
+#include "include/rdf_extension.hpp"
 
-#include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -11,12 +11,8 @@
 
 #include <algorithm>
 #include <atomic>
-#include <mutex>
 #include <stdexcept>
 #include <vector>
-
-#define PROFILE_FILE_TYPE      "file_type"
-#define PROFILE_STRICT_PARSING "strict_parsing"
 
 using namespace std;
 
@@ -67,9 +63,7 @@ static std::vector<ProfileRow> BuildRows(const RDFProfileAccumulator &acc) {
 	std::vector<ProfileRow> rows;
 	rows.reserve(acc.GetProfiles().size());
 
-	for (const auto &pred_kv : acc.GetProfiles()) {
-		const std::string &predicate = pred_kv.first;
-		const PredicateProfile &profile = pred_kv.second;
+	for (const auto &[predicate, profile] : acc.GetProfiles()) {
 		ProfileRow row;
 		row.predicate = predicate;
 		row.graph_count = profile.graphs.size();
@@ -127,7 +121,7 @@ struct ProfileRDFLocalState : public LocalTableFunctionState {};
 // ============================================================
 
 static unique_ptr<FunctionData> ProfileRDFBind(ClientContext &context, TableFunctionBindInput &input,
-                                               vector<LogicalType> &return_types, vector<string> &names) {
+                                               vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<ProfileRDFBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
@@ -135,13 +129,13 @@ static unique_ptr<FunctionData> ProfileRDFBind(ClientContext &context, TableFunc
 	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
-	auto ft_it = input.named_parameters.find(PROFILE_FILE_TYPE);
-	if (ft_it != input.named_parameters.end())
-		result->file_type = ITriplesBuffer::ParseFileTypeString(ft_it->second.GetValue<string>());
+	auto file_type_param = input.named_parameters.find(FILE_TYPE);
+	auto file_type_str = file_type_param->second.GetValue<string>();
+	result->file_type =
+	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
-	auto sp_it = input.named_parameters.find(PROFILE_STRICT_PARSING);
-	if (sp_it != input.named_parameters.end())
-		result->strict_parsing = sp_it->second.GetValue<bool>();
+	auto sp_it = input.named_parameters.find(STRICT_PARSING);
+	result->strict_parsing = sp_it->second.GetValue<bool>();
 
 	names = {"predicate", "types", "count", "min", "max", "graph_count", "subject_count"};
 	return_types = {
@@ -209,7 +203,7 @@ static void ProfileRDFFunc(ClientContext & /*context*/, TableFunctionInput &inpu
 		const ProfileRow &row = global.rows[row_idx];
 
 		// predicate
-		output.SetValue(0, out_idx, Value(row.predicate));
+		output.data[0].SetValue(out_idx, Value(row.predicate));
 
 		// types: LIST<VARCHAR>
 		{
@@ -217,28 +211,28 @@ static void ProfileRDFFunc(ClientContext & /*context*/, TableFunctionInput &inpu
 			type_vals.reserve(row.sorted_types.size());
 			for (auto &t : row.sorted_types)
 				type_vals.emplace_back(Value(t));
-			output.SetValue(1, out_idx, Value::LIST(LogicalType::VARCHAR, type_vals));
+			output.data[1].SetValue(out_idx, Value::LIST(LogicalType::VARCHAR, type_vals));
 		}
 
 		// count: MAP<VARCHAR, UBIGINT>
-		output.SetValue(2, out_idx, BuildVarcharBigintMap(row.sorted_types, row.counts));
+		output.data[2].SetValue(out_idx, BuildVarcharBigintMap(row.sorted_types, row.counts));
 
 		// min: MAP<VARCHAR, VARCHAR>
-		output.SetValue(3, out_idx, BuildVarcharVarcharMap(row.sorted_types, row.mins));
+		output.data[3].SetValue(out_idx, BuildVarcharVarcharMap(row.sorted_types, row.mins));
 
 		// max: MAP<VARCHAR, VARCHAR>
-		output.SetValue(4, out_idx, BuildVarcharVarcharMap(row.sorted_types, row.maxs));
+		output.data[4].SetValue(out_idx, BuildVarcharVarcharMap(row.sorted_types, row.maxs));
 
 		// graph_count
-		output.SetValue(5, out_idx, Value::UBIGINT(row.graph_count));
+		output.data[5].SetValue(out_idx, Value::UBIGINT(row.graph_count));
 
 		// subject_count
-		output.SetValue(6, out_idx, Value::UBIGINT(row.subject_count));
+		output.data[6].SetValue(out_idx, Value::UBIGINT(row.subject_count));
 
 		out_idx++;
 	}
 
-	output.SetCardinality(out_idx);
+	output.SetChildCardinality(out_idx);
 }
 
 // ============================================================
@@ -246,10 +240,11 @@ static void ProfileRDFFunc(ClientContext & /*context*/, TableFunctionInput &inpu
 // ============================================================
 
 void RegisterProfileRDF(ExtensionLoader &loader) {
-	TableFunction tf("profile_rdf", {LogicalType::VARCHAR}, ProfileRDFFunc, ProfileRDFBind, ProfileRDFGlobalInit,
-	                 ProfileRDFLocalInit);
-	tf.named_parameters[PROFILE_FILE_TYPE] = LogicalType::VARCHAR;
-	tf.named_parameters[PROFILE_STRICT_PARSING] = LogicalType::BOOLEAN;
+	TableFunction tf(PROFILE_FUNCTION_NAME, {LogicalType::VARCHAR}, ProfileRDFFunc, ProfileRDFBind,
+	                 ProfileRDFGlobalInit, ProfileRDFLocalInit);
+	tf.GetSignature()
+	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""));
 
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);

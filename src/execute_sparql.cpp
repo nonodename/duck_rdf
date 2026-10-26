@@ -1,11 +1,26 @@
 #include "include/execute_sparql.hpp"
 #include "include/sparql_to_sql.hpp"
+#include "duckdb/common/enums/statement_type.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/identifier.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/types.hpp"
+#include "duckdb/common/types/value.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "duckdb/main/client_context.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
+#include "duckdb/parser/parsed_data/create_function_info.hpp"
 #include "duckdb/parser/parser.hpp"
+#include "duckdb/parser/sql_statement.hpp"
 #include "duckdb/parser/statement/select_statement.hpp"
+#include "duckdb/parser/tableref.hpp"
 #include "duckdb/parser/tableref/subqueryref.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
+#include <string>
+#include <utility>
 
 namespace duckdb {
 
@@ -23,7 +38,7 @@ static unique_ptr<TableRef> ExecuteSparqlBindReplace(ClientContext &context, Tab
 
 	std::string sql = TranslateSparqlToSql(&context, sparql_text, mapping_path);
 
-	Parser parser(context.GetParserOptions());
+	Parser parser(context);
 	parser.ParseQuery(sql);
 	if (parser.statements.size() != 1 || parser.statements[0]->type != StatementType::SELECT_STATEMENT) {
 		throw InternalException("execute_sparql: translated SQL did not parse back into a single SELECT statement "

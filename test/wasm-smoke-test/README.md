@@ -1,5 +1,14 @@
 # duck_rdf wasm smoke test (issue #39)
 
+> **Currently disabled in CI** (`wasm-smoke-test` job in
+> `.github/workflows/MainDistributionPipeline.yml` has `if: false`). The
+> extension now builds against the DuckDB v2 (`Duck2`/`v2.0-cyanoptera`) core,
+> but `@duckdb/duckdb-wasm` has no release built against v2 yet, so its main
+> module can't link against our v2-built `SIDE_MODULE` — you'll see a
+> `LinkError` on symbols like `FileHandle::Write` even though the extension is
+> fine. Re-enable the job and bump `package.json`'s `@duckdb/duckdb-wasm`
+> dependency once a v2-compatible release exists.
+
 Verifies that the wasm build of the `rdf` extension actually **instantiates and
 loads** in DuckDB-Wasm — the precise thing that was broken in
 [issue #39](https://github.com/nonodename/duck_rdf/issues/39).

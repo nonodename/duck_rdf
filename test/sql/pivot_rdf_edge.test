@@ -72,8 +72,8 @@ WHERE subject = 'http://ex.org/s1';
 
 # Lang-tagged value accessible by lang='en'; plain literal has lang=''
 query TT
-SELECT list_filter("http://ex.org/p_mixed", x -> x.lang = 'en')[1].object,
-       list_filter("http://ex.org/p_mixed", x -> x.lang = '')[1].object
+SELECT list_filter("http://ex.org/p_mixed", lambda x: x.lang = 'en')[1].object,
+       list_filter("http://ex.org/p_mixed", lambda x: x.lang = '')[1].object
 FROM pivot_rdf('test/rdf/pivot_edge/scenario3_mixed_lang_plain.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
@@ -96,15 +96,15 @@ STRUCT("object" VARCHAR, lang VARCHAR)[]
 
 # Both en-tagged values are in the list
 query I
-SELECT array_length(list_filter("http://ex.org/p_lang", x -> x.lang = 'en'))
+SELECT array_length(list_filter("http://ex.org/p_lang", lambda x: x.lang = 'en'))
 FROM pivot_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
 WHERE subject = 'http://ex.org/s1';
 ----
 2
 
 query TT
-SELECT list_filter("http://ex.org/p_lang", x -> x.lang = 'en')[1].object,
-       list_filter("http://ex.org/p_lang", x -> x.lang = 'en')[2].object
+SELECT list_filter("http://ex.org/p_lang", lambda x: x.lang = 'en')[1].object,
+       list_filter("http://ex.org/p_lang", lambda x: x.lang = 'en')[2].object
 FROM pivot_rdf('test/rdf/pivot_edge/scenario4_duplicate_lang.nt')
 WHERE subject = 'http://ex.org/s1';
 ----

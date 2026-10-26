@@ -13,14 +13,14 @@ statement ok
 COPY (
     SELECT '<http://ex.org/s' || i || '> <http://ex.org/p' || (i % 50) || '> "object value number ' || i || '" .' AS line
     FROM generate_series(1, 3000000) t(i)
-) TO '__TEST_DIR__/big.nt' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
+) TO '{TEST_DIR}/big.nt' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
 
 statement ok
 COPY (
     SELECT '<http://ex.org/s' || i || '> <http://ex.org/p' || (i % 50) || '> "object value number ' || i ||
            '" <http://ex.org/g' || (i % 10) || '> .' AS line
     FROM generate_series(1, 2000000) t(i)
-) TO '__TEST_DIR__/big.nq' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
+) TO '{TEST_DIR}/big.nq' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
 
 # ── Core correctness-equivalence: parallel_scan=true (new byte-range path)
 # must produce identical results to parallel_scan=false (classic whole-file
@@ -29,29 +29,29 @@ COPY (
 foreach threads 1 4 8
 
 statement ok
-PRAGMA threads=${threads};
+PRAGMA threads={threads};
 
 query IIII
 SELECT count(*), count(distinct subject), min(subject), max(subject)
-FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=true);
+FROM read_rdf('{TEST_DIR}/big.nt', parallel_scan=true);
 ----
 3000000	3000000	http://ex.org/s1	http://ex.org/s999999
 
 query IIII
 SELECT count(*), count(distinct subject), min(subject), max(subject)
-FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=false);
+FROM read_rdf('{TEST_DIR}/big.nt', parallel_scan=false);
 ----
 3000000	3000000	http://ex.org/s1	http://ex.org/s999999
 
 query IIII
 SELECT count(*), count(distinct graph), count(distinct subject), min(subject)
-FROM read_rdf('__TEST_DIR__/big.nq', parallel_scan=true);
+FROM read_rdf('{TEST_DIR}/big.nq', parallel_scan=true);
 ----
 2000000	10	2000000	http://ex.org/s1
 
 query IIII
 SELECT count(*), count(distinct graph), count(distinct subject), min(subject)
-FROM read_rdf('__TEST_DIR__/big.nq', parallel_scan=false);
+FROM read_rdf('{TEST_DIR}/big.nq', parallel_scan=false);
 ----
 2000000	10	2000000	http://ex.org/s1
 
@@ -64,13 +64,13 @@ PRAGMA threads=4;
 # SerdRangeBuffer per range, each with its own filter/column-id state, so
 # pushdown must behave identically to the classic path.
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=true)
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/big.nt', parallel_scan=true)
 WHERE predicate = 'http://ex.org/p19';
 ----
 60000
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=false)
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/big.nt', parallel_scan=false)
 WHERE predicate = 'http://ex.org/p19';
 ----
 60000
@@ -78,14 +78,14 @@ WHERE predicate = 'http://ex.org/p19';
 # ── Filename column: every range-worker over the same file must tag its rows
 # with that same file's path - no per-file uniqueness assumption should break.
 query I
-SELECT COUNT(DISTINCT filename) FROM read_rdf('__TEST_DIR__/big.nt', filename=true, parallel_scan=true);
+SELECT COUNT(DISTINCT filename) FROM read_rdf('{TEST_DIR}/big.nt', filename=true, parallel_scan=true);
 ----
 1
 
 # ── Mixed glob: one large ranged .nt alongside a small classic-path .ttl in a
 # single scan - the two code paths must coexist correctly.
 query I
-SELECT COUNT(*) FROM read_rdf(['__TEST_DIR__/big.nt', 'test/rdf/tests.ttl']);
+SELECT COUNT(*) FROM read_rdf(['{TEST_DIR}/big.nt', 'test/rdf/tests.ttl']);
 ----
 3000009
 
@@ -101,20 +101,20 @@ INSERT INTO tiny_src VALUES
     ('<http://ex.org/s3> <http://ex.org/p3> "v3" .');
 
 statement ok
-COPY tiny_src TO '__TEST_DIR__/small.nt' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
+COPY tiny_src TO '{TEST_DIR}/small.nt' (FORMAT CSV, HEADER false, QUOTE E'\x01', DELIMITER E'\x02');
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/small.nt', parallel_scan=true);
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/small.nt', parallel_scan=true);
 ----
 3
 
 # ── Empty file: must behave as today (0 rows, no crash), regardless of
 # parallel_scan.
 statement ok
-COPY (SELECT NULL::VARCHAR AS line WHERE false) TO '__TEST_DIR__/empty.nt' (FORMAT CSV, HEADER false);
+COPY (SELECT NULL::VARCHAR AS line WHERE false) TO '{TEST_DIR}/empty.nt' (FORMAT CSV, HEADER false);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/empty.nt', parallel_scan=true);
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/empty.nt', parallel_scan=true);
 ----
 0
 
@@ -122,6 +122,6 @@ SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/empty.nt', parallel_scan=true);
 # even for an otherwise-eligible large file - this is the escape hatch used
 # throughout this test to force the classic path for direct comparison.
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/big.nt', parallel_scan=false);
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/big.nt', parallel_scan=false);
 ----
 3000000

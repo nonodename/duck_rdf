@@ -1,15 +1,40 @@
 #include "include/sparql_reader.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/identifier.hpp"
+#include "duckdb/common/optional_ptr.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/type_util.hpp"
+#include "duckdb/common/typedefs.hpp"
+#include "duckdb/common/types.hpp"
+#include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/string_type.hpp"
+#include "duckdb/common/types/validity_mask.hpp"
+#include "duckdb/common/types/value.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/common/vector/flat_vector.hpp"
+#include "duckdb/common/vector/string_vector.hpp"
+#include "duckdb/common/vector_size.hpp"
+#include "duckdb/function/function.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
+#include "duckdb/parser/parsed_data/create_function_info.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 
 #include <curl/curl.h>
+#include <algorithm>
 #include <atomic>
+#include <stddef.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace duckdb {
+
+class ClientContext;
 
 // Maximum SPARQL response body accepted (256 MiB). Prevents OOM from
 // unbounded responses by malicious or misbehaving endpoints.
@@ -235,7 +260,7 @@ struct SPARQLGlobalState : public GlobalTableFunctionState {
 // ============================================================
 
 static unique_ptr<FunctionData> SPARQLBind(ClientContext &context, TableFunctionBindInput &input,
-                                           vector<LogicalType> &return_types, vector<string> &names) {
+                                           vector<LogicalType> &return_types, vector<Identifier> &names) {
 	std::string endpoint = input.inputs[0].GetValue<string>();
 	std::string query = input.inputs[1].GetValue<string>();
 
@@ -249,9 +274,7 @@ static unique_ptr<FunctionData> SPARQLBind(ClientContext &context, TableFunction
 	ValidateSPARQLEndpoint(endpoint);
 
 	std::string body = FetchSPARQLCSV(endpoint, query);
-	auto parsed = ParseSPARQLCSV(body);
-	auto &header = parsed.first;
-	auto &rows = parsed.second;
+	auto [header, rows] = ParseSPARQLCSV(body);
 
 	if (header.empty()) {
 		throw IOException("read_sparql: SPARQL endpoint returned an empty response (no CSV header)");
@@ -262,7 +285,7 @@ static unique_ptr<FunctionData> SPARQLBind(ClientContext &context, TableFunction
 	result->rows = std::move(rows);
 
 	for (auto &col_name : header) {
-		names.push_back(col_name);
+		names.push_back(Identifier(col_name));
 	}
 	return_types.assign(header.size(), LogicalType::VARCHAR);
 
@@ -292,8 +315,8 @@ static void SPARQLFunc(ClientContext &context, TableFunctionInput &input, DataCh
 	// per-cell boxing through Value().
 	for (idx_t col = 0; col < num_cols; col++) {
 		auto &vec = output.data[col];
-		auto *flat = FlatVector::GetData<string_t>(vec);
-		auto &validity = FlatVector::Validity(vec);
+		auto *flat = FlatVector::GetDataMutable<string_t>(vec);
+		auto &validity = FlatVector::ValidityMutable(vec);
 		for (idx_t row = 0; row < count; row++) {
 			const auto &data_row = bind_data.rows[start + row];
 			if (col < data_row.size() && !data_row[col].empty()) {
@@ -304,7 +327,7 @@ static void SPARQLFunc(ClientContext &context, TableFunctionInput &input, DataCh
 		}
 	}
 
-	output.SetCardinality(count);
+	output.SetChildCardinality(count);
 }
 
 // ============================================================

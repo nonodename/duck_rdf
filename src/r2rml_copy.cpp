@@ -4,7 +4,9 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/function/copy_function.hpp"
 #include "duckdb/parser/parsed_data/copy_info.hpp"
+#include "duckdb/main/client_context.hpp"
 #include "duckdb/main/connection.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
 #include "duckdb/common/file_system.hpp"
 #include <cmath>
 #include <serd/serd.h>
@@ -335,8 +337,8 @@ public:
 	// Materialise into a MapSQLRow when a stable copy is needed.
 	std::unique_ptr<r2rml::SQLRow> clone() const override {
 		std::map<std::string, std::unique_ptr<r2rml::SQLValue>> cols;
-		for (const auto &kv : col_index_) {
-			cols[kv.first] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk_.GetValue(kv.second, row_)));
+		for (const auto &[name, idx] : col_index_) {
+			cols[name] = std::unique_ptr<r2rml::SQLValue>(new DataChunkSQLValue(chunk_.GetValue(idx, row_)));
 		}
 		return std::unique_ptr<r2rml::SQLRow>(new r2rml::MapSQLRow(std::move(cols)));
 	}
@@ -387,7 +389,7 @@ public:
 			// Build column-name → index map once (schema is fixed across chunks).
 			if (col_index_.empty()) {
 				for (idx_t c = 0; c < current_chunk_->ColumnCount(); c++) {
-					std::string name = result_->ColumnName(c);
+					std::string name = result_->ColumnName(c).GetIdentifierName();
 					if (ignore_case_) {
 						auto lowered = name;
 						std::transform(lowered.begin(), lowered.end(), lowered.begin(), ::tolower);
@@ -567,7 +569,7 @@ static void R2RMLCopyOptions(ClientContext &, CopyOptionsInput &input) {
 }
 
 static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunctionBindInput &input,
-                                                const vector<string> &names, const vector<LogicalType> &sql_types) {
+                                                const vector<Identifier> &names, const vector<LogicalType> &sql_types) {
 	auto &options = input.info.options;
 
 	// mapping option is required
@@ -582,14 +584,12 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	}
 
 	bool ignore_nfe = true;
-	auto nfe_it = options.find(IGNORE_NON_FATAL_ERRORS);
-	if (nfe_it != options.end() && !nfe_it->second.empty()) {
+	if (auto nfe_it = options.find(IGNORE_NON_FATAL_ERRORS); nfe_it != options.end() && !nfe_it->second.empty()) {
 		ignore_nfe = nfe_it->second[0].GetValue<bool>();
 	}
 
 	bool ignore_case = false;
-	auto ic_it = options.find(IGNORE_CASE_OPTION);
-	if (ic_it != options.end() && !ic_it->second.empty()) {
+	if (auto ic_it = options.find(IGNORE_CASE_OPTION); ic_it != options.end() && !ic_it->second.empty()) {
 		ignore_case = ic_it->second[0].GetValue<bool>();
 	}
 
@@ -607,8 +607,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	}
 
 	SerdSyntax syntax = DetectRdfFormatFromPath(input.info.file_path);
-	auto fmt_it = options.find(RDF_FORMAT_OPTION);
-	if (fmt_it != options.end() && !fmt_it->second.empty()) {
+	if (auto fmt_it = options.find(RDF_FORMAT_OPTION); fmt_it != options.end() && !fmt_it->second.empty()) {
 		syntax = ParseRdfFormat(fmt_it->second[0].GetValue<std::string>());
 	}
 
@@ -622,7 +621,7 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	result->ignore_case = ignore_case;
 
 	for (idx_t i = 0; i < names.size(); i++) {
-		std::string col_name = names[i];
+		std::string col_name = names[i].GetIdentifierName();
 		if (ignore_case) {
 			std::transform(col_name.begin(), col_name.end(), col_name.begin(), ::tolower);
 		}
@@ -751,6 +750,7 @@ static CopyFunctionExecutionMode R2RMLCopyExecutionMode(bool, bool) {
 void RegisterR2RMLCopy(ExtensionLoader &loader) {
 	ScalarFunction can_call_inside_out_sf("can_call_inside_out", {LogicalType::VARCHAR}, LogicalType::BOOLEAN,
 	                                      CanCallInsideOut);
+	can_call_inside_out_sf.SetFallible();
 	CreateScalarFunctionInfo can_call_info(can_call_inside_out_sf);
 	FunctionDescription can_call_desc;
 	can_call_desc.description = "Return true if the given R2RML or YARRRML mapping file(s) can be executed in "

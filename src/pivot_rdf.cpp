@@ -3,8 +3,8 @@
 #include "include/I_triples_buffer.hpp"
 #include "include/rdf_multi_file.hpp"
 #include "include/rdf_triples_factory.hpp"
+#include "include/rdf_extension.hpp"
 
-#include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -145,7 +145,7 @@ static PivotColumn BuildPivotColumn(const std::string &predicate, const Predicat
 		elem = distinct_types[0];
 	} else {
 		for (size_t i = 0; i < distinct_types.size(); i++)
-			union_members.push_back(std::make_pair(distinct_names[i], distinct_types[i]));
+			union_members.push_back(std::make_pair(Identifier(distinct_names[i]), distinct_types[i]));
 		elem = LogicalType::UNION(union_members);
 	}
 
@@ -286,7 +286,7 @@ struct PivotRDFLocalState : public LocalTableFunctionState {
 // ============================================================
 
 static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFunctionBindInput &input,
-                                             vector<LogicalType> &return_types, vector<string> &names) {
+                                             vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<PivotRDFBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
@@ -294,17 +294,16 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
-	auto ft_it = input.named_parameters.find("file_type");
-	if (ft_it != input.named_parameters.end())
-		result->file_type = ITriplesBuffer::ParseFileTypeString(ft_it->second.GetValue<string>());
+	auto file_type_param = input.named_parameters.find(FILE_TYPE);
+	auto file_type_str = file_type_param->second.GetValue<string>();
+	result->file_type =
+	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
-	auto sp_it = input.named_parameters.find("strict_parsing");
-	if (sp_it != input.named_parameters.end())
-		result->strict_parsing = sp_it->second.GetValue<bool>();
+	auto sp_it = input.named_parameters.find(STRICT_PARSING);
+	result->strict_parsing = sp_it->second.GetValue<bool>();
 
-	auto pe_it = input.named_parameters.find("prefix_expansion");
-	if (pe_it != input.named_parameters.end())
-		result->expand_prefixes = pe_it->second.GetValue<bool>();
+	auto pe_it = input.named_parameters.find(PREFIX_EXPANSION);
+	result->expand_prefixes = pe_it->second.GetValue<bool>();
 
 	// Profile
 	RDFProfileAccumulator accumulator;
@@ -341,7 +340,7 @@ static unique_ptr<FunctionData> PivotRDFBind(ClientContext &context, TableFuncti
 	names.push_back("subject");
 	return_types.push_back(LogicalType::VARCHAR);
 	for (const auto &col : result->columns) {
-		names.push_back(col.predicate);
+		names.push_back(Identifier(col.predicate));
 		return_types.push_back(col.col_type);
 	}
 
@@ -378,10 +377,10 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 	case PivotColKind::LANG_STRUCT: {
 		if (accum.lang_values.empty())
 			return Value(col.col_type); // typed NULL
-		const auto &lv = accum.lang_values[0];
+		const auto &[object_val, lang_val] = accum.lang_values[0];
 		child_list_t<Value> fields;
-		fields.push_back({"object", Value(lv.first)});
-		fields.push_back({"lang", Value(lv.second)});
+		fields.push_back({"object", Value(object_val)});
+		fields.push_back({"lang", Value(lang_val)});
 		return Value::STRUCT(fields);
 	}
 	case PivotColKind::LANG_STRUCT_LIST: {
@@ -389,10 +388,10 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 			return Value(col.col_type); // typed NULL
 		duckdb::vector<Value> list_vals;
 		list_vals.reserve(accum.lang_values.size());
-		for (const auto &lv : accum.lang_values) {
+		for (const auto &[object_val, lang_val] : accum.lang_values) {
 			child_list_t<Value> fields;
-			fields.push_back({"object", Value(lv.first)});
-			fields.push_back({"lang", Value(lv.second)});
+			fields.push_back({"object", Value(object_val)});
+			fields.push_back({"lang", Value(lang_val)});
 			list_vals.emplace_back(Value::STRUCT(fields));
 		}
 		return Value::LIST(col.elem_type, list_vals);
@@ -428,10 +427,11 @@ static Value BuildColValue(const PivotColAccum &accum, const PivotColInfo &col, 
 
 static void EmitRow(const PivotRDFLocalState::SubjectEntry &entry, const PivotRDFBindData &bind_data, DataChunk &output,
                     idx_t out_idx) {
-	output.SetValue(0, out_idx, Value(entry.graph));
-	output.SetValue(1, out_idx, Value(entry.subject));
+	output.data[0].SetValue(out_idx, Value(entry.graph));
+	output.data[1].SetValue(out_idx, Value(entry.subject));
 	for (idx_t i = 0; i < bind_data.columns.size(); i++) {
-		output.SetValue(2 + i, out_idx, BuildColValue(entry.cols[i], bind_data.columns[i], bind_data.strict_parsing));
+		output.data[2 + i].SetValue(out_idx,
+		                            BuildColValue(entry.cols[i], bind_data.columns[i], bind_data.strict_parsing));
 	}
 }
 
@@ -530,8 +530,7 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 				entry_idx = map_it->second;
 			}
 			auto predicate = ReadStr(2);
-			auto it = bind_data.pred_to_col.find(predicate);
-			if (it != bind_data.pred_to_col.end()) {
+			if (auto it = bind_data.pred_to_col.find(predicate); it != bind_data.pred_to_col.end()) {
 				auto object = ReadStr(3);
 				auto datatype = ReadStr(4);
 				auto lang = ReadStr(5);
@@ -588,7 +587,7 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 		}
 	}
 
-	output.SetCardinality(out_idx);
+	output.SetChildCardinality(out_idx);
 }
 
 // ============================================================
@@ -596,11 +595,12 @@ static void PivotRDFFunc(ClientContext &context, TableFunctionInput &input, Data
 // ============================================================
 
 void RegisterPivotRDF(ExtensionLoader &loader) {
-	TableFunction tf("pivot_rdf", {LogicalType::VARCHAR}, PivotRDFFunc, PivotRDFBind, PivotRDFGlobalInit,
+	TableFunction tf(PIVOT_FUNCTION_NAME, {LogicalType::VARCHAR}, PivotRDFFunc, PivotRDFBind, PivotRDFGlobalInit,
 	                 PivotRDFLocalInit);
-	tf.named_parameters["file_type"] = LogicalType::VARCHAR;
-	tf.named_parameters["strict_parsing"] = LogicalType::BOOLEAN;
-	tf.named_parameters["prefix_expansion"] = LogicalType::BOOLEAN;
+	tf.GetSignature()
+	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
+	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(PREFIX_EXPANSION, LogicalType::BOOLEAN, Value::BOOLEAN(false));
 
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);

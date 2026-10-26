@@ -2,12 +2,22 @@
 #ifndef DUCK_RDF_NO_XML
 #include "include/rdf_xml_parser.hpp"
 #endif
+#include "duckdb/common/enums/file_compression_type.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/file_open_flags.hpp"
+#include "duckdb/common/file_system.hpp"
+#include "duckdb/common/typedefs.hpp"
+#include "duckdb/common/unique_ptr.hpp"
 
 #include <rdf/Term.h>
 #include <serd/serd.h>
+#include <algorithm>
+#include <cstring>
+#include <exception>
+#include <memory>
 #include <stdexcept>
 #include <unordered_map>
+#include <vector>
 
 std::string XsdToDuckDBType(const std::string &datatype, const std::string &lang, ObjectKind kind) {
 	if (kind == ObjectKind::IRI)
@@ -58,8 +68,7 @@ std::string XsdToDuckDBType(const std::string &datatype, const std::string &lang
 	    {"base64Binary", "BLOB"},
 	};
 
-	auto it = XSD_MAP.find(local);
-	if (it != XSD_MAP.end())
+	if (auto it = XSD_MAP.find(local); it != XSD_MAP.end())
 		return it->second;
 
 	// Unknown datatype: return the full URI so callers can see what it is

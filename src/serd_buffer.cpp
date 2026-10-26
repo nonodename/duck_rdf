@@ -1,10 +1,27 @@
 
 #include "include/serd_buffer.hpp"
 #include "include/table_filter_eval.hpp"
+#include "duckdb/common/enums/file_compression_type.hpp"
 #include "duckdb/common/exception.hpp"
-#include <iostream>
+#include "duckdb/common/file_open_flags.hpp"
+#include "duckdb/common/file_system.hpp"
+#include "duckdb/common/type_util.hpp"
+#include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/string_type.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/common/vector/flat_vector.hpp"
+#include "duckdb/common/vector/string_vector.hpp"
+#include "duckdb/common/vector_size.hpp"
+#include <stddef.h>
+#include <algorithm>
+#include <atomic>
+#include <deque>
+#include <exception>
 #include <stdexcept>
 #include <memory>
+#include <utility>
 
 static const size_t READ_BUFFER_SIZE = 1024 * 1024;
 
@@ -121,11 +138,11 @@ void SerdBuffer::WriteToVector(duckdb::Vector &vec, idx_t row_idx, const SerdNod
 	}
 	if (expanded_node && expanded_node->buf && expanded_node->n_bytes > 0) {
 		auto str = duckdb::StringVector::AddString(vec, (const char *)expanded_node->buf, expanded_node->n_bytes);
-		duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
+		duckdb::FlatVector::GetDataMutable<duckdb::string_t>(vec)[row_idx] = str;
 		return;
 	}
 	auto str = duckdb::StringVector::AddString(vec, (const char *)node->buf, node->n_bytes);
-	duckdb::FlatVector::GetData<duckdb::string_t>(vec)[row_idx] = str;
+	duckdb::FlatVector::GetDataMutable<duckdb::string_t>(vec)[row_idx] = str;
 }
 
 void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
@@ -143,7 +160,7 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		if (s.empty()) {
 			duckdb::FlatVector::SetNull(vec, _current_count, true);
 		} else {
-			duckdb::FlatVector::GetData<duckdb::string_t>(vec)[_current_count] =
+			duckdb::FlatVector::GetDataMutable<duckdb::string_t>(vec)[_current_count] =
 			    duckdb::StringVector::AddString(vec, s);
 		}
 	};
@@ -218,7 +235,7 @@ void SerdBuffer::PopulateChunk(duckdb::DataChunk &output) {
 		}
 	}
 
-	output.SetCardinality(_current_count);
+	output.SetChildCardinality(_current_count);
 	_current_chunk = nullptr; // Clear pointer for safety
 }
 
@@ -250,10 +267,7 @@ SerdStatus SerdBuffer::StatementCallback(void *user_data, SerdStatementFlags, co
 
 	// Filter pushdown: reject non-matching rows before any string is copied.
 	auto passesRaw = [&](int col, const SerdNode *node, const SerdNode *expanded_node = nullptr) {
-		auto *filter = self->_column_filters[col].get();
-		if (!filter) {
-			return true;
-		}
+		auto &filter = self->_column_filters[col];
 		if (!node || !node->buf) {
 			return PassesFilter(filter, nullptr, 0, true);
 		}

@@ -18,7 +18,6 @@ jobs:
   duckdb-next-build:
     name: Build extension binaries
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@main
-    if: false   # extension-template is currently not compatible with main
     with:
       duckdb_version: main
       ci_tools_version: main
@@ -26,23 +25,28 @@ jobs:
 
   duckdb-stable-build:
     name: Build extension binaries
-    uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@v1.5.6
+    uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@v2.0-cyanoptera
     with:
-      duckdb_version: v1.5.6
-      ci_tools_version: v1.5.6
+      duckdb_version: v2.0-cyanoptera
+      ci_tools_version: v2.0-cyanoptera
       extension_name: rdf
 
   format-check:
     name: Format Check
-    uses: duckdb/extension-ci-tools/.github/workflows/_extension_code_quality.yml@v1.5.6
+    uses: duckdb/extension-ci-tools/.github/workflows/_extension_code_quality.yml@main
     with:
-      duckdb_version: v1.5.6
-      ci_tools_version: v1.5.6
+      duckdb_version: v2.0-cyanoptera
+      ci_tools_version: v2.0-cyanoptera
       extension_name: rdf
       format_checks: 'format'
   
   wasm-smoke-test:
     name: WASM Smoke Test
+    # Disabled: @duckdb/duckdb-wasm has no release built against the DuckDB v2
+    # core yet, so its main module can't link against our v2-built SIDE_MODULE
+    # (ABI mismatch, e.g. FileHandle::Write). Re-enable once duckdb-wasm ships
+    # a v2-compatible build and test/wasm-smoke-test/package.json is bumped to it.
+    if: false
     needs: duckdb-stable-build
     runs-on: ubuntu-24.04
     steps:
@@ -52,13 +56,13 @@ jobs:
       - uses: actions/download-artifact@v8
         name: Download WASM extension artifact
         with:
-          name: rdf-v1.5.6-extension-wasm_eh
+          name: rdf-v2.0-cyanoptera-extension-wasm_eh
           path: wasm-build/
 
       - uses: actions/setup-node@v7
         name: Set up Node.js
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install smoke-test dependencies
         run: npm ci
@@ -92,7 +96,7 @@ jobs:
         name: Checkout Extension CI tools
         with:
           path: 'extension-ci-tools'
-          ref: v1.5.6
+          ref: main
           repository: duckdb/extension-ci-tools
 
       - name: Install

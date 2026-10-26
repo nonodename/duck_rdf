@@ -1,10 +1,16 @@
 #pragma once
 
-#include "duckdb.hpp"
 #include "duckdb/common/open_file_info.hpp"
-#include "duckdb/function/table_function.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/function/function_set.hpp"
+#include <string>
 
 namespace duckdb {
+
+class ClientContext;
+class TableFunction;
+struct TableFunctionBindInput;
 
 // Resolves the positional file-path argument (a VARCHAR glob pattern or a
 // LIST[VARCHAR] of paths/globs) into a concrete, expanded list of files.

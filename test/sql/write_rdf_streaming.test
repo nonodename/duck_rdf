@@ -18,39 +18,39 @@ CREATE TABLE large_table AS
 # the mapping's rr:logicalTable.  Each row produces 3 triples (rdf:type + id + val).
 
 statement ok
-COPY (SELECT 1) TO '__TEST_DIR__/large_out.nt'
+COPY (SELECT 1) TO '{TEST_DIR}/large_out.nt'
 (FORMAT r2rml, mapping 'test/r2rml/streaming_map.ttl', ignore_case true);
 
 # 3000 rows x 3 triples = 9000 total
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/large_out.nt');
 ----
 9000
 
 # First row subject
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out.nt')
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/large_out.nt')
 WHERE subject = 'http://example.com/row/1';
 ----
 3
 
 # Row at first chunk boundary (row 2049, second chunk)
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out.nt')
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/large_out.nt')
 WHERE subject = 'http://example.com/row/2049';
 ----
 3
 
 # Last row
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out.nt')
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/large_out.nt')
 WHERE subject = 'http://example.com/row/3000';
 ----
 3
 
 # Spot-check a literal value mid-table
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/large_out.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/large_out.nt')
 WHERE subject = 'http://example.com/row/42'
   AND predicate = 'http://example.com/streaming#val';
 ----
@@ -72,11 +72,11 @@ CREATE TABLE large_table_2 AS
     FROM generate_series(1, 3000) t(i);
 
 statement ok
-COPY (SELECT 1) TO '__TEST_DIR__/large_out_2.nt'
+COPY (SELECT 1) TO '{TEST_DIR}/large_out_2.nt'
 (FORMAT r2rml, mapping 'test/r2rml/streaming_map.ttl', ignore_case true);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/large_out_2.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/large_out_2.nt');
 ----
 9000
 

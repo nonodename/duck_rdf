@@ -2,10 +2,16 @@
 #define XML_BUFFER_H
 
 #include "I_triples_buffer.hpp"
-#include "duckdb.hpp"
-#include "duckdb/common/file_system.hpp"
+#include "duckdb.h"
 #include "rdf_xml_parser.hpp"
+#include <stddef.h>
+#include <string>
 #include <vector>
+
+namespace duckdb {
+class FileSystem;
+class Vector;
+} // namespace duckdb
 
 class XMLBuffer : public ITriplesBuffer {
 public:

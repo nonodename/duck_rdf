@@ -1,17 +1,36 @@
 #include "include/sparql_to_sql.hpp"
 #include "include/r2rml_copy.hpp"
 #include <duckdb/parser/parsed_data/create_scalar_function_info.hpp>
+#include "duckdb/common/enums/vector_type.hpp"
 #include "duckdb/common/exception.hpp"
-#include "duckdb/main/connection.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/identifier.hpp"
+#include "duckdb/common/type_util.hpp"
+#include "duckdb/common/types.hpp"
+#include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/string_type.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/common/vector/string_vector.hpp"
+#include "duckdb/common/vector_operations/binary_executor.hpp"
+#include "duckdb/execution/expression_executor_state.hpp"
+#include "duckdb/function/scalar_function.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
+#include "duckdb/parser/parsed_data/create_function_info.hpp"
 #include <r2rml/R2RMLMapping.h>
 #include <sparql-parser/ParseError.h>
 #include <sparql-parser/Parser.h>
+#include <sparql-parser/ast/Query.h>
 #include <sparql2sql/DuckDbDialect.h>
 #include <sparql2sql/Translator.h>
-#include <sparql2sql/TranslationError.h>
 #include <sparql2sql/TypeCatalog.h>
 #include <sql2rdf/TypeCatalogLoader.h>
+#include <exception>
 #include <memory>
+#include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace duckdb {
 
@@ -109,6 +128,7 @@ inline void SparqlToSql(DataChunk &args, ExpressionState &state, Vector &result)
 void RegisterSparqlToSql(ExtensionLoader &loader) {
 	ScalarFunction sparql_to_sql_sf("sparql_to_sql", {LogicalType::VARCHAR, LogicalType::VARCHAR}, LogicalType::VARCHAR,
 	                                SparqlToSql);
+	sparql_to_sql_sf.SetFallible();
 	CreateScalarFunctionInfo info(sparql_to_sql_sf);
 	FunctionDescription desc;
 	desc.description =

@@ -2,19 +2,46 @@
 #include "include/sparql_to_sql.hpp"
 #include "include/r2rml_copy.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
+#include "duckdb/common/identifier.hpp"
+#include "duckdb/common/optional_ptr.hpp"
+#include "duckdb/common/shared_ptr_ipp.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/typedefs.hpp"
+#include "duckdb/common/types.hpp"
+#include "duckdb/common/types/data_chunk.hpp"
+#include "duckdb/common/types/value.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include "duckdb/common/vector.hpp"
+#include "duckdb/function/function.hpp"
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/main/config.hpp"
+#include "duckdb/main/extension/extension_loader.hpp"
+#include "duckdb/main/setting_info.hpp"
+#include "duckdb/parser/parsed_data/create_function_info.hpp"
 #include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/parser_extension.hpp"
+#include "duckdb/parser/sql_statement.hpp"
 #include <duckdb/parser/parsed_data/create_table_function_info.hpp>
 #include <r2rml/R2RMLMapping.h>
 #include <sparql-parser/ParseError.h>
 #include <sparql-parser/Parser.h>
+#include <sparql-parser/ast/Query.h>
 
+#include <exception>
+#include <initializer_list>
+#include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace duckdb {
+
+class ClientContext;
+struct ParserOptions;
 
 // Shared, database-wide (not per-connection) toggle state. Neither
 // parse_function nor parser_override receive a ClientContext, so this can't
@@ -115,17 +142,17 @@ static unique_ptr<GlobalTableFunctionState> SparqlParserToggleInit(ClientContext
 static void SparqlParserToggleFunc(ClientContext &, TableFunctionInput &input, DataChunk &output) {
 	auto &gstate = (SparqlParserToggleState &)*input.global_state;
 	if (gstate.emitted) {
-		output.SetCardinality(0);
+		output.SetChildCardinality(0);
 		return;
 	}
 	gstate.emitted = true;
 	auto &bind_data = (SparqlParserToggleData &)*input.bind_data;
-	output.SetValue(0, 0, Value::BOOLEAN(bind_data.enabled_after));
-	output.SetCardinality(1);
+	output.data[0].SetValue(0, Value::BOOLEAN(bind_data.enabled_after));
+	output.SetChildCardinality(1);
 }
 
 static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, TableFunctionBindInput &input,
-                                                       vector<LogicalType> &return_types, vector<string> &names) {
+                                                       vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto mapping_path = input.inputs[0].GetValue<string>();
 
 	if (ResolveMappingFiles(mapping_path).empty()) {
@@ -176,7 +203,7 @@ static unique_ptr<FunctionData> EnableSparqlParserBind(ClientContext &context, T
 }
 
 static unique_ptr<FunctionData> DisableSparqlParserBind(ClientContext &context, TableFunctionBindInput &input,
-                                                        vector<LogicalType> &return_types, vector<string> &names) {
+                                                        vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto &state = *static_cast<SparqlParserState *>(input.info.get());
 	Value restore_value("DEFAULT");
 	auto wasEnabled = false;

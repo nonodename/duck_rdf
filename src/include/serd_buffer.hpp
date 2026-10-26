@@ -2,12 +2,17 @@
 #define SERD_BUFFER_H
 
 #include <string>
-#include "duckdb.hpp"
-#include "duckdb/common/file_system.hpp"
+#include "duckdb.h"
 #include <serd/serd.h>
 #include "I_triples_buffer.hpp"
 #include <memory>
+#include <stdint.h>
 using namespace std;
+
+namespace duckdb {
+class FileSystem;
+class Vector;
+} // namespace duckdb
 
 /*
     Buffer that reads RDF data from a file using Serd and stores it in memory

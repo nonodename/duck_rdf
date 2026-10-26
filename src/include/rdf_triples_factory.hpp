@@ -1,10 +1,14 @@
 #pragma once
 
-#include "duckdb.hpp"
-#include "duckdb/common/file_system.hpp"
 #include "I_triples_buffer.hpp"
+#include "duckdb/common/string.hpp"
+#include "duckdb/common/typedefs.hpp"
+#include "duckdb/common/unique_ptr.hpp"
+#include <string>
 
 namespace duckdb {
+
+class FileSystem;
 
 // Opens a single RDF file and returns the appropriate ITriplesBuffer parser for
 // its file type (auto-detected from the extension when ft == UNKNOWN). Shared by

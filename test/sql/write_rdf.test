@@ -21,18 +21,18 @@ CREATE TABLE emp_quoted AS SELECT 7369 AS "EMPNO", 'SMITH' AS "ENAME", 10 AS "DE
 
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/io_out.nt'
+TO '{TEST_DIR}/io_out.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
 
 # Read back the generated file and count triples (3 expected: rdf:type + name + department)
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/io_out.nt');
 ----
 3
 
 # Verify the literal triple
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_out.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_out.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----
@@ -40,7 +40,7 @@ SMITH
 
 # Verify the template-based IRI triple
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_out.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_out.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#department';
 ----
@@ -48,7 +48,7 @@ http://data.example.com/department/10
 
 # Verify the rdf:type triple
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_out.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_out.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
 ----
@@ -56,7 +56,7 @@ http://example.com/ns#Employee
 
 # All three triples share the same subject
 query T
-SELECT DISTINCT subject FROM read_rdf('__TEST_DIR__/io_out.nt');
+SELECT DISTINCT subject FROM read_rdf('{TEST_DIR}/io_out.nt');
 ----
 http://data.example.com/employee/7369
 
@@ -67,30 +67,30 @@ http://data.example.com/employee/7369
 
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/io_out_yarrrml.nt'
+TO '{TEST_DIR}/io_out_yarrrml.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.yml', ignore_case true);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out_yarrrml.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/io_out_yarrrml.nt');
 ----
 3
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_out_yarrrml.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_out_yarrrml.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----
 SMITH
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_out_yarrrml.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_out_yarrrml.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#department';
 ----
 http://data.example.com/department/10
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_out_yarrrml.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_out_yarrrml.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
 ----
@@ -104,17 +104,17 @@ http://example.com/ns#Employee
 # DuckDB's lowercase-folded column names regardless of ignore_case.
 
 statement ok
-COPY (SELECT 1) TO '__TEST_DIR__/full_out.nt'
+COPY (SELECT 1) TO '{TEST_DIR}/full_out.nt'
 (FORMAT r2rml, mapping 'test/r2rml/full_r2rml_lower.ttl', ignore_case true);
 
 # Same three triples expected, same subject
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_out.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/full_out.nt');
 ----
 3
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/full_out.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/full_out.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----
@@ -125,22 +125,22 @@ SMITH
 
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/io_out.ttl'
+TO '{TEST_DIR}/io_out.ttl'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'turtle', ignore_case true);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.ttl', file_type = 'ttl');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/io_out.ttl', file_type = 'ttl');
 ----
 3
 
 # NQuads format
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/io_out.nq'
+TO '{TEST_DIR}/io_out.nq'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'nquads', ignore_case true);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.nq');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/io_out.nq');
 ----
 3
 
@@ -151,7 +151,7 @@ SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_out.nq');
 # uses "a" for rdf:type and a ";" predicate-object list (not one full triple
 # per line), which plain NTriples never produces.
 query I
-SELECT count(*) > 0 FROM read_text('__TEST_DIR__/io_out.ttl') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+SELECT count(*) > 0 FROM read_text('{TEST_DIR}/io_out.ttl') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
 ----
 true
 
@@ -163,48 +163,48 @@ true
 
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/inferred.ttl'
+TO '{TEST_DIR}/inferred.ttl'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
 
 query I
-SELECT count(*) > 0 FROM read_text('__TEST_DIR__/inferred.ttl') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+SELECT count(*) > 0 FROM read_text('{TEST_DIR}/inferred.ttl') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
 ----
 true
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/inferred.ttl', file_type = 'ttl');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/inferred.ttl', file_type = 'ttl');
 ----
 3
 
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/inferred.turtle'
+TO '{TEST_DIR}/inferred.turtle'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
 
 query I
-SELECT count(*) > 0 FROM read_text('__TEST_DIR__/inferred.turtle') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+SELECT count(*) > 0 FROM read_text('{TEST_DIR}/inferred.turtle') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
 ----
 true
 
 # .nt and any other/unknown extension still default to NTriples.
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/inferred.nt'
+TO '{TEST_DIR}/inferred.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
 
 query I
-SELECT count(*) > 0 FROM read_text('__TEST_DIR__/inferred.nt') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+SELECT count(*) > 0 FROM read_text('{TEST_DIR}/inferred.nt') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
 ----
 false
 
 # an explicit rdf_format option always wins over the extension-based guess
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/inferred_override.nt'
+TO '{TEST_DIR}/inferred_override.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'turtle', ignore_case true);
 
 query I
-SELECT count(*) > 0 FROM read_text('__TEST_DIR__/inferred_override.nt') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
+SELECT count(*) > 0 FROM read_text('{TEST_DIR}/inferred_override.nt') WHERE content LIKE '%;%' AND regexp_matches(content, '(^|[[:space:]])a[[:space:]]');
 ----
 true
 
@@ -212,26 +212,26 @@ true
 
 # mapping option is required
 statement error
-COPY (SELECT 1) TO '__TEST_DIR__/x.nt' (FORMAT r2rml);
+COPY (SELECT 1) TO '{TEST_DIR}/x.nt' (FORMAT r2rml);
 ----
 r2rml format requires a 'mapping' option
 
 # mapping file not found
 statement error
-COPY (SELECT 1) TO '__TEST_DIR__/x.nt' (FORMAT r2rml, mapping 'nonexistent.ttl');
+COPY (SELECT 1) TO '{TEST_DIR}/x.nt' (FORMAT r2rml, mapping 'nonexistent.ttl');
 ----
 R2RML mapping file not found
 
 # invalid rdf_format value
 statement error
-COPY (SELECT EMPNO FROM emp) TO '__TEST_DIR__/x.nt'
+COPY (SELECT EMPNO FROM emp) TO '{TEST_DIR}/x.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', rdf_format 'jsonld');
 ----
 Unknown rdf_format
 
 # mapping that is neither valid inside-out nor fully valid R2RML
 statement error
-COPY (SELECT 1) TO '__TEST_DIR__/x.nt'
+COPY (SELECT 1) TO '{TEST_DIR}/x.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out_with_rom.ttl');
 ----
 not valid
@@ -241,11 +241,11 @@ not valid
 
 statement ok
 COPY (SELECT EMPNO, ENAME, DEPTNO FROM emp)
-TO '__TEST_DIR__/io_nfe_explicit.nt'
+TO '{TEST_DIR}/io_nfe_explicit.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_non_fatal_errors true, ignore_case true);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_nfe_explicit.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/io_nfe_explicit.nt');
 ----
 3
 
@@ -256,7 +256,7 @@ SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_nfe_explicit.nt');
 # still fails at the isValid() check because the null parentTriplesMap renders
 # the mapping invalid — so this test isolates the strict-parse path.
 statement error
-COPY (SELECT 1) TO '__TEST_DIR__/nfe_strict.nt'
+COPY (SELECT 1) TO '{TEST_DIR}/nfe_strict.nt'
 (FORMAT r2rml, mapping 'test/r2rml/valid_r2rml_unresolved_parent.ttl',
  ignore_non_fatal_errors false);
 ----
@@ -274,23 +274,23 @@ R2RML mapping parse error
 # inside-out mode: uppercase mapping refs matched via case-folding
 statement ok
 COPY (SELECT empno, ename, deptno FROM emp)
-TO '__TEST_DIR__/io_lower.nt'
+TO '{TEST_DIR}/io_lower.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case true);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_lower.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/io_lower.nt');
 ----
 3
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_lower.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_lower.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----
 SMITH
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_lower.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_lower.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#department';
 ----
@@ -298,16 +298,16 @@ http://data.example.com/department/10
 
 # full R2RML mode: mapping uses lowercase rr:tableName and column references
 statement ok
-COPY (SELECT 1) TO '__TEST_DIR__/full_lower.nt'
+COPY (SELECT 1) TO '{TEST_DIR}/full_lower.nt'
 (FORMAT r2rml, mapping 'test/r2rml/full_r2rml_lower.ttl', ignore_case true);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_lower.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/full_lower.nt');
 ----
 3
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/full_lower.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/full_lower.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----
@@ -323,23 +323,23 @@ SMITH
 # inside-out mode: quoted uppercase columns match the mapping's uppercase refs exactly
 statement ok
 COPY (SELECT "EMPNO", "ENAME", "DEPTNO" FROM emp_quoted)
-TO '__TEST_DIR__/io_exact.nt'
+TO '{TEST_DIR}/io_exact.nt'
 (FORMAT r2rml, mapping 'test/r2rml/inside_out.ttl', ignore_case false);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/io_exact.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/io_exact.nt');
 ----
 3
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_exact.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_exact.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----
 SMITH
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/io_exact.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/io_exact.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#department';
 ----
@@ -347,16 +347,16 @@ http://data.example.com/department/10
 
 # full R2RML mode: mapping references emp_quoted whose columns are uppercase
 statement ok
-COPY (SELECT 1) TO '__TEST_DIR__/full_exact.nt'
+COPY (SELECT 1) TO '{TEST_DIR}/full_exact.nt'
 (FORMAT r2rml, mapping 'test/r2rml/full_r2rml_quoted.ttl', ignore_case false);
 
 query I
-SELECT COUNT(*) FROM read_rdf('__TEST_DIR__/full_exact.nt');
+SELECT COUNT(*) FROM read_rdf('{TEST_DIR}/full_exact.nt');
 ----
 3
 
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/full_exact.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/full_exact.nt')
 WHERE subject = 'http://data.example.com/employee/7369'
   AND predicate = 'http://example.com/ns#name';
 ----
@@ -381,74 +381,74 @@ CREATE TABLE typed_data AS SELECT
 
 statement ok
 COPY (SELECT id, int_col, bool_col, dbl_col, dec_col, date_col, time_col, ts_col, bigint_col, str_col FROM typed_data)
-TO '__TEST_DIR__/typed.nt'
+TO '{TEST_DIR}/typed.nt'
 (FORMAT r2rml, mapping 'test/r2rml/typed_cols.ttl', ignore_case true);
 
 # INTEGER → xsd:int, value preserved
 query TT
-SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object, object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#intVal';
 ----
 42	http://www.w3.org/2001/XMLSchema#int
 
 # BOOLEAN → xsd:boolean, canonical form
 query TT
-SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object, object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#boolVal';
 ----
 true	http://www.w3.org/2001/XMLSchema#boolean
 
 # DOUBLE → xsd:double (just verify the datatype; exact string varies by platform)
 query T
-SELECT object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#dblVal';
 ----
 http://www.w3.org/2001/XMLSchema#double
 
 # DECIMAL → xsd:decimal
 query TT
-SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object, object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#decVal';
 ----
 42.5	http://www.w3.org/2001/XMLSchema#decimal
 
 # DATE → xsd:date in YYYY-MM-DD form
 query TT
-SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object, object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#dateVal';
 ----
 2023-01-15	http://www.w3.org/2001/XMLSchema#date
 
 # TIME → xsd:time
 query T
-SELECT object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#timeVal';
 ----
 http://www.w3.org/2001/XMLSchema#time
 
 # TIMESTAMP → xsd:dateTime with 'T' separator (not space)
 query TT
-SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object, object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#tsVal';
 ----
 2023-01-15T09:30:00	http://www.w3.org/2001/XMLSchema#dateTime
 
 # BIGINT → xsd:long
 query TT
-SELECT object, object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object, object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#bigintVal';
 ----
 9999999999999	http://www.w3.org/2001/XMLSchema#long
 
 # VARCHAR → plain string literal: no XSD datatype annotation (RDF 1.1 plain literal)
 query T
-SELECT object FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#strVal';
 ----
 hello
 
 query T
-SELECT object_datatype FROM read_rdf('__TEST_DIR__/typed.nt')
+SELECT object_datatype FROM read_rdf('{TEST_DIR}/typed.nt')
 WHERE predicate = 'http://example.com/types#strVal';
 ----
 NULL

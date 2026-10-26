@@ -1,4 +1,6 @@
 #include "include/rdf_triples_factory.hpp"
+#include "duckdb/common/exception.hpp"
+#include "duckdb/common/helper.hpp"
 #include "include/serd_buffer.hpp"
 #include "include/serd_range_buffer.hpp"
 #ifndef DUCK_RDF_NO_XML

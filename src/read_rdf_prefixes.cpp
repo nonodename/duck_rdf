@@ -1,8 +1,8 @@
 #include "include/read_rdf_prefixes.hpp"
 #include "include/I_triples_buffer.hpp"
 #include "include/rdf_multi_file.hpp"
+#include "include/rdf_extension.hpp"
 
-#include "duckdb.hpp"
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/file_system.hpp"
 #include "duckdb/function/table_function.hpp"
@@ -13,10 +13,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-
-#define PREFIXES_STRICT_PARSING "strict_parsing"
-#define PREFIXES_FILE_TYPE      "file_type"
-#define PREFIXES_FILENAME       "filename"
 
 using namespace std;
 
@@ -171,21 +167,21 @@ struct RDFPrefixesLocalState : public LocalTableFunctionState {};
 // ============================================================
 
 static unique_ptr<FunctionData> RDFPrefixesBind(ClientContext &context, TableFunctionBindInput &input,
-                                                vector<LogicalType> &return_types, vector<string> &names) {
+                                                vector<LogicalType> &return_types, vector<Identifier> &names) {
 	auto result = make_uniq<RDFPrefixesBindData>();
 	auto &fs = FileSystem::GetFileSystem(context);
 
-	auto resolved_files = ResolveRDFFiles(context, input, "read_rdf_prefixes");
+	auto resolved_files = ResolveRDFFiles(context, input, PREFIXES_FUNCTION_NAME);
 	for (auto &info : resolved_files)
 		result->file_paths.push_back(std::move(info.path));
 
-	auto ft_it = input.named_parameters.find(PREFIXES_FILE_TYPE);
-	if (ft_it != input.named_parameters.end())
-		result->file_type = ITriplesBuffer::ParseFileTypeString(ft_it->second.GetValue<string>());
+	auto file_type_param = input.named_parameters.find(FILE_TYPE);
+	auto file_type_str = file_type_param->second.GetValue<string>();
+	result->file_type =
+	    file_type_str.empty() ? ITriplesBuffer::UNKNOWN : ITriplesBuffer::ParseFileTypeString(file_type_str);
 
-	auto sp_it = input.named_parameters.find(PREFIXES_STRICT_PARSING);
-	if (sp_it != input.named_parameters.end())
-		result->strict_parsing = sp_it->second.GetValue<bool>();
+	auto sp_it = input.named_parameters.find(STRICT_PARSING);
+	result->strict_parsing = sp_it->second.GetValue<bool>();
 
 	// Validate file types at bind time so errors propagate cleanly.
 	// Auto-detect per file when file_type=UNKNOWN.
@@ -206,7 +202,7 @@ static unique_ptr<FunctionData> RDFPrefixesBind(ClientContext &context, TableFun
 		}
 	}
 
-	auto fn_it = input.named_parameters.find(PREFIXES_FILENAME);
+	auto fn_it = input.named_parameters.find(FILENAME_PARAM);
 	if (fn_it != input.named_parameters.end())
 		result->include_filenames = fn_it->second.GetValue<bool>();
 
@@ -275,19 +271,19 @@ static void RDFPrefixesFunc(ClientContext & /*context*/, TableFunctionInput &inp
 
 		// @base declarations have no prefix name — emit SQL NULL
 		if (row.prefix_is_null) {
-			output.SetValue(0, out_idx, Value());
+			output.data[0].SetValue(out_idx, Value());
 		} else {
-			output.SetValue(0, out_idx, Value(row.prefix));
+			output.data[0].SetValue(out_idx, Value(row.prefix));
 		}
-		output.SetValue(1, out_idx, Value(row.uri));
-		output.SetValue(2, out_idx, Value::BOOLEAN(row.is_base));
+		output.data[1].SetValue(out_idx, Value(row.uri));
+		output.data[2].SetValue(out_idx, Value::BOOLEAN(row.is_base));
 		if (bind_data.include_filenames)
-			output.SetValue(3, out_idx, Value(row.filename));
+			output.data[3].SetValue(out_idx, Value(row.filename));
 
 		out_idx++;
 	}
 
-	output.SetCardinality(out_idx);
+	output.SetChildCardinality(out_idx);
 }
 
 // ============================================================
@@ -295,11 +291,12 @@ static void RDFPrefixesFunc(ClientContext & /*context*/, TableFunctionInput &inp
 // ============================================================
 
 void RegisterReadRDFPrefixes(ExtensionLoader &loader) {
-	TableFunction tf("read_rdf_prefixes", {LogicalType::VARCHAR}, RDFPrefixesFunc, RDFPrefixesBind,
+	TableFunction tf(PREFIXES_FUNCTION_NAME, {LogicalType::VARCHAR}, RDFPrefixesFunc, RDFPrefixesBind,
 	                 RDFPrefixesGlobalInit, RDFPrefixesLocalInit);
-	tf.named_parameters[PREFIXES_STRICT_PARSING] = LogicalType::BOOLEAN;
-	tf.named_parameters[PREFIXES_FILE_TYPE] = LogicalType::VARCHAR;
-	tf.named_parameters[PREFIXES_FILENAME] = LogicalType::BOOLEAN;
+	tf.GetSignature()
+	    .AddKeywordOnly(STRICT_PARSING, LogicalType::BOOLEAN, Value::BOOLEAN(true))
+	    .AddKeywordOnly(FILE_TYPE, LogicalType::VARCHAR, Value(""))
+	    .AddKeywordOnly(FILENAME_PARAM, LogicalType::BOOLEAN, Value::BOOLEAN(false));
 
 	auto function_set = RegisterRDFFileListFunction(tf);
 	CreateTableFunctionInfo info(function_set);

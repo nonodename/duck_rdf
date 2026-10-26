@@ -1,10 +1,11 @@
 #pragma once
 
-#include "duckdb.hpp"
-#include "duckdb/main/extension/extension_loader.hpp"
 #include <string>
 
 namespace duckdb {
+
+class ClientContext;
+class ExtensionLoader;
 
 void RegisterSparqlToSql(ExtensionLoader &loader);
 
