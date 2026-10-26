@@ -42,6 +42,11 @@ jobs:
   
   wasm-smoke-test:
     name: WASM Smoke Test
+    # Disabled: @duckdb/duckdb-wasm has no release built against the DuckDB v2
+    # core yet, so its main module can't link against our v2-built SIDE_MODULE
+    # (ABI mismatch, e.g. FileHandle::Write). Re-enable once duckdb-wasm ships
+    # a v2-compatible build and test/wasm-smoke-test/package.json is bumped to it.
+    if: false
     needs: duckdb-stable-build
     runs-on: ubuntu-24.04
     steps:
@@ -57,7 +62,7 @@ jobs:
       - uses: actions/setup-node@v7
         name: Set up Node.js
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install smoke-test dependencies
         run: npm ci
