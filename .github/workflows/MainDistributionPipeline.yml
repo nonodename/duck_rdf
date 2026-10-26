@@ -26,7 +26,6 @@ jobs:
   duckdb-stable-build:
     name: Build extension binaries
     uses: duckdb/extension-ci-tools/.github/workflows/_extension_distribution.yml@v2.0-cyanoptera
-    if: false # Disabled per https://github.com/duckdb/community-extensions/blob/main/UPDATING.md
     with:
       duckdb_version: v2.0-cyanoptera
       ci_tools_version: v2.0-cyanoptera
