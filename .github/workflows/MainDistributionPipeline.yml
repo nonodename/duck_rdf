@@ -22,6 +22,7 @@ jobs:
       duckdb_version: main
       ci_tools_version: main
       extension_name: rdf
+      opt_in_archs: windows_arm64
 
   duckdb-stable-build:
     name: Build extension binaries
@@ -30,6 +31,7 @@ jobs:
       duckdb_version: v2.0-cyanoptera
       ci_tools_version: v2.0-cyanoptera
       extension_name: rdf
+      opt_in_archs: windows_arm64
 
   format-check:
     name: Format Check
