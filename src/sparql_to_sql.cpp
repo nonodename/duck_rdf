@@ -114,13 +114,24 @@ std::string TranslateSparqlToSql(ClientContext *context, const std::string &spar
 	return sql;
 }
 
+// DuckDB main renamed ExpressionState::GetContext() (now returns a `Context &`) to
+// GetClientContext(); v2.0 only has GetContext() returning ClientContext &. Support both.
+template <class T>
+static auto GetStateClientContext(T &state, int) -> decltype(&state.GetClientContext()) {
+	return &state.GetClientContext();
+}
+template <class T>
+static ClientContext *GetStateClientContext(T &state, long) {
+	return &state.GetContext();
+}
+
 inline void SparqlToSql(DataChunk &args, ExpressionState &state, Vector &result) {
 	auto &sparql_vector = args.data[0];
 	auto &mapping_vector = args.data[1];
 	BinaryExecutor::Execute<string_t, string_t, string_t>(
 	    sparql_vector, mapping_vector, result, args.size(), [&](string_t sparql_text, string_t mapping_path_str) {
-		    std::string sql =
-		        TranslateSparqlToSql(&state.GetContext(), sparql_text.GetString(), mapping_path_str.GetString());
+		    std::string sql = TranslateSparqlToSql(GetStateClientContext(state, 0), sparql_text.GetString(),
+		                                           mapping_path_str.GetString());
 		    return StringVector::AddString(result, sql);
 	    });
 }
