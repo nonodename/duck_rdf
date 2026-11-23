@@ -726,8 +726,7 @@ static void R2RMLCopyToSink(ExecutionContext &, CopyBindArg bind_data, GlobalFun
 	}
 }
 
-static void R2RMLCopyToCombine(ExecutionContext &, CopyBindArg, GlobalFunctionData &gstate,
-                               LocalFunctionData &lstate) {
+static void R2RMLCopyToCombine(ExecutionContext &, CopyBindArg, GlobalFunctionData &gstate, LocalFunctionData &lstate) {
 	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
 	auto &local = lstate.Cast<R2RMLWriteLocalState>();
 
