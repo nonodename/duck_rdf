@@ -8,6 +8,7 @@
 #include "duckdb/main/connection.hpp"
 #include "duckdb/main/extension/extension_loader.hpp"
 #include "duckdb/common/file_system.hpp"
+#include "duckdb/common/local_file_system.hpp"
 #include <cmath>
 #include <serd/serd.h>
 #include <r2rml/R2RMLMapping.h>
@@ -51,8 +52,9 @@ constexpr const char *const XSD_DATETIME_STAMP = "http://www.w3.org/2001/XMLSche
 namespace duckdb {
 
 std::vector<std::string> ResolveMappingFiles(const std::string &path_or_glob) {
-	auto local_fs = FileSystem::CreateLocal();
-	auto matches = local_fs->Glob(path_or_glob);
+	// Instantiate LocalFileSystem directly: FileSystem::CreateLocal() was removed upstream.
+	LocalFileSystem local_fs;
+	auto matches = local_fs.Glob(path_or_glob);
 	std::vector<std::string> paths;
 	paths.reserve(matches.size());
 	for (auto &match : matches) {
@@ -632,7 +634,17 @@ static unique_ptr<FunctionData> R2RMLCopyToBind(ClientContext &context, CopyFunc
 	return std::move(result);
 }
 
-static unique_ptr<GlobalFunctionData> R2RMLCopyToInitializeGlobal(ClientContext &context, FunctionData &bind_data,
+// DuckDB main made the COPY callbacks take `const FunctionData &`; v2.0 still takes
+// non-const. Derive the parameter type from the registered callback type so we build on both.
+template <class F>
+struct CopyBindArgOf;
+template <class R, class A, class B>
+struct CopyBindArgOf<R (*)(A, B)> {
+	using type = B;
+};
+using CopyBindArg = typename CopyBindArgOf<copy_to_initialize_local_t>::type;
+
+static unique_ptr<GlobalFunctionData> R2RMLCopyToInitializeGlobal(ClientContext &context, CopyBindArg bind_data,
                                                                   const string &file_path) {
 	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
 	auto state = make_uniq<R2RMLWriteGlobalState>();
@@ -654,7 +666,7 @@ static unique_ptr<GlobalFunctionData> R2RMLCopyToInitializeGlobal(ClientContext 
 	return std::move(state);
 }
 
-static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext &, FunctionData &bind_data) {
+static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext &, CopyBindArg bind_data) {
 	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
 	auto local = make_uniq<R2RMLWriteLocalState>();
 
@@ -685,7 +697,7 @@ static unique_ptr<LocalFunctionData> R2RMLCopyToInitializeLocal(ExecutionContext
 	return std::move(local);
 }
 
-static void R2RMLCopyToSink(ExecutionContext &, FunctionData &bind_data, GlobalFunctionData &gstate,
+static void R2RMLCopyToSink(ExecutionContext &, CopyBindArg bind_data, GlobalFunctionData &gstate,
                             LocalFunctionData &lstate, DataChunk &input) {
 	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
 	if (!bind.inside_out_mode) {
@@ -714,8 +726,7 @@ static void R2RMLCopyToSink(ExecutionContext &, FunctionData &bind_data, GlobalF
 	}
 }
 
-static void R2RMLCopyToCombine(ExecutionContext &, FunctionData &, GlobalFunctionData &gstate,
-                               LocalFunctionData &lstate) {
+static void R2RMLCopyToCombine(ExecutionContext &, CopyBindArg, GlobalFunctionData &gstate, LocalFunctionData &lstate) {
 	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
 	auto &local = lstate.Cast<R2RMLWriteLocalState>();
 
@@ -725,7 +736,7 @@ static void R2RMLCopyToCombine(ExecutionContext &, FunctionData &, GlobalFunctio
 	global.FlushBufferToFile(local.sink.buffer);
 }
 
-static void R2RMLCopyToFinalize(ClientContext &context, FunctionData &bind_data, GlobalFunctionData &gstate) {
+static void R2RMLCopyToFinalize(ClientContext &context, CopyBindArg bind_data, GlobalFunctionData &gstate) {
 	auto &bind = bind_data.Cast<R2RMLWriteBindData>();
 	auto &global = gstate.Cast<R2RMLWriteGlobalState>();
 
