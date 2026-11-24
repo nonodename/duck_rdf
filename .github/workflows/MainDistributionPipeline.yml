@@ -22,7 +22,8 @@ jobs:
       duckdb_version: main
       ci_tools_version: main
       extension_name: rdf
-      opt_in_archs: windows_arm64
+      # windows_arm64 is not opted in here: DuckDB main currently fails to build on MSVC ARM64
+      # (mode.cpp: ArenaAllocator::Make<string_t>(nullptr, 0)). Re-add once fixed upstream.
 
   duckdb-stable-build:
     name: Build extension binaries
